@@ -175,7 +175,7 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 	ssize_t r;
 
 	r = write(dc->fd, dc->tx_buf, 4);
-	dc->tx_pos = r >= 0 ? 4 - r : 0;
+	dc->tx_pos = r >= 0 ? r : 0;
 	
 	if (r == 4) {
 		r = write(dc->fd, data, len);
@@ -184,10 +184,10 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 	} else {
 		r = 0;
 	}
-	dc->tx_pos += len - r;
+	dc->tx_pos += r;
 	
-	if (dc->tx_pos < dc->tx_len) {
-		memcpy(dc->tx_buf + dc->tx_pos, data + len, len - r);
+	if (dc->tx_pos < len + 4) {
+		memcpy(dc->tx_buf + dc->tx_pos, data + r, len - r);
 		dml_poll_out_set(dc, true);
 		dc->tx_len = len + 4;
 	}

@@ -640,7 +640,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (id < DML_PACKET_DATA)
 				break;
 
-			printf("Got data\n");
+			printf("Got data (%d)\n", len);
 			struct connection_data *cdat = connection_data_by_connection(dc, id);
 			if (!cdat)
 				break;
