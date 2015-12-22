@@ -317,7 +317,7 @@ int main(int argc, char **argv)
 	name = dml_config_value("name", NULL, "example");
 	alias = dml_config_value("alias", NULL, "");
 	description = dml_config_value("description", NULL, "Test ogg stream");
-	uint32_t bps = atoi(dml_config_value("bps", NULL, "300000"));
+	bps = atoi(dml_config_value("bps", NULL, "300000"));
 
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");

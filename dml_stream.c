@@ -118,6 +118,9 @@ int dml_stream_update_description(uint8_t *data, uint16_t len)
 	if (dml_id_gen(v_id, version, bps, mime, name, alias, description))
 		goto err_id;
 	
+	if (memcmp(id, v_id, DML_ID_SIZE))
+		goto err_id_cmp;
+	
 	stream = dml_stream_by_id_alloc(id);
 	if (!stream)
 		goto err_stream;
@@ -134,6 +137,7 @@ int dml_stream_update_description(uint8_t *data, uint16_t len)
 	return 0;
 
 err_stream:
+err_id_cmp:
 err_id:
 	free(description);
 	free(alias);

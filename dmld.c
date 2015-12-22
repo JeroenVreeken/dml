@@ -663,7 +663,7 @@ int server_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct connection *con = arg;
 	
-//	printf("server close %p %p\n", dc, arg);
+	printf("server close %p %p\n", dc, arg);
 	dml_route_remove(dc);
 	connection_destroy(con);
 	return dml_connection_destroy(dc);
@@ -701,7 +701,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 	printf("client close %p %p\n", dc, arg);
 	struct dml_client *client = con->client;
 
-	dml_poll_add(dc, NULL, NULL, client_reconnect);
+	dml_poll_add(client, NULL, NULL, client_reconnect);
 	dml_poll_timeout(client, &(struct timespec){ 1, 0 });
 	
 	dml_route_remove(dc);
@@ -754,6 +754,7 @@ int main(int argc, char **argv)
 		dc = dml_client_create(server, 0, client_connect, NULL);		
 
 		if (dml_client_connect(dc)) {
+			printf("Failed to connect, try again later %p\n", dc);
 			dml_poll_add(dc, NULL, NULL, client_reconnect);
 			dml_poll_timeout(dc, &(struct timespec){ 1, 0 });
 		}
