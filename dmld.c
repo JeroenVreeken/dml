@@ -190,7 +190,7 @@ struct connection_data *connection_data_by_id(uint8_t id[DML_ID_SIZE])
 	struct connection_data *entry;
 	
 	for (entry = data_list; entry; entry = entry->next) {
-		if (memcmp(entry->id, id, DML_ID_SIZE)) {
+		if (!memcmp(entry->id, id, DML_ID_SIZE)) {
 			return entry;
 		}
 	}
@@ -562,6 +562,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			struct connection_data *cdat = connection_data_by_id(id);
 			if (!cdat) {
 				struct dml_connection *dc_r = dml_route_connection_get(id);
+				printf("No data for this id yet\n");
 				
 				if (!dc_r) {
 					dml_packet_send_disc(dc, id, DML_PACKET_DISC_UNROUTABLE);
