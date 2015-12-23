@@ -21,19 +21,21 @@
 #include "dml_packet.h"
 #include "dml.h"
 #include "dml_id.h"
+#include "dml_config.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 uint8_t ref_id[DML_ID_SIZE];
-char *mime = "audio/dml-codec2-3200";
-char *name = "vwd.pe1rxq.ampr.org";
-char *alias = "7001";
-char *description = "Test reflector, Valkenswaard, The Netherlands";
-uint32_t bps = 10000;
+char *mime = "audio/dml-codec2";
+char *name;
+char *alias;
+char *description;
+uint32_t bps = 6400;
 
 uint16_t packet_id = 0;
+struct dml_crypto_key *dk;
 
 struct connection_data {
 	uint8_t id[DML_ID_SIZE];
@@ -182,11 +184,47 @@ void client_connect(struct dml_client *client, void *arg)
 int main(int argc, char **argv)
 {
 	struct dml_client *dc;
+	char *file = "dml_reflector.conf";
+	char *ca;
+	char *certificate;
+	char *key;
+	char *server;
+
+	if (argc > 1)
+		file = argv[1];
+
+	if (dml_config_load(file)) {
+		printf("Failed to load config file %s\n", file);
+		return -1;
+	}
+	name = dml_config_value("name", NULL, "example");
+	alias = dml_config_value("alias", NULL, "0000");
+	description = dml_config_value("description", NULL, "Test reflector");
+	ca = dml_config_value("ca", NULL, ".");
+
+	server = dml_config_value("server", NULL, "localhost");
+	certificate = dml_config_value("certificate", NULL, "");
+	key = dml_config_value("key", NULL, "");
+
+	if (dml_crypto_init(NULL, ca)) {
+		fprintf(stderr, "Failed to init crypto\n");
+		return -1;
+	}
+
+	if (dml_crypto_load_cert(certificate)) {
+		printf("Could not load certificate\n");
+		return -1;
+	}
+	
+	if (!(dk = dml_crypto_private_load(key))) {
+		printf("Could not load key\n");
+		return -1;
+	}
 	
 	if (dml_id_gen(ref_id, DML_PACKET_DESCRIPTION_VERSION_0, bps, mime, name, alias, description))
 		return -1;
     	
-	dc = dml_client_create("localhost", 0, client_connect, NULL);		
+	dc = dml_client_create(server, 0, client_connect, NULL);		
 
 	if (dml_client_connect(dc)) {
 		printf("Could not connect to server\n");

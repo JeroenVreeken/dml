@@ -15,16 +15,12 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#ifndef _INCLUDE_DML_H_
-#define _INCLUDE_DML_H_
+#ifndef _INCLUDE_TRX_SOUND_H_
+#define _INCLUDE_TRX_SOUND_H_
 
-#include <stdint.h>
-#include <stdbool.h>
+int trx_sound_init(void);
+int trx_sound_in_cb_set(int (*cb)(void *arg, int16_t *samples, int nr), void *arg);
+int trx_sound_out(void *arg, int16_t *samples, int nr);
 
-#define DML_VERSION "0.1"
 
-#define DML_ID_SIZE	32
-#define DML_SIG_SIZE	((256 * 2) / 8)
-#define DML_TIME_MARGIN	60
-
-#endif /* _INCLUDE_DML_H_ */
+#endif /* _INCLUDE_TRX_SOUND_H_ */

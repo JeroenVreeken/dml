@@ -115,7 +115,7 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 //	int err = X509_STORE_CTX_get_error(ctx);
 	X509_STORE_CTX_free(ctx);
 
-//	printf("rc: %d: %d: %s\n", rc, err, get_validation_errstr(err));
+//	fprintf(stderr, "verify cert rc: %d: %d\n", rc, err);
 	if (rc != 1)
 		goto err_verify;
 	
@@ -126,7 +126,7 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	if (!name)
 		goto err_name;
 	rc = X509_check_host(cert, name, 0, 0, NULL);
-//	printf("rc: %d\n", rc);
+//	fprintf(stderr, "check host rc: %d\n", rc);
 	
 	struct dml_crypto_key *dk = dml_stream_crypto_get(ds);
 	if (!dk) {

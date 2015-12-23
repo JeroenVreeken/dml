@@ -29,6 +29,7 @@
 #include <netinet/tcp.h>
 #include <string.h>
 #include <netdb.h>
+#include <signal.h>
 
 struct dml_client {
 	int fd;
@@ -44,6 +45,8 @@ struct dml_client *dml_client_create(char *host, unsigned short port, void (*cb)
 {
 	struct dml_client *dc;
 	
+	signal(SIGPIPE, SIG_IGN);
+
 	if (!port)
 		port = DML_SERVER_PORT;
 	

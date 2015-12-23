@@ -20,11 +20,20 @@
 
 #include <time.h>
 #include <stdbool.h>
+#include <poll.h>
 
 int dml_poll_add(void *arg,
     int (*in_cb)(void *arg),
     int (*out_cb)(void *arg),
     int (*time_cb)(void *arg)
+);
+int dml_poll_add_multiple(void *arg,
+    int (*in_cb)(void *arg),
+    int (*out_cb)(void *arg),
+    int (*time_cb)(void *arg),
+    short (*revents_cb)(void *arg, struct pollfd *fds, int count),
+    int nr_fds,
+    struct pollfd **fds
 );
 int dml_poll_remove(void *arg);
 int dml_poll_fd_set(void *arg, int fd);

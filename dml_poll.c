@@ -26,12 +26,16 @@ struct dml_poll {
 	struct dml_poll *next;
 
 	int pfd_nr;
+	int pfd_size;
+	
+	bool use_revents_cb;
 
 	void *arg;
 	int (*in_cb)(void *arg);
 	int (*out_cb)(void *arg);
 	int (*time_cb)(void *arg);
 	time_t timeout;
+	short (*revents_cb)(void *arg, struct pollfd *fds, int count);
 };
 
 static struct dml_poll *dml_poll_list;
@@ -62,6 +66,7 @@ int dml_poll_add(void *arg,
 	
 		dp = calloc(1, sizeof(struct dml_poll));
 		dp->pfd_nr = pfd_nr;
+		dp->pfd_size = 1;
 		dp->arg = arg;
 
 		dp->next = dml_poll_list;
@@ -76,16 +81,64 @@ int dml_poll_add(void *arg,
 	return 0;
 }
 
+int dml_poll_add_multiple(void *arg,
+    int (*in_cb)(void *arg),
+    int (*out_cb)(void *arg),
+    int (*time_cb)(void *arg),
+    short (*revents_cb)(void *arg, struct pollfd *fds, int count),
+    int nr_fds,
+    struct pollfd **fds
+)
+{
+	struct dml_poll *dp;
+	int pfd_nr;
+
+	for (dp = dml_poll_list; dp; dp = dp->next) {
+		if (dp->arg == arg)
+			break;
+	}
+	if (!dp) {
+		int i;
+		pfds = realloc(pfds, sizeof(struct pollfd) * (nfds + nr_fds));
+		pfd_nr = nfds;
+		memset(pfds + pfd_nr, 0, sizeof(struct pollfd) * nr_fds);
+		for (i = 0; i < nr_fds; i++)
+			pfds[pfd_nr + i].fd = -1;
+		*fds = pfds + pfd_nr;
+		nfds += nr_fds;
+	
+		dp = calloc(1, sizeof(struct dml_poll));
+		dp->pfd_nr = pfd_nr;
+		dp->pfd_size = nr_fds;
+		dp->arg = arg;
+		dp->use_revents_cb = true;
+
+		dp->next = dml_poll_list;
+		dml_poll_list = dp;
+	}
+	dp->in_cb = in_cb;
+	dp->out_cb = out_cb;
+	dp->time_cb = time_cb;
+	
+	dp->revents_cb = revents_cb;
+	
+//	printf("=add: %p\n", dp);
+	
+	return 0;
+}
+
 int dml_poll_remove(void *arg)
 {
 	struct dml_poll **dp;
 	int pfd_nr = -1;
+	int pfd_size = 0;
 	
 	for (dp = &dml_poll_list; *dp; dp = &(*dp)->next) {
 		if ((*dp)->arg == arg) {
 			struct dml_poll *old = *dp;
 			
 			pfd_nr = old->pfd_nr;
+			pfd_size = old->pfd_size;
 			
 			*dp = old->next;
 			free(old);
@@ -98,10 +151,10 @@ int dml_poll_remove(void *arg)
 	for (dp = &dml_poll_list; *dp; dp = &(*dp)->next) {
 //		printf("- %p %d\n", *dp, (*dp)->pfd_nr);
 		if ((*dp)->pfd_nr > pfd_nr)
-			(*dp)->pfd_nr--;
+			(*dp)->pfd_nr -= pfd_size;
 	}
-	memmove(pfds + pfd_nr, pfds + pfd_nr + 1, sizeof(*pfds) * (nfds - pfd_nr - 1));
-	nfds--;
+	memmove(pfds + pfd_nr, pfds + pfd_nr + pfd_size, sizeof(*pfds) * (nfds - pfd_nr - pfd_size));
+	nfds -= pfd_size;
 	pfds = realloc(pfds, sizeof(*pfds) * nfds);
 	
 	return 0;
@@ -193,12 +246,18 @@ int dml_poll_loop(void)
 //			printf("%p %p nr: %d fd: %d\n", dp, dp->arg, (int)dp->pfd_nr, p->fd);
 			
 			if (p->fd >= 0) {
+				short revents;
+				
+				if (!dp->use_revents_cb)
+					revents = p->revents;
+				else
+					revents = dp->revents_cb(dp->arg, p, dp->pfd_size);
 //				printf("%p %d: %x %x\n", dp, dp->pfd_nr, p->revents, p->events);
-				if (p->revents & POLLIN) {
+				if (revents & POLLIN) {
 					dp->in_cb(dp->arg);
 					break;
 				}
-				if (p->revents & POLLOUT) {
+				if (revents & POLLOUT) {
 					dp->out_cb(dp->arg);
 					break;
 				}

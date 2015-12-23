@@ -32,7 +32,6 @@
 #include <openssl/pem.h>
 
 bool header_written = false;
-uint16_t packet_id;
 
 uint8_t req_id[DML_ID_SIZE];
 
@@ -42,9 +41,10 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	fprintf(stderr, "got id: %d\n", id);
 	switch(id) {
 		case DML_PACKET_DESCRIPTION: {
-			if (dml_stream_update_description(data, len))
+			if (!dml_stream_update_description(data, len))
 				break;
 			
+			fprintf(stderr, "Request certificate\n");
 			dml_packet_send_req_certificate(dc, req_id);
 			break;
 		}
@@ -117,8 +117,14 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			    &payload_data, &payload_len, &timestamp, dk)) {
 				fprintf(stderr, "Decoding failed\n");
 			} else {
-				fprintf(stderr, "Received %zd ok\n", payload_len);
-				write(1, payload_data, payload_len);
+				if (timestamp <= dml_stream_timestamp_get(ds)) {
+					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
+					    timestamp, dml_stream_timestamp_get(ds));
+				} else {
+					dml_stream_timestamp_set(ds, timestamp);
+					fprintf(stderr, "Received %zd ok\n", payload_len);
+					write(1, payload_data, payload_len);
+				}
 				free(payload_data);
 			}
 			break;
@@ -144,6 +150,14 @@ void client_connect(struct dml_client *client, void *arg)
 	dc = dml_connection_create(fd, client, rx_packet, client_connection_close);
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_LEAF, "dml_stream_client " DML_VERSION);
 	dml_packet_send_req_description(dc, req_id);
+
+	struct dml_stream *ds = dml_stream_by_id_alloc(req_id);
+	uint64_t timestamp;
+	struct timespec ts;
+	
+	clock_gettime(CLOCK_REALTIME, &ts);
+	timestamp = (ts.tv_sec - DML_TIME_MARGIN) << 16;
+	dml_stream_timestamp_set(ds, timestamp);
 }
 
 int main(int argc, char **argv)

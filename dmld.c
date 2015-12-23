@@ -641,16 +641,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (id < DML_PACKET_DATA)
 				break;
 
-			printf("Got data (%d)\n", len);
+//			printf("Got data (%d)\n", len);
 			struct connection_data *cdat = connection_data_by_connection(dc, id);
 			if (!cdat)
 				break;
-			printf("Found connection\n");
+//			printf("Found connection\n");
 			
 			struct connection_data_client *cdatc;
 			
 			for (cdatc = cdat->client_list; cdatc; cdatc = cdatc->next) {
-				printf("Sending to client as %d\n", cdatc->packet_id);
+//				printf("Sending to client as %d\n", cdatc->packet_id);
 				dml_connection_send_data(cdatc->dc, data, cdatc->packet_id, len);
 			}
 

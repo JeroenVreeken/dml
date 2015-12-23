@@ -21,6 +21,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -38,6 +39,8 @@ struct dml_server *dml_server_create(void (*cb)(void *arg, int fd), void *arg)
 	struct dml_server *ds;
 	struct sockaddr_in6 sin6;
 	int listensock6;
+
+	signal(SIGPIPE, SIG_IGN);
 
 	memset(&sin6, 0, sizeof(sin6));
 

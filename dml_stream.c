@@ -37,6 +37,8 @@ struct dml_stream {
 	
 	uint16_t data_id;
 	uint64_t timestamp;
+	
+	struct dml_stream_priv *priv;
 };
 
 static struct dml_stream *streams = NULL;
@@ -78,13 +80,28 @@ struct dml_stream *dml_stream_by_data_id(uint16_t data_id)
 	return stream;
 }
 
+struct dml_stream *dml_stream_by_alias(char *alias)
+{
+	struct dml_stream *stream;
+	
+	for (stream = streams; stream; stream = stream->next) {
+		if (!stream->alias)
+			continue;
+		printf("%s %s\n", stream->alias, alias);
+		if (!strcmp(stream->alias, alias))
+			break;
+	}
+	
+	return stream;
+}
+
 void dml_stream_remove(struct dml_stream *ds)
 {
 	struct dml_stream **entry;
 	
 	for (entry = &streams; *entry; entry = &(*entry)->next) {
 		if (ds != *entry)
-			break;
+			continue;
 		*entry = ds->next;
 		
 		free(ds->name);
@@ -95,10 +112,11 @@ void dml_stream_remove(struct dml_stream *ds)
 		dml_crypto_key_free(ds->crypto);
 		
 		free(ds);
+		return;
 	}
 }
 
-int dml_stream_update_description(uint8_t *data, uint16_t len)
+struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len)
 {
 	uint8_t id[DML_ID_SIZE];
 	uint8_t v_id[DML_ID_SIZE];
@@ -120,7 +138,7 @@ int dml_stream_update_description(uint8_t *data, uint16_t len)
 	
 	if (memcmp(id, v_id, DML_ID_SIZE))
 		goto err_id_cmp;
-	
+
 	stream = dml_stream_by_id_alloc(id);
 	if (!stream)
 		goto err_stream;
@@ -134,7 +152,7 @@ int dml_stream_update_description(uint8_t *data, uint16_t len)
 	stream->description = description;
 	stream->mime = mime;
 
-	return 0;
+	return stream;
 
 err_stream:
 err_id_cmp:
@@ -144,12 +162,27 @@ err_id:
 	free(name);
 	free(mime);
 err_parse:
-	return -1;
+	return NULL;
+}
+
+uint8_t *dml_stream_id_get(struct dml_stream *ds)
+{
+	return ds->id;
 }
 
 char *dml_stream_name_get(struct dml_stream *stream)
 {
 	return stream->name;
+}
+
+char *dml_stream_alias_get(struct dml_stream *stream)
+{
+	return stream->alias;
+}
+
+char *dml_stream_mime_get(struct dml_stream *stream)
+{
+	return stream->mime;
 }
 
 struct dml_crypto_key *dml_stream_crypto_get(struct dml_stream *stream)
@@ -171,5 +204,27 @@ uint16_t dml_stream_data_id_get(struct dml_stream *ds)
 int dml_stream_data_id_set(struct dml_stream *ds, uint16_t data_id)
 {
 	ds->data_id = data_id;
+	return 0;
+}
+
+uint64_t dml_stream_timestamp_get(struct dml_stream *ds)
+{
+	return ds->timestamp;
+}
+
+int dml_stream_timestamp_set(struct dml_stream *ds, uint64_t timestamp)
+{
+	ds->timestamp = timestamp;
+	return 0;
+}
+
+struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds)
+{
+	return ds->priv;
+}
+
+int dml_stream_priv_set(struct dml_stream *ds, struct dml_stream_priv *priv)
+{
+	ds->priv = priv;
 	return 0;
 }

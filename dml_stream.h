@@ -22,16 +22,27 @@
 
 #include <inttypes.h>
 
-int dml_stream_update_description(uint8_t *data, uint16_t len);
+struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len);
 
 struct dml_stream *dml_stream_by_id(uint8_t id[DML_ID_SIZE]);
+struct dml_stream *dml_stream_by_id_alloc(uint8_t id[DML_ID_SIZE]);
 struct dml_stream *dml_stream_by_data_id(uint16_t data_id);
+struct dml_stream *dml_stream_by_alias(char *alias);
 
+uint8_t *dml_stream_id_get(struct dml_stream *ds);
 char *dml_stream_name_get(struct dml_stream *ds);
+char *dml_stream_alias_get(struct dml_stream *stream);
+char *dml_stream_mime_get(struct dml_stream *stream);
 struct dml_crypto_key *dml_stream_crypto_get(struct dml_stream *ds);
 int dml_stream_crypto_set(struct dml_stream *ds, struct dml_crypto_key *crypto);
 uint16_t dml_stream_data_id_get(struct dml_stream *ds);
 int dml_stream_data_id_set(struct dml_stream *ds, uint16_t data_id);
+uint64_t dml_stream_timestamp_get(struct dml_stream *ds);
+int dml_stream_timestamp_set(struct dml_stream *ds, uint64_t timestamp);
+
+struct dml_stream_priv;
+struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds);
+int dml_stream_priv_set(struct dml_stream *ds, struct dml_stream_priv *priv);
 
 void dml_stream_remove(struct dml_stream *ds);
 

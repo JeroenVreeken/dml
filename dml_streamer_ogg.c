@@ -155,10 +155,11 @@ void send_data(void *data, size_t size)
 	clock_gettime(CLOCK_REALTIME, &ts);
 	if (prev_sec != ts.tv_sec) {
 		prev_ctr = 0;
+		prev_sec = ts.tv_sec;
 	} else {
 		prev_ctr++;
 	}
-	timestamp = ts.tv_nsec << 16;
+	timestamp = ts.tv_sec << 16;
 	timestamp |= prev_ctr;
 	
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);

@@ -15,16 +15,18 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#ifndef _INCLUDE_DML_H_
-#define _INCLUDE_DML_H_
+#ifndef _INCLUDE_TRX_CODEC2_H_
+#define _INCLUDE_TRX_CODEC2_H_
 
 #include <stdint.h>
-#include <stdbool.h>
+#include <stdlib.h>
 
-#define DML_VERSION "0.1"
+struct trx_codec2 *trx_codec2_init(void);
 
-#define DML_ID_SIZE	32
-#define DML_SIG_SIZE	((256 * 2) / 8)
-#define DML_TIME_MARGIN	60
+int trx_codec2_encode(struct trx_codec2 *tc, int16_t *samples, int nr);
+int trx_codec2_decode(struct trx_codec2 *tc, uint8_t *encoded, size_t size);
+int trx_codec2_encode_cb_set(struct trx_codec2 *tc, int (*cb)(void *arg, uint8_t *, size_t), void *arg);
+int trx_codec2_decode_cb_set(struct trx_codec2 *tc, int (*cb)(void *arg, int16_t *, int), void *arg);
+uint8_t trx_codec2_mode_get(struct trx_codec2 *tc);
 
-#endif /* _INCLUDE_DML_H_ */
+#endif /* _INCLUDE_TRX_CODEC2_H_ */
