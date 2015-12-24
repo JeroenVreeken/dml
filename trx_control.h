@@ -21,5 +21,6 @@
 #include <stdbool.h>
 
 int trx_control_init(char *device, int(*cmd_cb)(char*), int(*state_cb)(bool));
+int trx_control_state_set(bool state);
 
 #endif /* _INCLUDE_TRX_CONTROL_H_ */

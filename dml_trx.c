@@ -374,6 +374,7 @@ void send_data(void *data, size_t size)
 struct trx_codec2 *tc_me;
 
 static bool rx_state = false;
+static bool tx_state = false;
 
 void recv_data(void *data, size_t size)
 {
@@ -386,6 +387,11 @@ void recv_data(void *data, size_t size)
 	bool state = datab[7] & 0x1;
 	
 	printf("mode %d state %d\n", mode, state);
+	
+	if (state != tx_state) {
+		trx_control_state_set(state);
+		tx_state = state;
+	}
 	
 	if (size > 8)
 		trx_codec2_decode(tc_me, datab + 8, size - 8);
@@ -484,6 +490,7 @@ int main(int argc, char **argv)
 	char *key;
 	char *server;
 	char *ca;
+	char *controldev;
 
 	if (argc > 1)
 		file = argv[1];
@@ -513,7 +520,9 @@ int main(int argc, char **argv)
 	trx_codec2_encode_cb_set(tc_me, encode_cb, NULL);
 	trx_codec2_decode_cb_set(tc_me, trx_sound_out, NULL);
 
-	if (trx_control_init(NULL, command_cb, state_cb)) {
+	controldev = dml_config_value("control", NULL, NULL);
+
+	if (trx_control_init(controldev, command_cb, state_cb)) {
 		printf("Could not open control device\n");
 		return -1;
 	}

@@ -27,6 +27,10 @@
 
 #define TRX_CONTROL_BUFFER_SIZE 128
 
+#define BAUDRATE	B9600
+#define TRX_PTT_ON	128
+#define TRX_PTT_OFF	127
+
 struct trx_control {
 	int fd;
 	
@@ -37,12 +41,10 @@ struct trx_control {
 	
 	int (*command_cb)(char *command);
 	int (*state_cb)(bool state);
-};
+} *tc;
 
 static int in_cb(void *arg)
 {
-	struct trx_control *tc = arg;
-	
 	ssize_t r = read(tc->fd, tc->buffer + tc->pos, 1);
 	if (r > 0) {
 		if (tc->buffer[tc->pos] == '#') {
@@ -55,6 +57,14 @@ static int in_cb(void *arg)
 			tc->state = !tc->state;
 			tc->state_cb(tc->state);
 			tc->pos = -1;
+		} else if (tc->buffer[tc->pos] == TRX_PTT_ON) {
+			tc->state = true;
+			tc->state_cb(tc->state);
+			tc->pos = -1;
+		} else if (tc->buffer[tc->pos] == TRX_PTT_OFF) {
+			tc->state = false;
+			tc->state_cb(tc->state);
+			tc->pos = -1;
 		}
 		tc->pos++;
 		
@@ -65,10 +75,18 @@ static int in_cb(void *arg)
 	return 0;
 }
 
+int trx_control_state_set(bool state)
+{
+	char c[1];
+	
+	c[0] = state ? TRX_PTT_ON : TRX_PTT_OFF;
+
+	write(tc->fd, c, 1);
+	return 0;
+}
+
 int trx_control_init(char *device, int(*cmd_cb)(char*), int(*state_cb)(bool))
 {
-	struct trx_control *tc;
-	
 	tc = calloc(1, sizeof(struct trx_control));
 	if (!tc)
 		goto err_calloc;
@@ -86,9 +104,14 @@ int trx_control_init(char *device, int(*cmd_cb)(char*), int(*state_cb)(bool))
 
 	struct termios tio;
 
-	tcgetattr(tc->fd, &tio);
-	/* disable canonical mode (buffered i/o) and local echo */
-	tio.c_lflag &=(~ICANON & ~ECHO);
+	cfmakeraw(&tio);
+	tio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
+	tio.c_iflag &= ~(IGNPAR|IXON|IXOFF|IGNBRK);
+	tio.c_iflag |= ICRNL|BRKINT;
+	tio.c_oflag |= OPOST;
+	tio.c_lflag &= ~ICANON;
+	tio.c_lflag |= ISIG;
+
 	tcsetattr(tc->fd, TCSANOW, &tio);
 
 	if (dml_poll_add(tc, in_cb, NULL, NULL))

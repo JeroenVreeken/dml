@@ -133,6 +133,7 @@ int trx_sound_init(void)
 	if (err < 0)
 		return -1;
 
+	printf("Set sound params for input\n");
 	if (trx_sound_params(pcm_handle_in))
 		return -1;
 
@@ -141,6 +142,7 @@ int trx_sound_init(void)
 	if (err < 0)
 		return -1;
 
+	printf("Set sound params for output\n");
 	if (trx_sound_params(pcm_handle_out))
 		return -1;
 
