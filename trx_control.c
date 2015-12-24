@@ -18,6 +18,7 @@
 #include "trx_control.h"
 #include "dml_poll.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
@@ -47,6 +48,9 @@ static int in_cb(void *arg)
 {
 	ssize_t r = read(tc->fd, tc->buffer + tc->pos, 1);
 	if (r > 0) {
+		if (tc->buffer[tc->pos] == 3) {
+			exit(0);
+		}
 		if (tc->buffer[tc->pos] == '#') {
 			tc->buffer[tc->pos] = 0;
 			tc->command_cb(tc->buffer);
@@ -106,9 +110,9 @@ int trx_control_init(char *device, int(*cmd_cb)(char*), int(*state_cb)(bool))
 
 	cfmakeraw(&tio);
 	tio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
-	tio.c_iflag &= ~(IGNPAR|IXON|IXOFF|IGNBRK);
-	tio.c_iflag |= ICRNL|BRKINT;
-	tio.c_oflag |= OPOST;
+	tio.c_iflag &= ~(IGNPAR|IXON|IXOFF|IGNBRK|BRKINT);
+	tio.c_iflag |= ICRNL;
+	tio.c_oflag |= OPOST|ONLCR;
 	tio.c_lflag &= ~ICANON;
 	tio.c_lflag |= ISIG;
 

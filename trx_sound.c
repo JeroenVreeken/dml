@@ -99,7 +99,8 @@ static int trx_sound_params(snd_pcm_t *pcm_handle)
 	snd_pcm_hw_params_set_buffer_size_near (pcm_handle, hw_params, &buffer_size);
 	snd_pcm_hw_params_set_period_size_near (pcm_handle, hw_params, &period_size, NULL);
 
-	snd_pcm_hw_params (pcm_handle, hw_params);
+	if (snd_pcm_hw_params(pcm_handle, hw_params))
+		fprintf(stderr, "snd_pcm_hw_params() failed\n");
 
 	snd_pcm_hw_params_free (hw_params);
 
