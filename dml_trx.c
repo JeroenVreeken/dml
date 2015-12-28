@@ -29,13 +29,14 @@
 #include "trx_codec2.h"
 #include "trx_control.h"
 
+#include "eth_ar.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
-#include <openssl/pem.h>
 
 
 uint8_t ref_id[DML_ID_SIZE];
@@ -99,7 +100,7 @@ static int connect(struct dml_stream *ds)
 void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
 {
-	printf("got id: %d\n", id);
+//	printf("got id: %d\n", id);
 	
 	switch(id) {
 		case DML_PACKET_ROUTE: {
@@ -113,6 +114,10 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (hops == 255) {
 				ds = dml_stream_by_id(rid);
 				if (ds) {
+					if (ds == cur_con) {
+						cur_con = NULL;
+						packet_id = 0;
+					}
 					stream_priv_free(dml_stream_priv_get(ds));
 					dml_stream_remove(ds);
 				}
@@ -291,7 +296,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-					fprintf(stderr, "Received %zd ok\n", payload_len);
+//					fprintf(stderr, "Received %zd ok\n", payload_len);
 					recv_data(payload_data, payload_len);
 				}
 				free(payload_data);
@@ -376,6 +381,8 @@ struct trx_codec2 *tc_me;
 static bool rx_state = false;
 static bool tx_state = false;
 
+uint8_t mac_my[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
 void recv_data(void *data, size_t size)
 {
 	if (size < 8)
@@ -383,14 +390,19 @@ void recv_data(void *data, size_t size)
 	
 	uint8_t *datab = data;
 	
-	int mode = datab[6];
+//	int mode = datab[6];
 	bool state = datab[7] & 0x1;
 	
-	printf("mode %d state %d\n", mode, state);
+//	printf("mode %d state %d\n", mode, state);
 	
 	if (state != tx_state) {
+		char call[ETH_AR_CALL_SIZE];
+		int ssid;
+		
+		eth_ar_mac2call(call, &ssid, data);
 		trx_control_state_set(state);
 		tx_state = state;
+		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
 	}
 	
 	if (size > 8)
@@ -404,12 +416,7 @@ int encode_cb(void *arg, uint8_t *encoded, size_t size)
 	if (!rx_state)
 		return 0;
 	
-	data[0] = 0xff;
-	data[1] = 0xff;
-	data[2] = 0xff;
-	data[3] = 0xff;
-	data[4] = 0xff;
-	data[5] = 0xff;
+	memcpy(data, mac_my, 6);
 	data[6] = trx_codec2_mode_get(tc_me);
 	data[7] = rx_state;
 	memcpy(data + 8, encoded, size);
@@ -423,14 +430,9 @@ int state_cb(bool state)
 	printf("state: %d\n", state);
 	if (state != rx_state) {
 		uint8_t data[8];
-		data[0] = 0xff;
-		data[1] = 0xff;
-		data[2] = 0xff;
-		data[3] = 0xff;
-		data[4] = 0xff;
-		data[5] = 0xff;
+		memcpy(data, mac_my, 6);
 		data[6] = trx_codec2_mode_get(tc_me);
-		data[7] = rx_state;
+		data[7] = state;
 		send_data(data, 8);
 	}
 	rx_state = state;
@@ -491,6 +493,7 @@ int main(int argc, char **argv)
 	char *server;
 	char *ca;
 	char *controldev;
+	char *call;
 
 	if (argc > 1)
 		file = argv[1];
@@ -502,6 +505,10 @@ int main(int argc, char **argv)
 	name = dml_config_value("name", NULL, "test_trx");
 	alias = dml_config_value("alias", NULL, "0000");
 	description = dml_config_value("description", NULL, "Test transceiver");
+	call = dml_config_value("callsign", NULL, NULL);
+	if (call) {
+		eth_ar_call2mac(mac_my, call, 0);
+	}
 
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");

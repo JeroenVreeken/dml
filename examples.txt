@@ -1,0 +1,46 @@
+dmld
+
+	DML router
+	Will listen on port 7373 for incomming connections.
+	Outgoing connections can be set in the configuration file dmld.conf
+
+dml_list
+
+	Connects to a DML router and will output information on all routable
+	streams. (Handy for discovering IDs)
+
+dml_trx
+
+	Tranceiver. Will create a stream with Codec2 encoded audio and can 
+	connect to similar streams. Can control the PTT of a connected radio
+	via a serial port or receive DTMF and squelch info from a serial port.
+	Can connect to streams via aliases.
+
+dml_reflector
+
+	Basic reflector. Will connect to Codec2 encoded audio streams when
+	requested and reflect them to all listeners.
+
+dml_streamer_ogg
+	
+	A simple stream server which expects an Ogg stream on stdin.
+	The stream can contain Vorbis (audio) and Theora (video) packets.
+	(Currently not more than one of each).
+	
+	Reads configuration from dml_streamer_ogg.conf
+
+dml_stream_client
+
+	Stream client. Expects an dml ID as command line argument and will
+	output stream data to stdout.
+
+Stream audio with ogg:
+
+	ffmpeg -f alsa -i hw \
+		-codec:a vorbis -strict -2 -qscale:a 5 \
+		-f ogg - | ./dml_streamer_ogg
+
+Receive ogg stream and play:
+
+	dml_stream_client <stream_id> | mplayer -
+

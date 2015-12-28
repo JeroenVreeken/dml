@@ -18,14 +18,18 @@ DML_SRCS = \
 TRX_SRCS = \
 	trx_codec2.c \
 	trx_control.c \
-	trx_sound.c
+	trx_sound.c \
+
+ETH_AR_SRCS = \
+	eth_ar.c	
 
 DML_OBJS = $(DML_SRCS:.c=.o)
 TRX_OBJS = $(TRX_SRCS:.c=.o)
+ETH_AR_OBJS = $(ETH_AR_SRCS:.c=.o)
 
 all: dmld dml_list dml_reflector dml_streamer_ogg dml_stream_client dml_trx
 
-SRCS += $(DML_SRCS) $(TRX_SRCS)
+SRCS += $(DML_SRCS) $(TRX_SRCS) $(ETH_AR_SRCS)
 
 SRCS += dmld.c
 dmld: $(DML_OBJS) dmld.o
@@ -34,11 +38,11 @@ SRCS += dml_list.c
 dml_list: $(DML_OBJS) dml_list.o
 
 SRCS += dml_reflector.c
-dml_reflector: $(DML_OBJS) dml_reflector.o
+dml_reflector: $(DML_OBJS) $(ETH_AR_OBJS) dml_reflector.o
 
 SRCS += dml_trx.c trx_sound.c
 dml_trx_LDFLAGS += -lasound -lcodec2
-dml_trx: $(DML_OBJS) $(TRX_OBJS) dml_trx.o
+dml_trx: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_trx.o
 
 SRCS += dml_streamer_ogg.c
 dml_streamer_ogg: $(DML_OBJS) dml_streamer_ogg.o
@@ -50,6 +54,8 @@ DEPS:=$(SRCS:.c=.d)
 -include $(DEPS)
 
 OBJS+=$(SRCS:.c=.o)
+
+$(OBJS): Makefile
 
 clean:
 	rm -rf $(OBJS) \

@@ -429,7 +429,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 {
 	struct connection *con = arg;
 	
-	printf("%d\n", id);
+//	printf("%d\n", id);
 	switch (id) {
 		case DML_PACKET_HELLO:
 			dml_packet_parse_hello(data, len, &con->flags, NULL);

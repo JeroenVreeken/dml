@@ -51,7 +51,7 @@ struct dml_crypto_key *dk;
 void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
 {
-	printf("got id: %d\n", id);
+//	printf("got id: %d\n", id);
 	
 	switch(id) {
 		case DML_PACKET_REQ_DESCRIPTION: {
@@ -258,7 +258,7 @@ int ogg_in(void *arg)
 					    
 					printf("bitflags: %02x segments: %d serial: %08x ", ogg_page[5], ogg_segments, serial);
 					printf(" %02x\n", ogg_page[27 + ogg_segments]);
-					
+				
 					if (vorbis_header == serial) {
 						if (!(ogg_page[27 + ogg_segments] & 1)) {
 							printf("First vorbis data\n");
@@ -283,7 +283,13 @@ int ogg_in(void *arg)
 						}
 					}
 					
-					send_data(ogg_page, ogg_pos);
+					int i;
+					for (i = 0; i < ogg_pos; i += 1024) {
+						int size = ogg_pos - i;
+						if (size > 1024)
+							size = 1024;
+						send_data(ogg_page + i, size);
+					}
 					
 					memmove(ogg_page, ogg_page + ogg_total_segments, ogg_pos - ogg_total_segments);
 					ogg_pos -= ogg_total_segments;

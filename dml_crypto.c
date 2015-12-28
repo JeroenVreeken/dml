@@ -20,6 +20,7 @@
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/err.h>
 #include <string.h>
 
 X509_STORE *x509_store;
@@ -69,7 +70,7 @@ static void free_chain(STACK_OF(X509) *chain)
 
 int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SIZE])
 {
-	STACK_OF(X509 *chain);
+	STACK_OF(X509) *chain;
 	uint8_t *data = certdata;
 	char *name;
 	
@@ -277,7 +278,12 @@ bool dml_crypto_verify(void *data, size_t len, uint8_t sig[DML_SIG_SIZE], struct
 
 	ECDSA_SIG_free(ecsig);
 
-	return ret;
+	if (ret != 1) {
+		unsigned int err = ERR_get_error();
+		fprintf(stderr, "ret: %d ERR: %d\n", ret, err);
+	}
+
+	return ret == 1;
 }
 
 int dml_crypto_sign(uint8_t sig[DML_SIG_SIZE], void *data, size_t len, struct dml_crypto_key *dk)
@@ -290,8 +296,12 @@ int dml_crypto_sign(uint8_t sig[DML_SIG_SIZE], void *data, size_t len, struct dm
 	SHA256_Final(digest, &sha256);
 
 	ECDSA_SIG *ecsig = ECDSA_do_sign(digest, SHA256_DIGEST_LENGTH, dk->ec_key);
-	BN_bn2bin(ecsig->r, sig);
-	BN_bn2bin(ecsig->s, sig + 32);
+	
+	memset(sig, 0, 64);
+	int r_off = 32 - BN_num_bytes(ecsig->r);
+	int s_off = 32 - BN_num_bytes(ecsig->s);
+	BN_bn2bin(ecsig->r, sig + r_off);
+	BN_bn2bin(ecsig->s, sig + 32 + s_off);
 	ECDSA_SIG_free(ecsig);
 
 	return 0;

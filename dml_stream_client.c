@@ -38,7 +38,7 @@ uint8_t req_id[DML_ID_SIZE];
 void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
 {
-	fprintf(stderr, "got id: %d\n", id);
+//	fprintf(stderr, "got id: %d\n", id);
 	switch(id) {
 		case DML_PACKET_DESCRIPTION: {
 			if (!dml_stream_update_description(data, len))
@@ -122,7 +122,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-					fprintf(stderr, "Received %zd ok\n", payload_len);
+//					fprintf(stderr, "Received %zd ok\n", payload_len);
 					write(1, payload_data, payload_len);
 				}
 				free(payload_data);

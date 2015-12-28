@@ -417,7 +417,6 @@ int dml_packet_parse_data(uint8_t *data, uint16_t len,
 	
 	size_t plen = len - DML_SIG_SIZE - sizeof(uint64_t);
 	*payload_len = plen;
-	fprintf(stderr, "payload len: %zd\n", plen);
 
 	bool verified = dml_crypto_verify(data, plen + sizeof(uint64_t),
 	    data + plen + sizeof(uint64_t), dk);
@@ -438,7 +437,24 @@ int dml_packet_parse_data(uint8_t *data, uint16_t len,
 	    ((uint64_t)data[plen + 7]);
 	
 	if (!verified) {
+		int i;
 		fprintf(stderr, "invalid signature\n");
+		for (i = 0; i < plen; i++) {
+			fprintf(stderr, "%02x ", data[i]);
+		}
+		fprintf(stderr, "\n");
+		for (i = 0; i < sizeof(uint64_t); i++) {
+			fprintf(stderr, "%02x ", data[plen + i]);
+		}
+		fprintf(stderr, "\n");
+		for (i = 0; i < 256/8; i++) {
+			fprintf(stderr, "%02x ", data[plen + sizeof(uint64_t) + i]);
+		}
+		fprintf(stderr, "\n");
+		for (i = 0; i < 256/8; i++) {
+			fprintf(stderr, "%02x ", data[plen + sizeof(uint64_t) +256/8 + i]);
+		}
+		fprintf(stderr, "\n");
 		return -1;
 	}
 

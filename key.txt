@@ -4,4 +4,11 @@ openssl ecparam -genkey -name secp256r1 -out k.pem
 # print private key and public key
 openssl ec -in k.pem -noout -text
 
+# private key to a pem file
 openssl ec -in k.pem -pubout -out p.pem
+
+# create a certificate request for key
+openssl req -new -key k.pem -out req.pem
+
+# rehash ca dir after installing certificate
+c_rehash ./ca/
