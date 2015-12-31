@@ -18,7 +18,7 @@
 #ifndef _INCLUDE_TRX_SOUND_H_
 #define _INCLUDE_TRX_SOUND_H_
 
-int trx_sound_init(void);
+int trx_sound_init(char *dev_name);
 int trx_sound_in_cb_set(int (*cb)(void *arg, int16_t *samples, int nr), void *arg);
 int trx_sound_out(void *arg, int16_t *samples, int nr);
 

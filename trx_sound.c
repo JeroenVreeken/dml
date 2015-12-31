@@ -40,6 +40,7 @@ int trx_sound_out(void *arg, int16_t *samples, int nr)
 
 	if (r <= 0) {
 		snd_pcm_recover(pcm_handle_out, r, 0);
+		snd_pcm_writei(pcm_handle_out, samples, nr);
 	}
 
 	return 0;
@@ -120,13 +121,13 @@ static int trx_sound_params(snd_pcm_t *pcm_handle)
 	return 0;
 }
 
-int trx_sound_init(void)
+int trx_sound_init(char *dev_name)
 {
 	int err;
 	snd_pcm_t *pcm_handle_in = NULL;
 
 	/* The device name */
-	const char *device_name = "default"; 
+	const char *device_name = dev_name ? dev_name : "default"; 
 
 	/* Open the device */
 	printf("Open sound device for input: %s\n", device_name);

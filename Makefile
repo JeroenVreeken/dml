@@ -17,6 +17,7 @@ DML_SRCS = \
 
 TRX_SRCS = \
 	trx_codec2.c \
+	trx_dv.c \
 	trx_control.c \
 	trx_sound.c \
 

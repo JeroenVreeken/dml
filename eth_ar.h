@@ -19,14 +19,15 @@
 #define _INCLUDE_ETH_AR_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 
-#define ETH_P_CODEC2	0x7300
+#define ETH_P_CODEC2_3200	0x7300
 
 #define ETH_AR_CALL_LEN_MAX	8
 #define ETH_AR_CALL_SIZE	9
 
-int eth_ar_call2mac(uint8_t mac[6], char *callsign, int ssid);
-int eth_ar_mac2call(char *callsign, int *ssid, uint8_t mac[6]);
+int eth_ar_call2mac(uint8_t mac[6], char *callsign, int ssid, bool multicast);
+int eth_ar_mac2call(char *callsign, int *ssid, bool *multicast, uint8_t mac[6]);
 
 
 #endif /* _INCLUDE_ETH_AR_H_ */

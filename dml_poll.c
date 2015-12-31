@@ -34,7 +34,7 @@ struct dml_poll {
 	int (*in_cb)(void *arg);
 	int (*out_cb)(void *arg);
 	int (*time_cb)(void *arg);
-	time_t timeout;
+	struct timespec timeout;
 	short (*revents_cb)(void *arg, struct pollfd *fds, int count);
 };
 
@@ -200,13 +200,24 @@ int dml_poll_out_set(void *arg, bool enable)
 int dml_poll_timeout(void *arg, struct timespec *ts)
 {
 	struct dml_poll *dp;
+	struct timespec now;
+	
+	clock_gettime(CLOCK_MONOTONIC, &now);
 	
 	for (dp = dml_poll_list; dp; dp = dp->next) {
 		if (dp->arg == arg) {
-			dp->timeout = ts->tv_sec;
-			dp->timeout += ts->tv_nsec ? 1 : 0;
-			dp->timeout += time(NULL);
-//			printf("set timeout %d\n", (int)dp->timeout);
+			if (!ts->tv_sec && !ts->tv_nsec) {
+				dp->timeout.tv_sec = 0;
+				return 0;
+			}
+			dp->timeout.tv_sec = ts->tv_sec + now.tv_sec;
+			dp->timeout.tv_nsec = ts->tv_nsec + now.tv_nsec;
+			if (dp->timeout.tv_nsec >= 1000000000) {
+				dp->timeout.tv_nsec -= 1000000000;
+				dp->timeout.tv_sec++;
+			}
+//			printf("set timeout %d %d\n", (int)dp->timeout.tv_sec, (int)dp->timeout.tv_nsec);
+			return 0;
 		}
 	}
 	return 0;
@@ -215,15 +226,17 @@ int dml_poll_timeout(void *arg, struct timespec *ts)
 int dml_poll_loop(void)
 {
 	do {
-		time_t t = 0;
+		int64_t t = 0;
 		struct dml_poll *dp;
 		
 		for (dp = dml_poll_list; dp; dp = dp->next) {
-			if (dp->timeout) {
+			if (dp->timeout.tv_sec) {
+				int64_t dptimeout = (int64_t)dp->timeout.tv_sec * 1000;
+				dptimeout += ((int64_t)dp->timeout.tv_nsec + 999999) / 1000000;
 				if (t)
-					t = t > dp->timeout ? dp->timeout : t;
+					t = t > dptimeout ? dptimeout : t;
 				else
-					t = dp->timeout;
+					t = dptimeout;
 			}
 //			printf("%d %d\n", (int)dp->timeout, (int)t);
 		}
@@ -231,7 +244,12 @@ int dml_poll_loop(void)
 		int timeout;
 		
 		if (t) {
-			timeout = 1000 * (t - time(NULL));
+			struct timespec now;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+			t -= (int64_t)now.tv_sec * 1000;
+			t -= (int64_t)now.tv_nsec / 1000000;
+
+			timeout = t;
 			if (timeout < 0)
 				timeout = 0;
 		} else {
@@ -262,9 +280,13 @@ int dml_poll_loop(void)
 					break;
 				}
 			}
-			if (dp->timeout) {
-				if (dp->timeout <= time(NULL)) {
-					dp->timeout = 0;
+			if (dp->timeout.tv_sec) {
+				struct timespec now;
+				clock_gettime(CLOCK_MONOTONIC, &now);
+				if (dp->timeout.tv_sec < now.tv_sec ||
+				    (dp->timeout.tv_sec == now.tv_sec &&
+				    dp->timeout.tv_nsec <= now.tv_nsec)) {
+					dp->timeout.tv_sec = 0;
 					dp->time_cb(dp->arg);
 					break;
 				}

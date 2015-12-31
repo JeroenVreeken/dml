@@ -20,14 +20,26 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <inttypes.h>
+
+/*
+	8 character callsign, 4 bit ssid
+	|call(42-40) ssid(3-0) lm|
+	|call(39-32)             |
+	|call(31-24)             |
+	|call(23-16)             |
+	|call(15-8)              |
+	|call(7-0)               |
+ */
 
 static char alnum2code[37] = {
-	0, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-	'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+	'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 
+	0
 };
 
-int eth_ar_call2mac(uint8_t mac[6], char *callsign, int ssid)
+int eth_ar_call2mac(uint8_t mac[6], char *callsign, int ssid, bool multicast)
 {
 	uint64_t add = 0;
 	int i;
@@ -57,44 +69,39 @@ int eth_ar_call2mac(uint8_t mac[6], char *callsign, int ssid)
 		add += j;
 	}
 	
-	mac[0] = ((add >> 42) & 0xc0) | (ssid << 2) | 0x02;
+	mac[0] = ((add >> (40 - 6)) & 0xc0) | (ssid << 2) | 0x02 | multicast;
 	mac[1] = (add >> 32) & 0xff;
 	mac[2] = (add >> 24) & 0xff;
 	mac[3] = (add >> 16) & 0xff;
 	mac[4] = (add >> 8) & 0xff;
 	mac[5] = add & 0xff;
 
-	printf("%02x %02x %02x\n", (int)(add >> 42) & 0xc0, ssid << 2, 0x02);
-	printf("%s: %02x:%02x:%02x:%02x:%02x:%02x\n", callsign, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-
 	return 0;
 }
 
-int eth_ar_mac2call(char *callsign, int *ssid, uint8_t mac[6])
+int eth_ar_mac2call(char *callsign, int *ssid, bool *multicast, uint8_t mac[6])
 {
 	uint64_t add;
 	int i;
 
 	if (!memcmp(mac, (uint8_t[6]){ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, 6)) {
 		*ssid = 0;
-		strcpy(callsign, "BCAST");
+		strcpy(callsign, "*");
 		return 0;
 	}
-	*ssid = (mac[0] & 0x0c0) >> 2;
-	add = (uint64_t)(mac[0] & 0xc0) << 42;
+	*multicast = mac[0] & 0x01;
+	*ssid = (mac[0] & 0x3c) >> 2;
+	add = (uint64_t)(mac[0] & 0xc0) << (40 - 6);
 	add |= (uint64_t)mac[1] << 32;
-	add |= mac[2] << 24;
-	add |= mac[3] << 16;
-	add |= mac[4] << 8;
-	add |= mac[5];
+	add |= (uint64_t)mac[2] << 24;
+	add |= (uint64_t)mac[3] << 16;
+	add |= (uint64_t)mac[4] << 8;
+	add |= (uint64_t)mac[5];
 
 	for (i = 0; i < 8; i++) {
 		int c = add % 37;
 		callsign[i] = alnum2code[c];
 		add /= 37;
-		if (!add) {
-			break;
-		}
 	}
 	callsign[i] = 0;
 

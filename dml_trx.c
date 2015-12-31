@@ -25,6 +25,7 @@
 #include "dml_config.h"
 #include "dml_stream.h"
 
+#include "trx_dv.h"
 #include "trx_sound.h"
 #include "trx_codec2.h"
 #include "trx_control.h"
@@ -398,8 +399,9 @@ void recv_data(void *data, size_t size)
 	if (state != tx_state) {
 		char call[ETH_AR_CALL_SIZE];
 		int ssid;
+		bool multicast;
 		
-		eth_ar_mac2call(call, &ssid, data);
+		eth_ar_mac2call(call, &ssid, &multicast, data);
 		trx_control_state_set(state);
 		tx_state = state;
 		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
@@ -407,6 +409,20 @@ void recv_data(void *data, size_t size)
 	
 	if (size > 8)
 		trx_codec2_decode(tc_me, datab + 8, size - 8);
+
+	dml_poll_timeout(&tx_state, tx_state ?
+	    &(struct timespec){0, 100000000} :
+	    &(struct timespec){0, 0} );
+}
+
+int tx_watchdog(void *arg)
+{
+	if (tx_state) {
+		printf("No activity, switching off TX\n");
+		tx_state = false;
+		trx_control_state_set(tx_state);
+	}
+	return 0;
 }
 
 int encode_cb(void *arg, uint8_t *encoded, size_t size)
@@ -420,6 +436,19 @@ int encode_cb(void *arg, uint8_t *encoded, size_t size)
 	data[6] = trx_codec2_mode_get(tc_me);
 	data[7] = rx_state;
 	memcpy(data + 8, encoded, size);
+
+	send_data(data, 8 + size);
+	return 0;
+}
+
+int dv_in_cb(void *arg, uint8_t from[6], uint8_t *dv, size_t size, int mode)
+{
+	uint8_t data[8 + size];
+	
+	memcpy(data, from, 6);
+	data[6] = mode;
+	data[7] = true;
+	memcpy(data + 8, dv, size);
 
 	send_data(data, 8 + size);
 	return 0;
@@ -494,6 +523,8 @@ int main(int argc, char **argv)
 	char *ca;
 	char *controldev;
 	char *call;
+	char *snd_dev;
+	char *dv_dev;
 
 	if (argc > 1)
 		file = argv[1];
@@ -507,14 +538,21 @@ int main(int argc, char **argv)
 	description = dml_config_value("description", NULL, "Test transceiver");
 	call = dml_config_value("callsign", NULL, NULL);
 	if (call) {
-		eth_ar_call2mac(mac_my, call, 0);
+		eth_ar_call2mac(mac_my, call, 0, false);
 	}
 
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
 
-	if (trx_sound_init()) {
+	dv_dev = dml_config_value("dv_device", NULL, NULL);
+	if (dv_dev) {
+		if (trx_dv_init(dv_dev, dv_in_cb, NULL))
+			fprintf(stderr, "Could not open DV device\n");
+	}
+	
+	snd_dev = dml_config_value("sound_device", NULL, "default");
+	if (trx_sound_init(snd_dev)) {
 		printf("Could not initialize sound\n");
 		return -1;
 	}
@@ -561,6 +599,8 @@ int main(int argc, char **argv)
 		printf("Could not connect to server\n");
 		return -1;
 	}
+
+	dml_poll_add(&tx_state, NULL, NULL, tx_watchdog);
 
 	dml_poll_loop();
 

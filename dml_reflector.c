@@ -381,8 +381,9 @@ void recv_data(void *data, size_t size)
 	if (state != tx_state) {
 		char call[ETH_AR_CALL_SIZE];
 		int ssid;
+		bool multicast;
 		
-		eth_ar_mac2call(call, &ssid, data);
+		eth_ar_mac2call(call, &ssid, &multicast, data);
 		tx_state = state;
 		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
 	}
