@@ -378,11 +378,13 @@ void send_data(void *data, size_t size)
 
 
 struct trx_codec2 *tc_me;
+bool use_dv = false;
 
 static bool rx_state = false;
 static bool tx_state = false;
 
 uint8_t mac_my[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 void recv_data(void *data, size_t size)
 {
@@ -407,11 +409,15 @@ void recv_data(void *data, size_t size)
 		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
 	}
 	
-	if (size > 8)
-		trx_codec2_decode(tc_me, datab + 8, size - 8);
+	if (size > 8) {
+		if (use_dv)
+			trx_dv_send(data, mac_bcast, datab + 8, size - 8);
+		else
+			trx_codec2_decode(tc_me, datab + 8, size - 8);
+	}
 
 	dml_poll_timeout(&tx_state, tx_state ?
-	    &(struct timespec){0, 100000000} :
+	    &(struct timespec){0, 200000000} :
 	    &(struct timespec){0, 0} );
 }
 
@@ -441,10 +447,10 @@ int encode_cb(void *arg, uint8_t *encoded, size_t size)
 	return 0;
 }
 
-int dv_in_cb(void *arg, uint8_t from[6], uint8_t *dv, size_t size, int mode)
+int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
 {
 	uint8_t data[8 + size];
-	
+
 	memcpy(data, from, 6);
 	data[6] = mode;
 	data[7] = true;
@@ -457,7 +463,7 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t *dv, size_t size, int mode)
 int state_cb(bool state)
 {
 	printf("state: %d\n", state);
-	if (state != rx_state) {
+	if (!use_dv && state != rx_state) {
 		uint8_t data[8];
 		memcpy(data, mac_my, 6);
 		data[6] = trx_codec2_mode_get(tc_me);
@@ -547,24 +553,27 @@ int main(int argc, char **argv)
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {
+		use_dv = true;
 		if (trx_dv_init(dv_dev, dv_in_cb, NULL))
 			fprintf(stderr, "Could not open DV device\n");
 	}
 	
-	snd_dev = dml_config_value("sound_device", NULL, "default");
-	if (trx_sound_init(snd_dev)) {
-		printf("Could not initialize sound\n");
-		return -1;
+	if (!use_dv) {
+		snd_dev = dml_config_value("sound_device", NULL, "default");
+		if (trx_sound_init(snd_dev)) {
+			printf("Could not initialize sound\n");
+			return -1;
+		}
+	
+		if (!(tc_me = trx_codec2_init())) {
+			printf("Could not initialize codec2\n");
+			return -1;
+		}
+		trx_sound_in_cb_set((int (*)(void *, int16_t *, int))trx_codec2_encode, tc_me);
+		trx_codec2_encode_cb_set(tc_me, encode_cb, NULL);
+		trx_codec2_decode_cb_set(tc_me, trx_sound_out, NULL);
 	}
 	
-	if (!(tc_me = trx_codec2_init())) {
-		printf("Could not initialize codec2\n");
-		return -1;
-	}
-	trx_sound_in_cb_set((int (*)(void *, int16_t *, int))trx_codec2_encode, tc_me);
-	trx_codec2_encode_cb_set(tc_me, encode_cb, NULL);
-	trx_codec2_decode_cb_set(tc_me, trx_sound_out, NULL);
-
 	controldev = dml_config_value("control", NULL, NULL);
 
 	if (trx_control_init(controldev, command_cb, state_cb)) {
