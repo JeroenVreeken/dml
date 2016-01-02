@@ -61,6 +61,25 @@ struct dml_route *route_create(uint8_t id[DML_ID_SIZE])
 	return route;
 }
 
+void dml_route_destroy(uint8_t id[DML_ID_SIZE])
+{
+	struct dml_route **entry;
+	
+	for (entry = &route_list; *entry; entry = &(*entry)->next) {
+		struct dml_route *route = *entry;
+		
+		if (!memcmp(route->id, id, DML_ID_SIZE)) {
+			*entry = route->next;
+			
+			if (route->links)
+				free(route->link);
+			free(route);
+			
+			return;
+		}
+	}
+}
+
 struct dml_route *route_search(uint8_t id[DML_ID_SIZE])
 {
 	struct dml_route *route;

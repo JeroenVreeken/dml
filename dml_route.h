@@ -23,6 +23,7 @@
 
 int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connection *dc);
 int dml_route_remove(struct dml_connection *dc);
+void dml_route_destroy(uint8_t id[DML_ID_SIZE]);
 
 int dml_route_iterate(uint8_t prev[DML_ID_SIZE], uint8_t *hops, struct dml_connection **dc);
 

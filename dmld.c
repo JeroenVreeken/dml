@@ -729,6 +729,27 @@ void client_connect(struct dml_client *client, void *arg)
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dmld " DML_VERSION);
 }
 
+int cleanup(void *arg)
+{
+	int r;
+	static uint8_t id[DML_ID_SIZE] = { 0 };
+	uint8_t hops;
+	struct dml_connection *dc;
+
+	r = dml_route_iterate(id, &hops, &dc);
+	if (r) {
+		memset(id, 0, sizeof(id));
+	} else {
+		if (hops == 255) {
+			printf("Removing route\n");
+			dml_route_destroy(id);
+		}
+	}
+
+	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct dml_server *ds;
@@ -762,6 +783,9 @@ int main(int argc, char **argv)
 	}
 
 	dml_route_update_cb_set(connection_update);
+
+	dml_poll_add(cleanup, NULL, NULL, cleanup);
+	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
 
 	dml_poll_loop();
 
