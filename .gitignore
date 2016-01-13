@@ -2,6 +2,7 @@
 *.o
 *.d
 dmld
+dml_httpd
 dml_list
 dml_reflector
 dml_streamer_ogg

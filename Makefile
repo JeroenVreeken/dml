@@ -28,7 +28,7 @@ DML_OBJS = $(DML_SRCS:.c=.o)
 TRX_OBJS = $(TRX_SRCS:.c=.o)
 ETH_AR_OBJS = $(ETH_AR_SRCS:.c=.o)
 
-all: dmld dml_list dml_reflector dml_streamer_ogg dml_stream_client dml_trx
+all: dmld dml_list dml_reflector dml_streamer_ogg dml_stream_client dml_trx dml_httpd
 
 SRCS += $(DML_SRCS) $(TRX_SRCS) $(ETH_AR_SRCS)
 
@@ -50,6 +50,10 @@ dml_streamer_ogg: $(DML_OBJS) dml_streamer_ogg.o
 
 SRCS += dml_stream_client.c
 dml_stream_client: $(DML_OBJS) dml_stream_client.o
+
+SRCS += dml_httpd.c
+dml_httpd_LDFLAGS += -lwebsockets -lmagic
+dml_httpd: $(DML_OBJS) dml_httpd.o
 
 DEPS:=$(SRCS:.c=.d)
 -include $(DEPS)
