@@ -53,10 +53,12 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			void *cert;
 			size_t size;
 			
+			fprintf(stderr, "Parse certificate\n");
 			if (dml_packet_parse_certificate(data, len, cid, &cert, &size))
 				break;
 			
 			if (!dml_crypto_cert_add_verify(cert, size, cid)) {
+				fprintf(stderr, "Request header\n");
 				dml_packet_send_req_header(dc, req_id);
 			}
 			free(cert);

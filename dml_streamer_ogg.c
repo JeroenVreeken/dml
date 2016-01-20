@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -214,7 +214,7 @@ int ogg_in(void *arg)
 						ogg_total_segments += ogg_page[27 + i];
 					}
 					
-					printf("%zd segment end ", ogg_total_segments);
+//					printf("%zd segment end ", ogg_total_segments);
 					repeat = true;
 					ogg_state = OGG_STATE_DATA;
 				}
@@ -228,7 +228,7 @@ int ogg_in(void *arg)
 					    ogg_page[1] == 'g' &&
 					    ogg_page[2] == 'g' &&
 					    ogg_page[3] == 'S') {
-						printf("Found OggS pattern ");
+//						printf("Found OggS pattern ");
 					}
 					serial = ogg_page[14];
 					serial |= ogg_page[15] << 8;
@@ -256,8 +256,8 @@ int ogg_in(void *arg)
 						theora_header = serial;
 					}
 					    
-					printf("bitflags: %02x segments: %d serial: %08x ", ogg_page[5], ogg_segments, serial);
-					printf(" %02x\n", ogg_page[27 + ogg_segments]);
+//					printf("bitflags: %02x segments: %d serial: %08x ", ogg_page[5], ogg_segments, serial);
+//					printf(" %02x\n", ogg_page[27 + ogg_segments]);
 				
 					if (vorbis_header == serial) {
 						if (!(ogg_page[27 + ogg_segments] & 1)) {
