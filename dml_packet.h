@@ -124,5 +124,7 @@ int dml_packet_send_data(struct dml_connection *dc,
 int dml_packet_parse_data(uint8_t *data, uint16_t len,
     void **payload_data, size_t *payload_len, uint64_t *timestamp,
     struct dml_crypto_key *dk);
+int dml_packet_parse_data_unverified(uint8_t *data, uint16_t len,
+    void **payload_data, size_t *payload_len, uint64_t *timestamp);
 
 #endif /* _DML_PACKET_H_ */

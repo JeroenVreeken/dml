@@ -24,6 +24,9 @@
 #include "dml_crypto.h"
 #include "dml_config.h"
 
+#include "ogg.h"
+#include "matroska.h"
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -43,6 +46,7 @@ uint32_t bps = 0;
 uint16_t packet_id = 0;
 struct dml_connection *dml_con;
 
+bool header_done = false;
 uint8_t *header;
 size_t header_size = 0;
 
@@ -87,7 +91,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 		}
 		case DML_PACKET_REQ_HEADER: {
 			uint8_t header_sig[DML_SIG_SIZE];
-			
+
 			dml_crypto_sign(header_sig, header, header_size, dk);
 			
 			dml_packet_send_header(dc, ref_id, header_sig, header, header_size);
@@ -168,139 +172,69 @@ void send_data(void *data, size_t size)
 
 int fd_ogg = 0;
 
-uint8_t ogg_page[65536];
-size_t ogg_pos = 0;
-uint8_t ogg_segments;
-size_t ogg_total_segments;
+uint8_t *pkt_data;
+size_t pkt_size;
 
-enum ogg_state {
-	OGG_STATE_HEADER,
-	OGG_STATE_SEGMENT_TABLE,
-	OGG_STATE_DATA,
-} ogg_state = OGG_STATE_HEADER;
-
-uint32_t vorbis_header;
-uint32_t theora_header;
-
-int ogg_in(void *arg)
+ssize_t data_cb(void *data, size_t size)
 {
-	ssize_t r;
-	bool repeat;
-	
-	r = read(fd_ogg, ogg_page + ogg_pos, sizeof(ogg_page) - ogg_pos);
-	if (r < 0)
-		return -1;
-	
-	ogg_pos += r;
-	
-	do {
-		repeat = false;
-		switch (ogg_state) {
-			case OGG_STATE_HEADER: {
-				if (ogg_pos >= 27) {
-					ogg_segments = ogg_page[26];
-					
-					repeat = true;
-					ogg_state = OGG_STATE_SEGMENT_TABLE;
-				}
-				break;
-			}
-			case OGG_STATE_SEGMENT_TABLE: {
-				if (ogg_pos >= 27 + ogg_segments) {
-					int i;
-					
-					ogg_total_segments = 27 + ogg_segments;
-					for (i = 0; i < ogg_segments; i++) {
-						ogg_total_segments += ogg_page[27 + i];
-					}
-					
-//					printf("%zd segment end ", ogg_total_segments);
-					repeat = true;
-					ogg_state = OGG_STATE_DATA;
-				}
-				break;
-			}
-			case OGG_STATE_DATA: {
-				if (ogg_pos >= ogg_total_segments) {
-					uint32_t serial;
-					
-					if (ogg_page[0] == 'O' &&
-					    ogg_page[1] == 'g' &&
-					    ogg_page[2] == 'g' &&
-					    ogg_page[3] == 'S') {
-//						printf("Found OggS pattern ");
-					}
-					serial = ogg_page[14];
-					serial |= ogg_page[15] << 8;
-					serial |= ogg_page[16] << 16;
-					serial |= ogg_page[17] << 24;
-					
-					if (ogg_page[5] & 0x02 &&
-					    ogg_page[27 + ogg_segments + 1] == 'v' &&
-					    ogg_page[27 + ogg_segments + 2] == 'o' &&
-					    ogg_page[27 + ogg_segments + 3] == 'r' &&
-					    ogg_page[27 + ogg_segments + 4] == 'b' &&
-					    ogg_page[27 + ogg_segments + 5] == 'i' &&
-					    ogg_page[27 + ogg_segments + 6] == 's') {
-						printf("Start of Vorbis stream ");
-						vorbis_header = serial;
-					}
-					if (ogg_page[5]& 0x02 &&
-					    ogg_page[27 + ogg_segments + 1] == 't' &&
-					    ogg_page[27 + ogg_segments + 2] == 'h' &&
-					    ogg_page[27 + ogg_segments + 3] == 'e' &&
-					    ogg_page[27 + ogg_segments + 4] == 'o' &&
-					    ogg_page[27 + ogg_segments + 5] == 'r' &&
-					    ogg_page[27 + ogg_segments + 6] == 'a') {
-						printf("Start of Theora stream ");
-						theora_header = serial;
-					}
-					    
-//					printf("bitflags: %02x segments: %d serial: %08x ", ogg_page[5], ogg_segments, serial);
-//					printf(" %02x\n", ogg_page[27 + ogg_segments]);
-				
-					if (vorbis_header == serial) {
-						if (!(ogg_page[27 + ogg_segments] & 1)) {
-							printf("First vorbis data\n");
-							vorbis_header = 0;
-						} else {
-							printf("Vorbis header\n");
-							header = realloc(header, header_size + ogg_pos);
-							memcpy(header + header_size, ogg_page, ogg_pos);
-							header_size += ogg_pos;
-						}
-					}
-					
-					if (theora_header == serial) {
-						if (!(ogg_page[27 + ogg_segments] & 0x80)) {
-							printf("First theora data\n");
-							theora_header = 0;
-						} else {
-							printf("Theora header\n");
-							header = realloc(header, header_size + ogg_pos);
-							memcpy(header + header_size, ogg_page, ogg_pos);
-							header_size += ogg_pos;
-						}
-					}
-					
-					int i;
-					for (i = 0; i < ogg_pos; i += 1024) {
-						int size = ogg_pos - i;
-						if (size > 1024)
-							size = 1024;
-						send_data(ogg_page + i, size);
-					}
-					
-					memmove(ogg_page, ogg_page + ogg_total_segments, ogg_pos - ogg_total_segments);
-					ogg_pos -= ogg_total_segments;
-					repeat = true;
-					ogg_state = OGG_STATE_HEADER;
-				}
-				break;
-			}
-		}
-	} while (repeat);
+	if (!header_done) {
+		header = realloc(header, header_size + size);
+		memcpy(header + header_size, data, size);
+		header_size += size;
+	} else {
+		pkt_data = realloc(pkt_data, pkt_size + size);
+		memcpy(pkt_data + pkt_size, data, size);
+		pkt_size += size;
+	}
 
+	return size;
+}
+
+int trigger_cb_m(enum matroska_trigger trig)
+{
+	if (trig == MATROSKA_TRIGGER_HEADER_COMPLETE) {
+		header_done = true;
+	} else {
+		send_data(pkt_data, pkt_size);
+		free(pkt_data);
+		pkt_data = NULL;
+		pkt_size = 0;
+	}
+	
+	return 0;
+}
+
+int trigger_cb_o(enum ogg_trigger trig)
+{
+	if (trig == OGG_TRIGGER_HEADER_COMPLETE) {
+		header_done = true;
+	} else {
+		send_data(pkt_data, pkt_size);
+		free(pkt_data);
+		pkt_data = NULL;
+		pkt_size = 0;
+	}
+	
+	return 0;
+}
+
+struct ogg *ogg;
+struct matroska *mat;
+
+int fd_in(void *arg)
+{
+	char buffer[4096];
+	
+	ssize_t r;
+	
+	r = read(fd_ogg, buffer, sizeof(buffer));
+	if (r > 0) {
+		if (mat)
+			return matroska_parse(mat, buffer, r);
+		else
+			return ogg_parse(ogg, buffer, r);
+	}
+	
 	return 0;
 }
 
@@ -308,10 +242,11 @@ int ogg_in(void *arg)
 int main(int argc, char **argv)
 {
 	struct dml_client *dc;
-	char *file = "dml_streamer_ogg.conf";
+	char *file = "dml_streamer.conf";
 	char *certificate;
 	char *key;
 	char *server;
+	bool use_ogg = true;
 
 	if (argc > 1)
 		file = argv[1];
@@ -321,9 +256,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	mime = dml_config_value("mime", NULL, "application/ogg");
+	if (strcmp(mime + strlen(mime) - 3, "ogg"))
+		use_ogg = false;
 	name = dml_config_value("name", NULL, "example");
 	alias = dml_config_value("alias", NULL, "");
-	description = dml_config_value("description", NULL, "Test ogg stream");
+	description = dml_config_value("description", NULL, "Test stream");
 	bps = atoi(dml_config_value("bps", NULL, "300000"));
 
 	server = dml_config_value("server", NULL, "localhost");
@@ -354,7 +291,13 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	dml_poll_add(&fd_ogg, ogg_in, NULL, NULL);
+
+	if (use_ogg)
+		ogg = ogg_create(data_cb, trigger_cb_o);
+	else
+		mat = matroska_create(data_cb, trigger_cb_m);
+
+	dml_poll_add(&fd_ogg, fd_in, NULL, NULL);
 	dml_poll_fd_set(&fd_ogg, 0);
 	dml_poll_in_set(&fd_ogg, true);
 

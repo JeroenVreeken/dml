@@ -4,7 +4,10 @@
 <p>
 dml_httpd works!
 </p>
-<div id = "hello">No HELLO from server received.</div>
+<div id="hello">No HELLO from server received.</div>
+
+<div><video style="border: 2px solid" id="video"></video></div>
+
 <div id = "routes"></div>
 
 </body>
@@ -26,7 +29,18 @@ var DML = {
 		REQ_HEADER: 36,
 		REQ_REVERSE: 37,
 		REQ_DISC: 38,
-	}
+		
+		DATA: 4096,
+	},
+	ID: {
+		SIZE: 32,
+	},
+	SIG: {
+		SIZE: ((256 * 2) / 8),
+	},
+	TIMESTAMP: {
+		SIZE: 8,
+	},
 };
 
 function char2hex(c)
@@ -83,6 +97,17 @@ function arraybufcmp(ab1, ab2)
 	return false;
 }
 
+function ab_copy(dst_ab, dst_off, src_ab, src_off, len)
+{
+	var dst = new DataView(dst_ab);
+	var src = new DataView(src_ab);
+	var i;
+	
+	for (i = 0; i < len; i++) {
+		dst.setUint8(i + dst_off, src.getUint8(i + src_off));
+	}
+}
+
 function dml()
 {
 	url = "ws://" + location.host;
@@ -93,9 +118,11 @@ function dml()
 	var packet_hello_cb = function(flags, ident) {}
 	var packet_route_cb = function(hops, id) {}
 	var packet_description_cb = function(id, version, bps, mime, name, alias, description) {}
+	var packet_header_cb = function(header_id, header_data, header_sig) {}
+	var packet_data_cb = function(data, timestamp, signature) {}
 
 	ws.onmessage = function(msg) {
-		console.log("ws.onmessage: " + msg.data.byteLength);
+//		console.log("ws.onmessage: " + msg.data.byteLength);
 	
 		header = new DataView(msg.data, 0, 4);
 		id = header.getUint16(0, false);
@@ -103,7 +130,7 @@ function dml()
 		data = new DataView(msg.data, 4);
 		pos = 4;
 	
-		console.log("len: " + len + " id: " + id);
+//		console.log("len: " + len + " id: " + id);
 
 		switch(id) {
 			case DML.PACKET.HELLO: {
@@ -117,14 +144,14 @@ function dml()
 			}
 			case DML.PACKET.ROUTE: {
 				hops = data.getUint8(32);
-				route_id = msg.data.slice(pos, pos + 32);
+				route_id = msg.data.slice(pos, pos + DML.ID.SIZE);
 				
 				dml_this.packet_route_cb(hops, route_id);
 				break;
 			}
 			case DML.PACKET.DESCRIPTION: {
-				desc_id = msg.data.slice(pos, pos + 32);
-				pos += 32;
+				desc_id = msg.data.slice(pos, pos + DML.ID.SIZE);
+				pos += DML.ID.SIZE;
 				data = new DataView(msg.data, pos);
 				desc_version = data.getUint8(0);
 				desc_bps = data.getUint32(1, false);
@@ -147,6 +174,26 @@ function dml()
 				    desc_name, desc_alias, desc_description);
 				break;
 			}
+			case DML.PACKET.HEADER: {
+				header_id = msg.data.slice(pos, pos + DML.ID.SIZE);
+				header_data = msg.data.slice(pos + DML.ID.SIZE, pos + len - DML.SIG.SIZE);
+				header_sig = msg.data.slice(pos + len - DML.SIG.SIZE, pos + len);
+				
+				dml_this.packet_header_cb(
+					header_id, header_data, header_sig);
+				break;
+			}
+			default: {
+				if (id == connected_data_id) {
+					data = msg.data.slice(pos, pos + len - DML.SIG.SIZE - DML.TIMESTAMP.SIZE);
+					signature = msg.data.slice(pos + len - DML.SIG.SIZE, pos + len);
+					timestampdata = new DataView(msg.data, pos + len - DML.SIG.SIZE - DML.TIMESTAMP.SIZE);
+					timestamp = timestampdata.getUint32(0, false) << 32;
+					timestamp += timestampdata.getUint32(4, false);
+					
+					dml_this.packet_data_cb(data, timestamp, signature);
+				}
+			}
 		}
 	}
 
@@ -163,7 +210,7 @@ function dml()
 		console.log("ws.onerror(): " + event.data);
 	}
 	
-	this.send = function (id, payload_arraybuffer) {
+	this.send = function dml_connection_send(id, payload_arraybuffer) {
 		data = new ArrayBuffer(payload_arraybuffer.byteLength + 4);
 		dataview = new DataView(data);
 		dataview.setUint16(0, id, false);
@@ -178,8 +225,21 @@ function dml()
 		ws.send(data);
 	}
 	
-	this.send_req_description = function (id) {
+	this.send_req_description = function dml_packet_send_req_description(id) {
 		dml_this.send(DML.PACKET.REQ_DESCRIPTION, id);
+	}
+	this.send_req_header = function dml_packet_send_req_header(id) {
+		dml_this.send(DML.PACKET.REQ_HEADER, id);
+	}
+	this.send_req_disc = function dml_packet_send_req_disc(id) {
+		dml_this.send(DML.PACKET.REQ_DISC, id);
+	}
+	this.send_connect = function dml_packet_send_connect(id, packet_id) {
+		data = new ArrayBuffer(id.byteLength + 2);
+		ab_copy(data, 0, id, 0, DML.ID.SIZE);
+		dataview = new DataView(data);
+		dataview.setUint16(id.byteLength, packet_id, false);
+		dml_this.send(DML.PACKET.CONNECT, data);
 	}
 }
 
@@ -189,9 +249,11 @@ var routes = new Array();
 function update_routes()
 {
 	var i;
-	str = "<pre>";
+	str = "";
 	
+	str += "<button onclick=\"disconnect()\">Disconnect</button>";
 	for (i = 0; i < routes.length; i++) {
+		str += "<pre>";
 		str += "id: " + sha2str(routes[i].id) + " hops: " + routes[i].hops + "\n";
 		if (routes[i].description) {
 			str += "\tbps:\t" + routes[i].description.bps + "\n";
@@ -200,12 +262,68 @@ function update_routes()
 			str += "\talias:\t" + routes[i].description.alias + "\n";
 			str += "\tdescription:\t" + routes[i].description.description + "\n";
 		}
+		str += "</pre>";
+		str += "<button onclick=\"connect(" + i + ")\">Connect</button>";
 	}
-	str += "</pre>";
 	document.getElementById("routes").innerHTML = str;
 }
 
+
+video = document.getElementById("video");
+
 connection = new dml();
+
+connected = false;
+connected_id = null;
+connected_data_id = DML.PACKET.DATA;
+connected_timestamp = 0;
+
+var mediaSource = new MediaSource();
+var sourceBuffer;
+
+function disconnect() 
+{
+	if (connected) {
+		connection.send_req_disc(connected_id);
+		connected_data_id++;
+		connected = false;
+		video.pause();
+	}
+}
+
+function connect(id) 
+{
+	if (connected && arraybufcmp(routes[id].id, connected_id)) {
+		connection.send_req_disc(routes[id].id);
+		connected_data_id++;
+		connected = false;
+	}
+	
+	var can_play = MediaSource.isTypeSupported(routes[id].description.mime);
+	if (can_play) {
+		connected = true;
+		connected_id = routes[id].id;
+		
+		video.src = URL.createObjectURL(mediaSource);
+		video.play();
+		
+		console.log("mediaSource.readyState: " + mediaSource.readyState);
+		mediaSource.addEventListener('sourceopen', sourceOpen);
+  		
+	} else {
+		alert("Your browser does not support the mime type '" + routes[id].description.mime + "'.");
+	}
+}
+
+function sourceOpen (_) {
+	console.log("mediaSource.readyState: " + mediaSource.readyState);
+
+	sourceBuffer = mediaSource.addSourceBuffer("video/webm");
+	//"application/ogg");
+
+	connection.send_req_header(connected_id);
+	console.log("Requested header");
+};
 
 connection.packet_hello_cb = function(flags, ident) {
 	document.getElementById("hello").innerHTML = "Server identity: " + ident + "<br>Server flags: " + flags;
@@ -250,6 +368,32 @@ connection.packet_description_cb = function(id, version, bps, mime, name, alias,
 	}
 	
 	update_routes();
+}
+
+
+connection.packet_header_cb = function(header_id, header_data, header_sig) {
+	console.log("header " + header_id.byteLength + " " + header_data.byteLength + " " + header_sig.byteLength);
+	if (!arraybufcmp(connected_id, header_id)) {
+		connection.send_connect(connected_id, connected_data_id);
+
+		if (header_data.byteLength) {
+			sourceBuffer.appendBuffer(header_data);
+		}
+	}
+}
+
+
+connection.packet_data_cb = function(data, timestamp, signature) {
+	var i;
+	if (timestamp <= connected_timestamp) {
+		console.log("timestamp invalid");
+	}
+
+	sourceBuffer.appendBuffer(data);
+	if (video.buffered.length) {
+		if (video.buffered.start(0) > video.currentTime)
+			video.currentTime = video.buffered.start(0);
+	}
 }
 
 </script>

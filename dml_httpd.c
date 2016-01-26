@@ -197,7 +197,7 @@ void ws_client_flush(struct ws_client *client)
 		wb = writebuf_next(client);
 
 		libwebsocket_write(client->wsi, (unsigned char *)wb->msg, wb->msg_len, LWS_WRITE_BINARY);
-		
+
 		writebuf_free(wb);
 	}
 	
@@ -250,6 +250,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	struct ws_client *ws_client;
 	struct writebuf *wb;
 	
+	printf("Received packet, id %d, len %d\n", id, len);
 	ws_client = ws_client_get_by_dc(dc);
 	wb = writebuf_alloc(len + 4);
 	msg = (uint8_t *)wb->msg;
@@ -519,9 +520,10 @@ static int callback_http(struct libwebsocket_context *context,
 static struct libwebsocket_protocols protocols[] = {
     // first protocol must always be HTTP handler
     {
-        "http-only",        // name
-        callback_http,      // callback
-        0                   // per_session_data_size
+        name: "http-only",        // name
+        callback: callback_http,      // callback
+        per_session_data_size: 0,                   // per_session_data_size
+	rx_buffer_size: 65536,
     },
     {
         NULL, NULL, 0       // end of list
@@ -567,34 +569,6 @@ int main(int argc, char **argv)
     
 	
 	dml_poll_loop();
-/*	while (1) {
-		int n;
-		
-		n = poll(pollfds, count_pollfds, 1000);
-		if (n < 0)
-			break;
-
-		for (n = 0; n < count_pollfds; n++)
-			if (pollfds[n].revents) {
-//				struct ws_client *entry;
-*/				
-/*
-				for (entry = ws_client_list; entry; entry = entry->next) {
-					int fdi = srcp_fd_get(entry->srcp_info);
-					int fdc = srcp_fd_get(entry->srcp_cmd);
-					
-					if (fdi == pollfds[n].fd) {
-						srcp_info_handle(entry->srcp_info);
-					}
-					if (fdc == pollfds[n].fd) {
-						srcp_info_handle(entry->srcp_cmd);
-					}
-				}
-*/
-//				libwebsocket_service_fd(context, &pollfds[n]);
-/*			}
-	}
-*/
     
 	libwebsocket_context_destroy(lws_context);
 	magic_close(magic);

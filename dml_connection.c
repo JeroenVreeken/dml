@@ -90,6 +90,7 @@ err_calloc:
 int dml_connection_destroy(struct dml_connection *dc)
 {
 //	printf("close %p fd: %d\n", dc, dc->fd);
+	dml_poll_remove(dc);
 	close(dc->fd);
 	free(dc);
 	

@@ -13,7 +13,8 @@ DML_SRCS = \
 	dml_poll.c \
 	dml_route.c \
 	dml_server.c \
-	dml_stream.c
+	dml_stream.c \
+	dml_stream_client_simple.c
 
 TRX_SRCS = \
 	trx_codec2.c \
@@ -28,7 +29,7 @@ DML_OBJS = $(DML_SRCS:.c=.o)
 TRX_OBJS = $(TRX_SRCS:.c=.o)
 ETH_AR_OBJS = $(ETH_AR_SRCS:.c=.o)
 
-all: dmld dml_list dml_reflector dml_streamer_ogg dml_stream_client dml_trx dml_httpd
+all: dmld dml_list dml_reflector dml_streamer dml_stream_client dml_trx dml_httpd
 
 SRCS += $(DML_SRCS) $(TRX_SRCS) $(ETH_AR_SRCS)
 
@@ -45,8 +46,8 @@ SRCS += dml_trx.c trx_sound.c
 dml_trx_LDFLAGS += -lasound -lcodec2
 dml_trx: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_trx.o
 
-SRCS += dml_streamer_ogg.c
-dml_streamer_ogg: $(DML_OBJS) dml_streamer_ogg.o
+SRCS += dml_streamer.c matroska.c ogg.c
+dml_streamer: $(DML_OBJS) dml_streamer.o matroska.o ogg.o
 
 SRCS += dml_stream_client.c
 dml_stream_client: $(DML_OBJS) dml_stream_client.o
@@ -66,7 +67,7 @@ clean:
 	rm -rf $(OBJS) \
 		dml_list \
 		dml_reflector \
-		dml_streamer_ogg \
+		dml_streamer \
 		dml_stream_client \
 		dml_trx
 

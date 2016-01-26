@@ -70,6 +70,17 @@ err_calloc:
 	return NULL;
 }
 
+int dml_client_destroy(struct dml_client *dc)
+{
+	if (dc->fd >= 0)
+		close(dc->fd);
+	
+	free(dc->host);
+	free(dc);
+	
+	return 0;
+}
+
 int dml_client_connect(struct dml_client *dc)
 {
 	struct addrinfo *result;

@@ -40,6 +40,17 @@ Stream audio with ogg:
 		-codec:a vorbis -strict -2 -qscale:a 5 \
 		-f ogg - | ./dml_streamer_ogg
 
+Stream video with ogg:
+
+	ffmpeg \
+		-f lavfi -i testsrc=size=cif:rate=25 \
+		-f lavfi -i sine -af arealtime \
+		-c:v libtheora \
+		-c:a libvorbis \
+		-q:v 9 -g:v 25 -q:a 5 \
+		-f ogg - | ./dml_streamer_ogg 
+
+
 Receive ogg stream and play:
 
 	dml_stream_client <stream_id> | mplayer -

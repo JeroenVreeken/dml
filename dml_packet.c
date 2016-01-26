@@ -460,3 +460,30 @@ int dml_packet_parse_data(uint8_t *data, uint16_t len,
 
 	return 0;
 }
+
+int dml_packet_parse_data_unverified(uint8_t *data, uint16_t len,
+    void **payload_data, size_t *payload_len, uint64_t *timestamp)
+{
+	if (len < DML_SIG_SIZE + sizeof(uint64_t))
+		return -1;
+	
+	size_t plen = len - DML_SIG_SIZE - sizeof(uint64_t);
+	*payload_len = plen;
+
+	*payload_data = malloc(plen);
+	if (!*payload_data)
+		return -1;
+	memcpy(*payload_data, data, plen);
+
+	*timestamp = 
+	    ((uint64_t)data[plen + 0] << 56) |
+	    ((uint64_t)data[plen + 1] << 48) |
+	    ((uint64_t)data[plen + 2] << 40) |
+	    ((uint64_t)data[plen + 3] << 32) |
+	    ((uint64_t)data[plen + 4] << 24) |
+	    ((uint64_t)data[plen + 5] << 16) |
+	    ((uint64_t)data[plen + 6] << 8) |
+	    ((uint64_t)data[plen + 7]);
+	
+	return 0;
+}
