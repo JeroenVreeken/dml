@@ -192,6 +192,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t cid[DML_ID_SIZE];
 			
 			dml_packet_parse_connect(data, len, cid, &packet_id);
+			printf("Received connect, packet_id: %d\n", packet_id);
 			break;
 		}
 		case DML_PACKET_REQ_DISC: {

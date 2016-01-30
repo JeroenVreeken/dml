@@ -574,6 +574,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				cdat->dc = dc_r;
 				memcpy(cdat->id, id, DML_ID_SIZE);
 				
+				printf("Sending connect\n");
 				dml_packet_send_connect(dc_r, id, cdat->packet_id);
 			}
 			

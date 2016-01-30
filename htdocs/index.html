@@ -1,18 +1,29 @@
+<!DOCTYPE html>
 <html>
-<meta charset="UTF-8"> 
-<body bgcolor="white">
+<head>
+	<title>dml_httpd</title>
+	<meta charset="UTF-8"> 
+</head>
+<body style="background-color: white;">
 <p>
 dml_httpd works!
 </p>
 <div id="hello">No HELLO from server received.</div>
 
-<div><video style="border: 2px solid" id="video"></video></div>
+<div id="video_div" style="display: none;">
+	<video style="border: 2px solid" id="video"></video>
+	<button onclick="curcon.disconnect()">Disconnect</button>
+</div>
+
+<div id="dmlc2_div" style="display: none;">
+	<div style="border: 2px solid" id="dmlc2_state"></div>
+	<button onclick="curcon.disconnect()">Disconnect</button>
+</div>
 
 <div id = "routes"></div>
 
-</body>
 
-<script language="javascript" type="text/javascript">
+<script>
 
 var DML = {
 	PACKET:  {
@@ -80,7 +91,8 @@ function sha2str(data)
 	return str;
 }
 
-function arraybufcmp(ab1, ab2)
+/* compare two arraybuffers */
+function ab_cmp(ab1, ab2)
 {
 	if (ab1.byteLength != ab2.byteLength)
 		return true;
@@ -97,6 +109,7 @@ function arraybufcmp(ab1, ab2)
 	return false;
 }
 
+/* copy contents of an array buffer into another */
 function ab_copy(dst_ab, dst_off, src_ab, src_off, len)
 {
 	var dst = new DataView(dst_ab);
@@ -120,6 +133,7 @@ function dml()
 	var packet_description_cb = function(id, version, bps, mime, name, alias, description) {}
 	var packet_header_cb = function(header_id, header_data, header_sig) {}
 	var packet_data_cb = function(data, timestamp, signature) {}
+	var packet_certificate_cb = function(certificate_id, certificate_payload) {}
 
 	ws.onmessage = function(msg) {
 //		console.log("ws.onmessage: " + msg.data.byteLength);
@@ -180,7 +194,15 @@ function dml()
 				header_sig = msg.data.slice(pos + len - DML.SIG.SIZE, pos + len);
 				
 				dml_this.packet_header_cb(
-					header_id, header_data, header_sig);
+				    header_id, header_data, header_sig);
+				break;
+			}
+			case DML.PACKET.CERTIFICATE: {
+				certificate_id = msg.data.slice(pos, pos + DML.ID.SIZE);
+				certificate_payload = msg.data.slice(pos + DML.ID.SIZE, pos + len);
+				
+				dml_this.packet_certificate_cb(
+				    certificate_id, certificate_payload);
 				break;
 			}
 			default: {
@@ -234,6 +256,9 @@ function dml()
 	this.send_req_disc = function dml_packet_send_req_disc(id) {
 		dml_this.send(DML.PACKET.REQ_DISC, id);
 	}
+	this.send_req_certificate = function dml_packet_send_req_certificate(id) {
+		dml_this.send(DML.PACKET.REQ_CERTIFICATE, id);
+	}
 	this.send_connect = function dml_packet_send_connect(id, packet_id) {
 		data = new ArrayBuffer(id.byteLength + 2);
 		ab_copy(data, 0, id, 0, DML.ID.SIZE);
@@ -251,8 +276,10 @@ function update_routes()
 	var i;
 	str = "";
 	
-	str += "<button onclick=\"disconnect()\">Disconnect</button>";
 	for (i = 0; i < routes.length; i++) {
+		var can_play_mse = false;
+		var can_play_dml = false;
+		
 		str += "<pre>";
 		str += "id: " + sha2str(routes[i].id) + " hops: " + routes[i].hops + "\n";
 		if (routes[i].description) {
@@ -261,69 +288,208 @@ function update_routes()
 			str += "\tname:\t" + routes[i].description.name + "\n";
 			str += "\talias:\t" + routes[i].description.alias + "\n";
 			str += "\tdescription:\t" + routes[i].description.description + "\n";
+			can_play_mse = mse.supported(routes[i].description.mime);
+			can_play_dml = dmlc2.supported(routes[i].description.mime);
+		}
+		if (routes[i].certificate) {
+			str += "\tcertificate length:\t" + routes[i].certificate.data.byteLength;
 		}
 		str += "</pre>";
-		str += "<button onclick=\"connect(" + i + ")\">Connect</button>";
+
+		if (can_play_mse) {
+			str += "<button onclick=\"mse.connect(" + i + ")\">Connect</button>";
+		} else if (can_play_dml) {
+			str += "<button onclick=\"dmlc2.connect(" + i + ")\">Connect</button>";
+		} else {
+			str += "Mime type not supported by browser\n";
+		}
 	}
 	document.getElementById("routes").innerHTML = str;
 }
 
-
-video = document.getElementById("video");
-
 connection = new dml();
+
+function eth_ar()
+{
+	var eth_ar_this = this;
+	
+	this.alnum2code = [
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 
+		''
+	];
+
+	
+	this.call = function (mac) {
+		var dv = new DataView(mac);
+		
+		var multicast = dv.getUint8(0) & 0x01;
+		var ssid = (dv.getUint8(0) & 0x3c) >> 2;
+		var macc = (dv.getUint8(0) & 0xc0) >> 6;
+
+		/* Do not use binary operators here!
+		   They are limited to 32bit in this poor excuse for a language... */
+		macc *= 256;
+		macc += dv.getUint8(1);
+		macc *= 256;
+		macc += dv.getUint8(2);
+		macc *= 256;
+		macc += dv.getUint8(3);
+		macc *= 256;
+		macc += dv.getUint8(4);
+		macc *= 256;
+		macc += dv.getUint8(5);
+		
+		var i;
+		var callsign = "";
+		for (i = 0; i < 8; i++) {
+			var c = (macc % 37)  & 0x3f;
+		callsign += eth_ar_this.alnum2code[c];
+			macc /= 37;
+		}
+		callsign += "-" + ssid;
+		
+		return callsign;
+	}
+}
+
+var eth_ar = new eth_ar();
 
 connected = false;
 connected_id = null;
 connected_data_id = DML.PACKET.DATA;
 connected_timestamp = 0;
 
-var mediaSource = new MediaSource();
-var sourceBuffer;
+function prep_connect(id)
+{
+	if (connected && ab_cmp(routes[id].id, connected_id)) {
+		curcon.disconnect();
+	}
+	
+	connected = true;
+	connected_id = routes[id].id;
+}
 
-function disconnect() 
+function do_connect(id)
+{
+	connection.send_req_header(connected_id);
+}
+
+function disconnect()
 {
 	if (connected) {
 		connection.send_req_disc(connected_id);
 		connected_data_id++;
 		connected = false;
-		video.pause();
 	}
 }
 
-function connect(id) 
+function mse()
 {
-	if (connected && arraybufcmp(routes[id].id, connected_id)) {
-		connection.send_req_disc(routes[id].id);
-		connected_data_id++;
-		connected = false;
+	var mediaSource = new MediaSource();
+	var sourceBuffer;
+	var video = document.getElementById("video");
+
+	var mse_this = this;
+
+	this.supported = function supported(mime) {
+		return MediaSource.isTypeSupported(mime);	
 	}
-	
-	var can_play = MediaSource.isTypeSupported(routes[id].description.mime);
-	if (can_play) {
-		connected = true;
-		connected_id = routes[id].id;
+
+	this.disconnect = function mse_disconnect() 
+	{
+		disconnect();
+		video.pause();
+//			video.src = "";
+//			video.play();
+		document.getElementById("video_div").style.display = "none";
+	}
+
+	this.connect = function mse_connect(id) 
+	{
+		document.getElementById("video_div").style.display = "block";
+
+		prep_connect(id);
+		curcon = mse_this;
 		
 		video.src = URL.createObjectURL(mediaSource);
 		video.play();
 		
 		console.log("mediaSource.readyState: " + mediaSource.readyState);
-		mediaSource.addEventListener('sourceopen', sourceOpen);
-  		
-	} else {
-		alert("Your browser does not support the mime type '" + routes[id].description.mime + "'.");
+		mediaSource.addEventListener('sourceopen', sourceOpen_mse);
+	}
+
+	function sourceOpen_mse (_) {
+		console.log("mediaSource.readyState: " + mediaSource.readyState);
+
+		sourceBuffer = mediaSource.addSourceBuffer("video/webm");
+
+		do_connect(connected_id);
+		console.log("Requested header");
+	};
+	
+	this.data = function mse_data(newdata) {
+		sourceBuffer.appendBuffer(newdata);
+		if (video.buffered.length) {
+			if (video.buffered.start(0) > video.currentTime)
+				video.currentTime = video.buffered.start(0);
+		}
 	}
 }
 
-function sourceOpen (_) {
-	console.log("mediaSource.readyState: " + mediaSource.readyState);
+mse = new mse();
 
-	sourceBuffer = mediaSource.addSourceBuffer("video/webm");
-	//"application/ogg");
+function dmlc2()
+{
+	var dmlc2_this = this;
+	
+	this.supported = function supported(mime) {
+		return mime == "audio/dml-codec2";
+	}
+	
+	this.connect = function dmlc2_connect(id) {
+		document.getElementById("dmlc2_div").style.display = "block";
+		document.getElementById("dmlc2_state").innerHTML = "Connect send";
 
-	connection.send_req_header(connected_id);
-	console.log("Requested header");
-};
+		prep_connect(id);
+		curcon = dmlc2_this;
+
+		do_connect(connected_id);
+	}
+	this.disconnect = function dmlc2_disconnect() 
+	{
+		disconnect();
+		document.getElementById("dmlc2_div").style.display = "none";
+	}
+	
+	var state = false;
+	var mode = -1;
+	var callsign = "?";
+	
+	this.data = function dmlc2_data(newdata) {
+		if (data.byteLength >= 8) {
+			var dv = new DataView(newdata);
+			
+			var newstate = dv.getUint8(7) & 0x1;
+			var newmode = dv.getUint8(6);
+			var newcallsign = eth_ar.call(newdata);
+
+			if (newstate != state || newmode != mode || callsign != newcallsign) {
+				var str = "state: " + newstate + " mode: " + newmode + " callsign: " + newcallsign;
+
+				document.getElementById("dmlc2_state").innerHTML = str;
+				    
+				state = newstate;
+				mode = newmode;
+			}
+		}
+	}
+}
+
+dmlc2 = new dmlc2();
+
+var curcon;
 
 connection.packet_hello_cb = function(flags, ident) {
 	document.getElementById("hello").innerHTML = "Server identity: " + ident + "<br>Server flags: " + flags;
@@ -333,7 +499,7 @@ connection.packet_route_cb = function(hops, id) {
 	var i;
 	
 	for(i = 0; i < routes.length; i++) {
-		if (!arraybufcmp(routes[i].id, id))
+		if (!ab_cmp(routes[i].id, id))
 			break;
 	}
 	routes[i] = {};
@@ -347,6 +513,8 @@ connection.packet_route_cb = function(hops, id) {
 		/* already got a description? */
 		if (!routes[i].description)
 			connection.send_req_description(id);
+		if (!routes[i].certificate)
+			connection.send_req_certificate(id);
 	}
 	
 	update_routes();
@@ -356,7 +524,7 @@ connection.packet_description_cb = function(id, version, bps, mime, name, alias,
 	var i;
 	
 	for (i = 0; i < routes.length; i++) {
-		if (!arraybufcmp(routes[i].id, id)) {
+		if (!ab_cmp(routes[i].id, id)) {
 			routes[i].description = {};
 			routes[i].description.version = version;
 			routes[i].description.bps = bps;
@@ -370,14 +538,28 @@ connection.packet_description_cb = function(id, version, bps, mime, name, alias,
 	update_routes();
 }
 
+connection.packet_certificate_cb = function(id, cert) {
+	var i;
+	
+	for (i = 0; i < routes.length; i++) {
+		if (!ab_cmp(routes[i].id, id)) {
+			routes[i].certificate = {};
+			routes[i].certificate.data = cert;
+		}
+	}
+		
+	update_routes();
+}
+
 
 connection.packet_header_cb = function(header_id, header_data, header_sig) {
 	console.log("header " + header_id.byteLength + " " + header_data.byteLength + " " + header_sig.byteLength);
-	if (!arraybufcmp(connected_id, header_id)) {
+	if (!ab_cmp(connected_id, header_id)) {
+		console.log("Send connect");
 		connection.send_connect(connected_id, connected_data_id);
 
 		if (header_data.byteLength) {
-			sourceBuffer.appendBuffer(header_data);
+			curcon.data(header_data);
 		}
 	}
 }
@@ -389,13 +571,10 @@ connection.packet_data_cb = function(data, timestamp, signature) {
 		console.log("timestamp invalid");
 	}
 
-	sourceBuffer.appendBuffer(data);
-	if (video.buffered.length) {
-		if (video.buffered.start(0) > video.currentTime)
-			video.currentTime = video.buffered.start(0);
-	}
+	curcon.data(data);
 }
 
 </script>
+</body>
 
 </html>
