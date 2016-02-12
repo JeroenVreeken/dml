@@ -345,7 +345,7 @@ function eth_ar()
 		var callsign = "";
 		for (i = 0; i < 8; i++) {
 			var c = (macc % 37)  & 0x3f;
-		callsign += eth_ar_this.alnum2code[c];
+			callsign += eth_ar_this.alnum2code[c];
 			macc /= 37;
 		}
 		callsign += "-" + ssid;

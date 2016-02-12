@@ -22,11 +22,15 @@
 #include <stdio.h>
 
 struct trx_codec2 {
-	int mode;	
-	struct CODEC2 *codec;
+	int mode_dec;
+	int mode_enc;	
+	struct CODEC2 *codec_dec;
+	struct CODEC2 *codec_enc;
 	
-	int samples_per_frame;
-	int bits_per_frame;
+	int samples_per_frame_enc;
+	int bits_per_frame_enc;
+	int samples_per_frame_dec;
+	int bits_per_frame_dec;
 	
 	int (*encode_cb)(void *arg, uint8_t *encoded, size_t size);
 	int (*decode_cb)(void *arg, int16_t *samples, int nr);
@@ -36,28 +40,47 @@ struct trx_codec2 {
 
 uint8_t trx_codec2_mode_get(struct trx_codec2 *tc)
 {
-	return tc->mode;
+	return tc->mode_enc;
 }
 
-int trx_codec2_decode(struct trx_codec2 *tc, uint8_t *encoded, size_t size)
+int trx_codec2_decode(struct trx_codec2 *tc, uint8_t mode, uint8_t *encoded, size_t size)
 {
-	if (size != (tc->bits_per_frame + 7)/8)
-		return -1;
-	int16_t samples[tc->samples_per_frame];
+	if (mode != tc->mode_dec) {
+		codec2_destroy(tc->codec_dec);
+		tc->codec_dec = codec2_create(mode);
+		tc->mode_dec = mode;
 	
-	codec2_decode(tc->codec, samples, encoded);
+		tc->samples_per_frame_dec = codec2_samples_per_frame(tc->codec_dec);
+		tc->bits_per_frame_dec = codec2_bits_per_frame(tc->codec_dec);
+	}
+	int bytes_per_frame = (tc->bits_per_frame_dec + 7)/8;
 
-	return tc->decode_cb(tc->decode_cb_arg, samples, tc->samples_per_frame);
+	if (size % bytes_per_frame)
+		return -1;
+	int16_t samples[tc->samples_per_frame_dec];
+	
+	int ret = 0;
+	
+	while (size) {
+		codec2_decode(tc->codec_dec, samples, encoded);
+
+		ret |= tc->decode_cb(tc->decode_cb_arg, samples, tc->samples_per_frame_dec);
+
+		size -= bytes_per_frame;
+		encoded+= bytes_per_frame;
+	}
+	
+	return ret;
 }
 
 int trx_codec2_encode(struct trx_codec2 *tc, int16_t *samples, int nr)
 {
-	if (nr != tc->samples_per_frame)
+	if (nr != tc->samples_per_frame_enc)
 		return -1;
 
-	unsigned char bits[(tc->bits_per_frame + 7)/8];
+	unsigned char bits[(tc->bits_per_frame_enc + 7)/8];
 	
-	codec2_encode(tc->codec, bits, (short *)samples);
+	codec2_encode(tc->codec_enc, bits, (short *)samples);
 	
 	return tc->encode_cb(tc->encode_cb_arg, bits, sizeof(bits));
 }
@@ -85,20 +108,28 @@ struct trx_codec2 *trx_codec2_init(void)
 	if (!tc)
 		goto err_calloc;
 
-	tc->mode = CODEC2_MODE_3200;
-	tc->codec = codec2_create(tc->mode);
-	if (!tc->codec)
-		goto err_codec;
+	tc->mode_enc = CODEC2_MODE_3200;
+	tc->codec_enc = codec2_create(tc->mode_enc);
+	if (!tc->codec_enc)
+		goto err_codec_enc;
+	tc->mode_dec = CODEC2_MODE_3200;
+	tc->codec_dec = codec2_create(tc->mode_dec);
+	if (!tc->codec_dec)
+		goto err_codec_dec;
 
-	tc->samples_per_frame = codec2_samples_per_frame(tc->codec);
-	tc->bits_per_frame = codec2_bits_per_frame(tc->codec);
+	tc->samples_per_frame_dec = codec2_samples_per_frame(tc->codec_dec);
+	tc->bits_per_frame_dec = codec2_bits_per_frame(tc->codec_dec);
+	tc->samples_per_frame_enc = codec2_samples_per_frame(tc->codec_enc);
+	tc->bits_per_frame_enc = codec2_bits_per_frame(tc->codec_enc);
 
 	printf("codec2: samples_per_frame: %d, bits_per_frame: %d\n",
-	    tc->samples_per_frame, tc->bits_per_frame);
+	    tc->samples_per_frame_enc, tc->bits_per_frame_enc);
 
 	return tc;
 
-err_codec:
+err_codec_dec:
+	codec2_destroy(tc->codec_enc);
+err_codec_enc:
 	free(tc);
 err_calloc:
 	return NULL;

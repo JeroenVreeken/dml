@@ -24,7 +24,7 @@
 struct trx_codec2 *trx_codec2_init(void);
 
 int trx_codec2_encode(struct trx_codec2 *tc, int16_t *samples, int nr);
-int trx_codec2_decode(struct trx_codec2 *tc, uint8_t *encoded, size_t size);
+int trx_codec2_decode(struct trx_codec2 *tc, uint8_t mode, uint8_t *encoded, size_t size);
 int trx_codec2_encode_cb_set(struct trx_codec2 *tc, int (*cb)(void *arg, uint8_t *, size_t), void *arg);
 int trx_codec2_decode_cb_set(struct trx_codec2 *tc, int (*cb)(void *arg, int16_t *, int), void *arg);
 uint8_t trx_codec2_mode_get(struct trx_codec2 *tc);
