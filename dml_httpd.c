@@ -45,7 +45,7 @@ char *htdocs;
 unsigned short port;
 char *dml_host;
 
-struct libwebsocket_context *lws_context;
+struct lws_context *lws_context;
 
 struct writebuf {
 	char *data;
@@ -56,8 +56,7 @@ struct writebuf {
 };
 
 struct ws_client {
-	struct libwebsocket_context *context;
-	struct libwebsocket *wsi;
+	struct lws *wsi;
 	
 	struct writebuf *writeq;
 
@@ -116,7 +115,7 @@ struct writebuf *writebuf_next(struct ws_client *client)
 
 struct ws_client *ws_client_list = NULL;
 
-struct ws_client *ws_client_add(struct libwebsocket_context *context, struct libwebsocket *wsi)
+struct ws_client *ws_client_add(struct lws *wsi)
 {
 	struct ws_client *client;
 	
@@ -124,7 +123,6 @@ struct ws_client *ws_client_add(struct libwebsocket_context *context, struct lib
 	if (!client)
 		return NULL;
 	
-	client->context = context;
 	client->wsi = wsi;
 	
 	client->next = ws_client_list;
@@ -159,7 +157,7 @@ void ws_client_remove(struct ws_client *client)
 	}
 }
 
-struct ws_client *ws_client_get_by_wsi(struct libwebsocket *wsi)
+struct ws_client *ws_client_get_by_wsi(struct lws *wsi)
 {
 	struct ws_client *entry;
 	
@@ -196,13 +194,13 @@ void ws_client_flush(struct ws_client *client)
 		
 		wb = writebuf_next(client);
 
-		libwebsocket_write(client->wsi, (unsigned char *)wb->msg, wb->msg_len, LWS_WRITE_BINARY);
+		lws_write(client->wsi, (unsigned char *)wb->msg, wb->msg_len, LWS_WRITE_BINARY);
 
 		writebuf_free(wb);
 	}
 	
 	if (client->writeq) {
-		libwebsocket_callback_on_writable(client->context, client->wsi);
+		lws_callback_on_writable(client->wsi);
 	}
 }
 
@@ -210,7 +208,7 @@ void ws_client_flush(struct ws_client *client)
 //#define LINEBUF_SIZE 8192
 #define READ_SIZE 4096
 
-int exec_cgi(struct libwebsocket *wsi, char *requested_uri, char *resource_path)
+int exec_cgi(struct lws *wsi, char *requested_uri, char *resource_path)
 {
 	FILE *fpipe;
 	unsigned char *outdata = NULL;
@@ -234,7 +232,7 @@ int exec_cgi(struct libwebsocket *wsi, char *requested_uri, char *resource_path)
 	} while (r > 0);
 	
 	if (!lws_send_pipe_choked(wsi))
-		libwebsocket_write(wsi, outdata, pos, LWS_WRITE_HTTP);
+		lws_write(wsi, outdata, pos, LWS_WRITE_HTTP);
 	
 	pclose(fpipe);
 	free(outdata);
@@ -265,7 +263,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	ws_client_flush(ws_client);
 }
 
-int list_dir(struct libwebsocket_context *context, struct libwebsocket *wsi, char *requested_uri, char *resource_path)
+int list_dir(struct lws *wsi, char *requested_uri, char *resource_path)
 {
 	unsigned char *outdata = malloc(1000);
 	size_t pos = 0;
@@ -275,21 +273,21 @@ int list_dir(struct libwebsocket_context *context, struct libwebsocket *wsi, cha
 	char *server = "dml_httpd libwebsockets";
 	char *type = "text/html";
 	
-	if (lws_add_http_header_status(context, wsi, 200, &h, outdata + 1000))
+	if (lws_add_http_header_status(wsi, 200, &h, outdata + 1000))
 		return 1;
-	if (lws_add_http_header_by_token(context, wsi,
+	if (lws_add_http_header_by_token(wsi,
 	    WSI_TOKEN_HTTP_SERVER,
 	    (unsigned char *)server, strlen(server), &h, outdata + 1000))
 		return 1;
-	if (lws_add_http_header_by_token(context, wsi,
+	if (lws_add_http_header_by_token(wsi,
 	    WSI_TOKEN_HTTP_CONTENT_TYPE,
 	    (unsigned char *)type, strlen(type), &h, outdata + 1000))
 		return 1;
-	if (lws_finalize_http_header(context, wsi, &h, outdata + 1000))
+	if (lws_finalize_http_header(wsi, &h, outdata + 1000))
 		return 1;
 	pos += h - outdata;
 
-	libwebsocket_write(wsi, outdata, pos, LWS_WRITE_HTTP_HEADERS);
+	lws_write(wsi, outdata, pos, LWS_WRITE_HTTP_HEADERS);
 	free(outdata);
 	outdata = NULL;
 	pos = 0;
@@ -316,7 +314,7 @@ int list_dir(struct libwebsocket_context *context, struct libwebsocket *wsi, cha
 		free(namelist);
 	
 	if (!lws_send_pipe_choked(wsi))
-		libwebsocket_write(wsi, outdata, pos, LWS_WRITE_HTTP);
+		lws_write(wsi, outdata, pos, LWS_WRITE_HTTP);
 	
 	free(outdata);
 	
@@ -325,14 +323,14 @@ int list_dir(struct libwebsocket_context *context, struct libwebsocket *wsi, cha
 
 int client_connection_close(struct dml_connection *dc, void *arg)
 {
-	struct libwebsocket *wsi = arg;
+	struct lws *wsi = arg;
 	struct ws_client *ws_client;
 			
 	printf("Connection to DML server closed\n");
 	ws_client = ws_client_get_by_wsi(wsi);
 	ws_client->dml_closed = true;
 	
-	libwebsocket_callback_on_writable(lws_context, wsi);
+	lws_callback_on_writable(wsi);
 
 	return 0;
 }
@@ -340,7 +338,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 void client_connect(struct dml_client *client, void *arg)
 {
 	struct dml_connection *dc;
-	struct libwebsocket *wsi = arg;
+	struct lws *wsi = arg;
 	int fd;
 	struct ws_client *ws_client;
 			
@@ -356,24 +354,22 @@ void client_connect(struct dml_client *client, void *arg)
 
 int wsi_in_cb(void *arg)
 {
-//	struct libwebsocket *wsi = arg;
-	libwebsocket_service(lws_context, 0);
+//	struct lws *wsi = arg;
+	lws_service(lws_context, 0);
 
 	return 0;
 }
 int wsi_out_cb(void *arg)
 {
-//	struct libwebsocket *wsi = arg;
-	libwebsocket_service(lws_context, 0);
+//	struct lws *wsi = arg;
+	lws_service(lws_context, 0);
 
 	return 0;
 }
 
 
-static int callback_http(struct libwebsocket_context *context,
-                         struct libwebsocket *wsi,
-                         enum libwebsocket_callback_reasons reason, void *user,
-                         void *in, size_t len)
+static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
+		    void *user, void *in, size_t len)
 {
 	int r = 0;
 	
@@ -384,7 +380,7 @@ static int callback_http(struct libwebsocket_context *context,
 			
 			ws_client = ws_client_get_by_wsi(wsi);
 			if (!ws_client) {
-				ws_client = ws_client_add(context, wsi);
+				ws_client = ws_client_add(wsi);
 			}
 
 			struct dml_client *dc;
@@ -405,7 +401,7 @@ static int callback_http(struct libwebsocket_context *context,
 			
 			ws_client = ws_client_get_by_wsi(wsi);
 			if (!ws_client) {
-				ws_client = ws_client_add(context, wsi);
+				ws_client = ws_client_add(wsi);
 			}
 						
 			uint8_t *payload_data = rcv + 4;
@@ -451,7 +447,7 @@ static int callback_http(struct libwebsocket_context *context,
 			stat(resource_path, &statbuf);
 			
 			if (S_ISDIR(statbuf.st_mode)) {
-				r = list_dir(context, wsi, requested_uri, resource_path);
+				r = list_dir(wsi, requested_uri, resource_path);
 			} else if (!strcmp(
 			    resource_path + strlen(resource_path) - strlen(".cgi"),
 			    ".cgi")) {
@@ -466,7 +462,7 @@ static int callback_http(struct libwebsocket_context *context,
 				else
 					mime = magic_file(magic, resource_path);
 
-				r = libwebsockets_serve_http_file(context, wsi, 
+				r = lws_serve_http_file(wsi, 
 				    resource_path, mime, NULL, 0);
                    	}
 			
@@ -475,7 +471,7 @@ static int callback_http(struct libwebsocket_context *context,
 		}
 
 		case LWS_CALLBACK_ADD_POLL_FD: {
-			struct libwebsocket_pollargs *args = in;
+			struct lws_pollargs *args = in;
 			dml_poll_add(wsi, wsi_in_cb, wsi_out_cb, NULL);
 			dml_poll_fd_set(wsi, args->fd);
 			dml_poll_in_set(wsi, args->events & POLLIN);
@@ -488,7 +484,7 @@ static int callback_http(struct libwebsocket_context *context,
 			break;
 		}
 		case LWS_CALLBACK_CHANGE_MODE_POLL_FD: {
-			struct libwebsocket_pollargs *args = in;
+			struct lws_pollargs *args = in;
 		
 			dml_poll_fd_set(wsi, args->fd);
 			dml_poll_in_set(wsi, args->events & POLLIN);
@@ -517,7 +513,7 @@ static int callback_http(struct libwebsocket_context *context,
 	return r;
 }
 
-static struct libwebsocket_protocols protocols[] = {
+static struct lws_protocols protocols[] = {
     // first protocol must always be HTTP handler
     {
         name: "http-only",        // name
@@ -558,7 +554,7 @@ int main(int argc, char **argv)
 		.uid = -1,
 	};
     
-	lws_context = libwebsocket_create_context(&creation_info);
+	lws_context = lws_create_context(&creation_info);
     
 	if (lws_context == NULL) {
 		fprintf(stderr, "libwebsocket init failed\n");
@@ -570,7 +566,7 @@ int main(int argc, char **argv)
 	
 	dml_poll_loop();
     
-	libwebsocket_context_destroy(lws_context);
+	lws_context_destroy(lws_context);
 	magic_close(magic);
     
 	return 0;
