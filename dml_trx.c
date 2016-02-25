@@ -26,9 +26,6 @@
 #include "dml_stream.h"
 
 #include "trx_dv.h"
-#include "trx_sound.h"
-#include "trx_codec2.h"
-#include "trx_control.h"
 
 #include "eth_ar.h"
 
@@ -378,13 +375,10 @@ void send_data(void *data, size_t size)
 }
 
 
-struct trx_codec2 *tc_me;
-bool use_dv = false;
-
 static bool rx_state = false;
 static bool tx_state = false;
 
-uint8_t mac_my[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 void recv_data(void *data, size_t size)
@@ -405,32 +399,15 @@ void recv_data(void *data, size_t size)
 		bool multicast;
 		
 		eth_ar_mac2call(call, &ssid, &multicast, data);
-		trx_control_state_set(state);
 		tx_state = state;
 		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
 	}
 	
 	if (size > 8) {
-		if (use_dv)
-			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8);
-		else
-			trx_codec2_decode(tc_me, mode, datab + 8, size - 8);
+		trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8);
 	}
-
-	dml_poll_timeout(&tx_state, tx_state ?
-	    &(struct timespec){0, 200000000} :
-	    &(struct timespec){0, 0} );
 }
 
-int tx_watchdog(void *arg)
-{
-	if (tx_state) {
-		printf("No activity, switching off TX\n");
-		tx_state = false;
-		trx_control_state_set(tx_state);
-	}
-	return 0;
-}
 
 int rx_watchdog(void *arg)
 {
@@ -440,7 +417,7 @@ int rx_watchdog(void *arg)
 	
 		uint8_t data[8];
 
-		memcpy(data, mac_my, 6);
+		memcpy(data, mac_last, 6);
 		data[6] = 0;
 		data[7] = rx_state;
 
@@ -450,21 +427,6 @@ int rx_watchdog(void *arg)
 	return 0;
 }
 
-int encode_cb(void *arg, uint8_t *encoded, size_t size)
-{
-	uint8_t data[8 + size];
-	
-	if (!rx_state)
-		return 0;
-	
-	memcpy(data, mac_my, 6);
-	data[6] = trx_codec2_mode_get(tc_me);
-	data[7] = rx_state;
-	memcpy(data + 8, encoded, size);
-
-	send_data(data, 8 + size);
-	return 0;
-}
 
 int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
 {
@@ -473,6 +435,7 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size
 	rx_state = true;
 
 	memcpy(data, from, 6);
+	memcpy(mac_last, from, 6);
 	data[6] = mode;
 	data[7] = rx_state;
 	memcpy(data + 8, dv, size);
@@ -489,26 +452,20 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size
 int state_cb(bool state)
 {
 	printf("state: %d\n", state);
-	if (!use_dv && state != rx_state) {
-		uint8_t data[8];
-		memcpy(data, mac_my, 6);
-		data[6] = trx_codec2_mode_get(tc_me);
-		data[7] = state;
-		send_data(data, 8);
-	}
 	rx_state = state;
 	
 	return 0;
 }
 
+	
 
-int command_cb(char *command)
-{
+void command_cb_handle(char *command)
+{	
 	struct dml_stream *ds;
 	bool is_73;
 	bool do_disconnect = false;
 	bool do_connect = false;
-	
+
 	printf("command: %s\n", command);
 	
 	is_73 = !strcmp(command, "73");
@@ -542,6 +499,29 @@ int command_cb(char *command)
 		    DML_PACKET_REQ_REVERSE_CONNECT);
 	}
 	
+}
+
+static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size)
+{
+	static char command[100];
+	static int command_len = 0;
+
+	for (; size; size--, ctrl++) {
+		command[command_len] = ctrl[0];
+		command[command_len+1] = 0;
+		
+		if (command[command_len] == '#') {
+			if (command[0] == '*') {
+				command_cb_handle(command);
+			}
+			command_len = 0;
+		} else {
+			command_len++;
+		}
+		if (command_len >= sizeof(command))
+			command_len = 0;
+	}
+
 	return 0;
 }
 
@@ -553,11 +533,6 @@ int main(int argc, char **argv)
 	char *key;
 	char *server;
 	char *ca;
-	char *controldev;
-	char *call;
-	bool multicast;
-	int ssid;
-	char *snd_dev;
 	char *dv_dev;
 	char *dv_mode;
 
@@ -571,9 +546,6 @@ int main(int argc, char **argv)
 	name = dml_config_value("name", NULL, "test_trx");
 	alias = dml_config_value("alias", NULL, "0000");
 	description = dml_config_value("description", NULL, "Test transceiver");
-	call = dml_config_value("callsign", NULL, "nocall");
-	multicast = atoi(dml_config_value("multicast", NULL, "0"));
-	ssid = atoi(dml_config_value("ssid", NULL, "0"));
 
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
@@ -581,42 +553,17 @@ int main(int argc, char **argv)
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {
-		use_dv = true;
 		dv_mode = dml_config_value("dv_mode", NULL, NULL);
 		if (dv_mode) {
 			printf("DV limited to mode %s", dv_mode);
 		}
-		if (trx_dv_init(dv_dev, dv_in_cb, NULL, dv_mode))
+		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, NULL, dv_mode))
 			fprintf(stderr, "Could not open DV device\n");
-	}
-	
-	if (!use_dv) {
-		snd_dev = dml_config_value("sound_device", NULL, "default");
-		if (trx_sound_init(snd_dev)) {
-			printf("Could not initialize sound\n");
-			return -1;
-		}
-	
-		if (!(tc_me = trx_codec2_init())) {
-			printf("Could not initialize codec2\n");
-			return -1;
-		}
-		trx_sound_in_cb_set((int (*)(void *, int16_t *, int))trx_codec2_encode, tc_me);
-		trx_codec2_encode_cb_set(tc_me, encode_cb, NULL);
-		trx_codec2_decode_cb_set(tc_me, trx_sound_out, NULL);
-	}
-	
-	if (call) {
-		eth_ar_call2mac(mac_my, call, ssid, multicast);
-	}
-
-	controldev = dml_config_value("control", NULL, NULL);
-
-	if (trx_control_init(controldev, command_cb, state_cb)) {
-		printf("Could not open control device\n");
+	} else {
+		fprintf(stderr, "No DV device configured\n");
 		return -1;
 	}
-
+	
 	ca = dml_config_value("ca", NULL, ".");
 	
 	if (dml_crypto_init(NULL, ca)) {
@@ -645,9 +592,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	dml_poll_add(&tx_state, NULL, NULL, tx_watchdog);
-	if (use_dv)
-		dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
+	dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
 
 	dml_poll_loop();
 

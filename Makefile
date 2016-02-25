@@ -17,10 +17,7 @@ DML_SRCS = \
 	dml_stream_client_simple.c
 
 TRX_SRCS = \
-	trx_codec2.c \
-	trx_dv.c \
-	trx_control.c \
-	trx_sound.c \
+	trx_dv.c
 
 ETH_AR_SRCS = \
 	eth_ar.c	
@@ -64,7 +61,7 @@ OBJS+=$(SRCS:.c=.o)
 $(OBJS): Makefile
 
 clean:
-	rm -rf $(OBJS) \
+	rm -rf $(OBJS) $(DEPS) \
 		dml_list \
 		dml_reflector \
 		dml_streamer \
