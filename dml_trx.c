@@ -242,6 +242,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				if (do_connect && priv) {
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 					if (priv->match_mime && key) {
+						printf("Request accepted, connecting\n");
 						connect(ds_rev);
 					}
 				}

@@ -303,7 +303,7 @@ int update(struct connection *con)
 		}
 		if (!up)
 			break;
-//		printf("Send update %p\n", up);
+		printf("Send update %p (%d hops)\n", up, up->hops);
 		dml_packet_send_route(con->dc, up->id, up->hops);
 		free(up);
 	}
