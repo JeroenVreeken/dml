@@ -359,6 +359,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 		for (up = con->bad_list; up; up = up->next) {
 			if (!memcmp(up->id, id, DML_ID_SIZE)) {
 				up->hops = up_hops;
+				printf("Already on bad list\n");
 				break;
 			}
 		}
@@ -369,6 +370,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 				(*upp)->hops = up_hops;
 				up = *upp;
 				*upp = up->next;
+				printf("Already on good list\n");
 				break;
 			}
 		}
@@ -380,9 +382,11 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 		if (bad) {
 			up->next = con->bad_list;
 			con->bad_list = up;
+			printf("On bad list\n");
 		} else {
 			up->next = con->good_list;
 			con->good_list = up;
+			printf("On good list\n");
 		}
 	}
 }
