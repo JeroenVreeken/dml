@@ -471,7 +471,10 @@ void command_cb_handle(char *command)
 	is_73 = !strcmp(command, "73");
 	do_disconnect |= is_73;
 	
-	ds = dml_stream_by_alias(command);
+	if (strcmp(command, alias))
+		ds = dml_stream_by_alias(command);
+	else
+		ds = NULL;
 	if (ds && !is_73) {
 		struct dml_stream_priv *priv = dml_stream_priv_get(ds);
 		
