@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2016
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -29,6 +29,8 @@
 #define ETH_P_CODEC2_1200	0x7305
 #define ETH_P_CODEC2_700	0x7306
 #define ETH_P_CODEC2_700B	0x7307
+
+#define ETH_P_AR_CONTROL	0x7342
 
 #define ETH_AR_CALL_LEN_MAX	8
 #define ETH_AR_CALL_SIZE	9

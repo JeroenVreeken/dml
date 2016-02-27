@@ -36,11 +36,12 @@ static int dv_sock = -1;
 static int limit_mode = -1;
 
 static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode) = NULL;
+static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size) = NULL;
 static void *in_cb_arg = NULL;
 
 static int trx_dv_in_cb(void *arg)
 {
-	uint8_t dv_frame[6 + 6 + 2 + 8];
+	uint8_t dv_frame[6 + 6 + 2 + 1500];
 	ssize_t ret;
 	
 	ret = recv(dv_sock, dv_frame, sizeof(dv_frame), 0);
@@ -81,6 +82,9 @@ static int trx_dv_in_cb(void *arg)
 				mode = CODEC2_MODE_700B;
 				datasize = 4;
 				break;
+			case ETH_P_AR_CONTROL:
+				ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
+				/* fall through */;
 			default:
 				return 0;
 		}
@@ -192,7 +196,9 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 }
 
 int trx_dv_init(char *dev, 
-    int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode), void *arg,
+    int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
+    int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
+    void *arg,
     char *mode)
 {
 	int sock;
@@ -200,6 +206,7 @@ int trx_dv_init(char *dev,
 	
 	in_cb = new_in_cb;
 	in_cb_arg = arg;
+	ctrl_cb = new_ctrl_cb;
 	
 	if (mode) {
 		if (!strcmp(mode, "3200")) {
