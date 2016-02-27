@@ -512,7 +512,8 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 		
 		if (command[command_len] == '#') {
 			if (command[0] == '*') {
-				command_cb_handle(command);
+				command[command_len] = 0;
+				command_cb_handle(command+1);
 			}
 			command_len = 0;
 		} else {
