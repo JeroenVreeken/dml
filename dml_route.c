@@ -96,6 +96,7 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	struct dml_route *route;
 	int i;
 	uint8_t old_hops = 255;
+	bool changed = false;
 	
 	route = route_search(id);
 	if (!route) {
@@ -106,8 +107,11 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	}
 	
 	for (i = 0; i < route->links; i++) {
-		if (route->link[i].dc == dc)
+		if (route->link[i].dc == dc) {
+			if (route->lowest == i)
+				changed = true;
 			break;
+		}
 	}
 	if (i == route->links) {
 		route->link = realloc(route->link, sizeof(struct dml_route_link) * (i + 1));
@@ -127,10 +131,11 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 			    i, route->link[i].hops, 
 			    route->lowest, route->link[route->lowest].hops);
 			route->lowest = i;
+			changed = true;
 		}
 	}
 
-	if (route->link[route->lowest].hops != old_hops) {
+	if (route->link[route->lowest].hops != old_hops || changed) {
 		if (dml_route_update_cb) {
 			uint8_t new_hops = route->link[route->lowest].hops;
 			uint8_t alt_hops = 255;
@@ -154,6 +159,7 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 int dml_route_remove(struct dml_connection *dc)
 {
 	struct dml_route *route;
+	bool was_lowest = false;
 	
 	for (route = route_list; route; route = route->next) {
 		int i;
@@ -166,6 +172,7 @@ int dml_route_remove(struct dml_connection *dc)
 		if (i < route->links) {
 			if (route->lowest == i) {
 				route->lowest = 0;
+				was_lowest = true;
 			}
 			
 			memmove(route->link + i, route->link + i + 1, sizeof(struct dml_route_link) * (route->links - i - 1));
@@ -183,7 +190,7 @@ int dml_route_remove(struct dml_connection *dc)
 		}
 
 		uint8_t new_hops = route->links ? route->link[route->lowest].hops : 255;
-		if (new_hops != old_hops) {
+		if (new_hops != old_hops || was_lowest) {
 			bool bad = new_hops > old_hops;
 			struct dml_connection *dc = route->links ? route->link[route->lowest].dc : NULL;
 			if (dml_route_update_cb) {
