@@ -121,6 +121,7 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	printf("Received route update: link %d (%d hops)\n", i, hops);
 	
 	for (i = 0; i < route->links; i++) {
+		printf("Link %d: %d hops\n", i, route->link[i].hops);
 		if (route->link[i].hops < route->link[route->lowest].hops) {
 			printf("New lowest routing: link %d (%d hops) < link %d (%d hops)\n",
 			    i, route->link[i].hops, 
