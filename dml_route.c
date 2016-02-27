@@ -176,6 +176,7 @@ int dml_route_remove(struct dml_connection *dc)
 		}
 		
 		for (i = 0; i < route->links; i++) {
+			printf("Link %d: %d hops\n", i, route->link[i].hops);
 			if (route->link[i].hops < route->link[route->lowest].hops)
 				route->lowest = i;
 		}
@@ -195,7 +196,7 @@ int dml_route_remove(struct dml_connection *dc)
 				}
 			
 				printf("Removed route link %d (%d hops, %d alt hops)\n",
-				    route->lowest, route->link[route->lowest].hops, alt_hops);
+				    dc ? route->lowest : -1, new_hops, alt_hops);
 				dml_route_update_cb(route->id, new_hops, dc, bad, alt_hops);
 			}
 		}
