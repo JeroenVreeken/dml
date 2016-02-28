@@ -368,7 +368,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			}
 		}
 		if (up)
-			break;
+			continue;
 		for (upp = &con->good_list; *upp; upp = &(*upp)->next) {
 			if (!memcmp((*upp)->id, id, DML_ID_SIZE)) {
 				up = *upp;
