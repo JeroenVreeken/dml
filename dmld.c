@@ -377,8 +377,8 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 		if (!up) {
 			up = malloc(sizeof(struct connection_update));
 			memcpy(up->id, id, DML_ID_SIZE);
-			up->hops = up_hops;
 		}
+		up->hops = up_hops;
 		if (bad) {
 			up->next = con->bad_list;
 			con->bad_list = up;
