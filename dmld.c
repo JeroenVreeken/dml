@@ -307,6 +307,10 @@ int update(struct connection *con)
 		dml_packet_send_route(con->dc, up->id, up->hops);
 		free(up);
 	}
+	if (!dml_connection_send_empty(con->dc)) {
+		if (con->bad_list || con->good_list)
+			printf("Send not empty, but update waiting\n");
+	}
 
 //	printf("wait a little %p\n", con);
 	dml_poll_timeout(con, &(struct timespec){ 1, 0 });
@@ -367,7 +371,6 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			break;
 		for (upp = &con->good_list; *upp; upp = &(*upp)->next) {
 			if (!memcmp((*upp)->id, id, DML_ID_SIZE)) {
-				(*upp)->hops = up_hops;
 				up = *upp;
 				*upp = up->next;
 				printf("Already on good list\n");
