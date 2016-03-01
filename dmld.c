@@ -488,7 +488,10 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			dml_packet_parse_req_description(data, len, id);
 			dc_r = dml_route_connection_get(id);
 			if (dc_r) {
+				printf("Request description\n");
 				dml_packet_send_req_description(dc_r, id);
+			} else {
+				printf("Description requested but id is not routable\n");
 			}
 			list_add(&con->req_description, id);
 			
@@ -503,11 +506,13 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (dml_packet_parse_description(data, len,
 			    desc_id, &version, &bps, &mime, &name, &alias, &description))
 				break;
+			printf("Got description for %s\n", name);
 
 			struct connection *con;
 	
 			for (con = connection_list; con; con = con->next) {
 				if (list_check_remove(&con->req_description, desc_id)) {
+					printf("Send description\n");
 					dml_connection_send(con->dc, data, id, len);
 				}
 			}

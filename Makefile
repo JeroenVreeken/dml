@@ -1,6 +1,6 @@
 include build.mk
 
-CFLAGS += -g -Wall -Werror
+CFLAGS += -g -Wall -Werror -O3
 LDFLAGS += -lcrypto
 
 DML_SRCS = \

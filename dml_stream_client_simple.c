@@ -151,7 +151,6 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 //					fprintf(stderr, "Received %zd ok\n", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
 				}
-				free(payload_data);
 			}
 			break;
 		}
