@@ -43,6 +43,7 @@ char *name;
 char *alias;
 char *description;
 uint32_t bps = 6400;
+bool fullduplex = false;
 
 uint16_t packet_id = 0;
 struct dml_connection *dml_con;
@@ -125,7 +126,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					break;
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
 				if (!priv) {
-					dml_stream_priv_set(ds, stream_priv_new());
+					priv = stream_priv_new();
+					dml_stream_priv_set(ds, priv);
 				}
 				char *mime = dml_stream_mime_get(ds);
 				if (!mime)
@@ -147,6 +149,10 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t *rid = dml_stream_id_get(ds);
 			if (!strcmp(mime, dmime)) {
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
+				if (!priv) {
+					priv = stream_priv_new();
+					dml_stream_priv_set(ds, priv);
+				}
 				priv->match_mime = true;
 				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
 				if (!ck)
@@ -394,18 +400,20 @@ void recv_data(void *data, size_t size)
 	
 //	printf("mode %d state %d\n", mode, state);
 	
-	if (state != tx_state) {
-		char call[ETH_AR_CALL_SIZE];
-		int ssid;
-		bool multicast;
+	if (!rx_state || fullduplex) {
+		if (state != tx_state) {
+			char call[ETH_AR_CALL_SIZE];
+			int ssid;
+			bool multicast;
 		
-		eth_ar_mac2call(call, &ssid, &multicast, data);
-		tx_state = state;
-		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
-	}
+			eth_ar_mac2call(call, &ssid, &multicast, data);
+			tx_state = state;
+			printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
+		}
 	
-	if (size > 8) {
-		trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8);
+		if (size > 8) {
+			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8);
+		}
 	}
 }
 
@@ -433,6 +441,9 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size
 {
 	uint8_t data[8 + size];
 
+	if (!rx_state) {
+		printf("rx_state to on\n");
+	}
 	rx_state = true;
 
 	memcpy(data, from, 6);
@@ -555,6 +566,8 @@ int main(int argc, char **argv)
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
+
+	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {

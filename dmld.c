@@ -56,6 +56,7 @@ struct connection_data *data_list;
 
 int connection_data_remove(struct connection_data *data);
 int connection_data_remove_client(struct connection_data *data, struct dml_connection *dc);
+void connection_data_update(struct dml_connection *dc, bool old_valid);
 
 struct connection {
 	struct dml_connection *dc;
@@ -127,24 +128,9 @@ void connection_destroy(struct connection *con)
 		free(cu);
 	}
 	
-	struct connection_data *data, *dnext;
-	for (data = data_list; data; data = dnext) {
-		dnext = data->next;
-		
+	connection_data_update(con->dc, false);
 
-		if (data->dc != con->dc)
-			continue;
-		
-		
-		struct dml_connection *dc_r = dml_route_connection_get(data->id);
-				
-		if (dc_r && dc_r != con->dc) {
-			data->dc = dc_r;
-			dml_packet_send_connect(dc_r, data->id, data->packet_id);
-			continue;
-		}
-		connection_data_remove(data);
-	}
+	struct connection_data *data, *dnext;
 
 	printf("remove client from data list\n");
 	for (data = data_list; data; data = dnext) {
@@ -281,6 +267,32 @@ int connection_data_remove(struct connection_data *data)
 	return 0;
 }
 
+/* A connection has been updated, recheck */
+void connection_data_update(struct dml_connection *dc, bool old_valid)
+{
+	struct connection_data *data, *dnext;
+	for (data = data_list; data; data = dnext) {
+		dnext = data->next;
+		
+		/* Is it using the connection? */
+		if (data->dc != dc)
+			continue;		
+		
+		struct dml_connection *dc_r = dml_route_connection_get(data->id);
+				
+		if (dc_r) {
+			if (dc_r != dc) {
+				data->dc = dc_r;
+				dml_packet_send_connect(dc_r, data->id, data->packet_id);
+				if (old_valid)
+					dml_packet_send_req_disc(dc, data->id);
+			}
+			continue;
+		}
+		connection_data_remove(data);
+	}
+}
+
 void update_clear(struct connection *con)
 {
 	memset(con->update_id, 0, DML_ID_SIZE);
@@ -386,10 +398,26 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			up->next = con->bad_list;
 			con->bad_list = up;
 			printf("On bad list\n");
+			/* It is bad, so we want updates a bit faster */
+			dml_poll_timeout(con, &(struct timespec){ 0, 100000000 });
 		} else {
 			up->next = con->good_list;
 			con->good_list = up;
 			printf("On good list\n");
+		}
+	}
+	
+	struct connection_data *cdat = connection_data_by_id(id);
+
+	if (cdat) {
+		if (dc) {
+			if (cdat->dc != dc) {
+				dml_packet_send_req_disc(cdat->dc, cdat->id);
+				cdat->dc = dc;
+				dml_packet_send_connect(dc, cdat->id, cdat->packet_id);
+			}
+		} else {
+			connection_data_remove(cdat);
 		}
 	}
 }
