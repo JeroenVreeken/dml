@@ -53,7 +53,9 @@ size_t header_size = 0;
 
 struct dml_crypto_key *dk;
 
-struct dml_stream *cur_con = NULL;
+static struct dml_stream *cur_con = NULL;
+static uint16_t cur_id = 0;
+static struct dml_crypto_key *cur_dk = NULL;
 
 void recv_data(void *data, size_t size);
 
@@ -92,6 +94,8 @@ static int connect(struct dml_stream *ds)
 	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
 
 	cur_con = ds;
+	cur_id = data_id;
+	cur_dk = dml_stream_crypto_get(ds);
 	
 	return 0;
 }
@@ -115,7 +119,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				if (ds) {
 					if (ds == cur_con) {
 						cur_con = NULL;
-						packet_id = 0;
+						cur_id = 0;
 					}
 					stream_priv_free(dml_stream_priv_get(ds));
 					dml_stream_remove(ds);
@@ -264,6 +268,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					printf("Disconnect\n");
 					dml_packet_send_req_disc(dml_con, id_rev);
 					cur_con = NULL;
+					cur_id = 0;
 				}
 			}
 			
@@ -278,34 +283,24 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint64_t timestamp;
 			size_t payload_len;
 			void *payload_data;
-			struct dml_crypto_key *dk;
-			struct dml_stream *ds;
 			
-			ds = dml_stream_by_data_id(id);
-			if (!ds) {
-				fprintf(stderr, "Could not find dml stream\n");
+			if (id != cur_id) {
+				fprintf(stderr, "Spurious data from %d\n", id);
 				break;
 			}
-			if (ds != cur_con) {
-				fprintf(stderr, "Spurious data from %p\n", ds);
-				break;
-			}
-			
-			dk = dml_stream_crypto_get(ds);
-			
+						
 			if (dml_packet_parse_data(data, len,
-			    &payload_data, &payload_len, &timestamp, dk)) {
+			    &payload_data, &payload_len, &timestamp, cur_dk)) {
 				fprintf(stderr, "Decoding failed\n");
 			} else {
-				if (timestamp <= dml_stream_timestamp_get(ds)) {
+				if (timestamp <= dml_stream_timestamp_get(cur_con)) {
 					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
-					    timestamp, dml_stream_timestamp_get(ds));
+					    timestamp, dml_stream_timestamp_get(cur_con));
 				} else {
-					dml_stream_timestamp_set(ds, timestamp);
+					dml_stream_timestamp_set(cur_con, timestamp);
 //					fprintf(stderr, "Received %zd ok\n", payload_len);
 					recv_data(payload_data, payload_len);
 				}
-				free(payload_data);
 			}
 			break;
 		}
@@ -507,6 +502,7 @@ void command_cb_handle(char *command)
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_con), ref_id,
 		    DML_PACKET_REQ_REVERSE_DISC);
 		cur_con = NULL;
+		cur_id = 0;
 	}		
 	if (do_connect) {
 		connect(ds);

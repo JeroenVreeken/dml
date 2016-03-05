@@ -1,6 +1,6 @@
 include build.mk
 
-CFLAGS += -g -Wall -Werror
+CFLAGS += -g -Wall -Werror -O3
 LDFLAGS += -lcrypto
 
 DML_SRCS = \
@@ -39,9 +39,9 @@ dml_list: $(DML_OBJS) dml_list.o
 SRCS += dml_reflector.c
 dml_reflector: $(DML_OBJS) $(ETH_AR_OBJS) dml_reflector.o
 
-SRCS += dml_trx.c trx_sound.c
+SRCS += dml_trx.c trx_sound.c alaw.c
 dml_trx_LDFLAGS += -lasound -lcodec2
-dml_trx: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_trx.o
+dml_trx: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_trx.o alaw.o
 
 SRCS += dml_streamer.c matroska.c ogg.c
 dml_streamer: $(DML_OBJS) dml_streamer.o matroska.o ogg.o

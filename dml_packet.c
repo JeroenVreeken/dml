@@ -408,6 +408,7 @@ int dml_packet_send_data(struct dml_connection *dc,
 	return dml_connection_send(dc, payload, packet_id, len + DML_SIG_SIZE + sizeof(uint64_t));;
 }
 
+
 int dml_packet_parse_data(uint8_t *data, uint16_t len,
     void **payload_data, size_t *payload_len, uint64_t *timestamp,
     struct dml_crypto_key *dk)
@@ -421,10 +422,7 @@ int dml_packet_parse_data(uint8_t *data, uint16_t len,
 	bool verified = dml_crypto_verify(data, plen + sizeof(uint64_t),
 	    data + plen + sizeof(uint64_t), dk);
 
-	*payload_data = malloc(plen);
-	if (!*payload_data)
-		return -1;
-	memcpy(*payload_data, data, plen);
+	*payload_data = data;
 
 	*timestamp = 
 	    ((uint64_t)data[plen + 0] << 56) |
@@ -470,10 +468,7 @@ int dml_packet_parse_data_unverified(uint8_t *data, uint16_t len,
 	size_t plen = len - DML_SIG_SIZE - sizeof(uint64_t);
 	*payload_len = plen;
 
-	*payload_data = malloc(plen);
-	if (!*payload_data)
-		return -1;
-	memcpy(*payload_data, data, plen);
+	*payload_data = data;
 
 	*timestamp = 
 	    ((uint64_t)data[plen + 0] << 56) |

@@ -18,6 +18,7 @@
 #include "trx_dv.h"
 #include "eth_ar.h"
 #include "dml_poll.h"
+#include "alaw.h"
 
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
@@ -82,6 +83,10 @@ static int trx_dv_in_cb(void *arg)
 				mode = CODEC2_MODE_700B;
 				datasize = 4;
 				break;
+			case ETH_P_ALAW:
+				mode = 'A';
+				datasize = ret - 14;
+				break;
 			case ETH_P_AR_CONTROL:
 				ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
 				/* fall through */;
@@ -112,16 +117,27 @@ static int trans_frame_size;
 
 int trx_dv_transcode(uint8_t from[6], uint8_t to[6], int from_mode, uint8_t *from_dv, size_t from_size)
 {
-	if (from_mode != trans_mode) {
-		if (trans_dec)
-			codec2_destroy(trans_dec);
-		trans_mode = from_mode;
-		trans_dec = codec2_create(trans_mode);
+	int samples;
+	
+	if (from_mode != 'A') {
+		if (from_mode != trans_mode) {
+			if (trans_dec)
+				codec2_destroy(trans_dec);
+			trans_mode = from_mode;
+			trans_dec = codec2_create(trans_mode);
+		}
+		samples = codec2_samples_per_frame(trans_dec);
+	} else {
+		samples = from_size;
 	}
-	int samples = codec2_samples_per_frame(trans_dec);
+	
 	short speech[samples];
 	
-	codec2_decode(trans_dec, speech, from_dv);
+	if (from_mode != 'A') {
+		codec2_decode(trans_dec, speech, from_dv);
+	} else {
+		alaw_decode(speech, from_dv, samples);
+	}
 	
 	while (samples) {
 		int copy = samples;
@@ -178,6 +194,9 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 			break;
 		case CODEC2_MODE_700B:
 			type = htons(ETH_P_CODEC2_700B);
+			break;
+		case 'A':
+			type = htons(ETH_P_ALAW);
 			break;
 		default:
 			return -1;
