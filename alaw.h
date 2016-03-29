@@ -24,4 +24,6 @@
 void alaw_decode(int16_t *samples, uint8_t *alaw, int nr);
 void alaw_encode(uint8_t *alaw, int16_t *samples, int nr);
 
+uint8_t *alaw_beep(double freq, double rate, double length);
+
 #endif /* _INCLUDE_ALAW_H_ */
