@@ -350,6 +350,10 @@ function eth_ar()
 		}
 		callsign += "-" + ssid;
 		
+		if (multicast) {
+			callsign = "MULTICAST";
+		}
+		
 		return callsign;
 	}
 }
