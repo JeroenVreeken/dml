@@ -26,7 +26,7 @@
 #include "dml_stream.h"
 
 #include "trx_dv.h"
-
+#include "alaw.h"
 #include "eth_ar.h"
 
 #include <stdlib.h>
@@ -58,6 +58,9 @@ static uint16_t cur_id = 0;
 static struct dml_crypto_key *cur_dk = NULL;
 
 void recv_data(void *data, size_t size);
+void send_beep800(void);
+void send_beep1600(void);
+
 
 static uint16_t alloc_data_id(void)
 {
@@ -403,7 +406,7 @@ void recv_data(void *data, size_t size)
 		
 			eth_ar_mac2call(call, &ssid, &multicast, data);
 			tx_state = state;
-			printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
+			printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", multicast ? "MULTICAST" : call, ssid);
 		}
 	
 		if (size > 8) {
@@ -412,6 +415,18 @@ void recv_data(void *data, size_t size)
 	}
 }
 
+int beepsize;
+uint8_t *beep800, *beep1600;
+bool do_beep800, do_beep1600;
+
+void send_beep800(void)
+{
+	trx_dv_send(mac_bcast, mac_bcast, 'A', beep800, beepsize);
+}
+void send_beep1600(void)
+{
+	trx_dv_send(mac_bcast, mac_bcast, 'A', beep1600, beepsize);
+}
 
 int rx_watchdog(void *arg)
 {
@@ -426,6 +441,15 @@ int rx_watchdog(void *arg)
 		data[7] = rx_state;
 
 		send_data(data, 8);
+		
+		if (do_beep800) {
+			send_beep800();
+			do_beep800 = false;
+		}
+		if (do_beep1600) {
+			send_beep1600();
+			do_beep1600 = false;
+		}
 	}
 
 	return 0;
@@ -448,6 +472,10 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size
 	memcpy(data + 8, dv, size);
 
 	send_data(data, 8 + size);
+
+	if (fullduplex) {
+		trx_dv_send(from, mac_bcast, mode, dv, size);
+	}
 
 	dml_poll_timeout(&rx_state, rx_state ?
 	    &(struct timespec){0, 100000000} :
@@ -508,6 +536,9 @@ void command_cb_handle(char *command)
 		connect(ds);
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(ds), ref_id,
 		    DML_PACKET_REQ_REVERSE_CONNECT);
+		do_beep800 = true;
+	} else {
+		do_beep1600 = true;
 	}
 	
 }
@@ -607,6 +638,16 @@ int main(int argc, char **argv)
 	}
 
 	dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
+
+	beep800 = alaw_beep(800, 8000, 0.08);
+	if (!beep800) {
+		printf("Could not generate beep\n");
+	}
+	beep1600 = alaw_beep(1600, 8000, 0.08);
+	if (!beep1600) {
+		printf("Could not generate beep\n");
+	}
+	beepsize = 8000 * 0.08;
 
 	dml_poll_loop();
 

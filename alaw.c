@@ -20,6 +20,8 @@
  */
 #include "alaw.h"
 #include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
 
 static int16_t alaw_to_s16 (uint8_t a_val)
 {
@@ -119,4 +121,22 @@ void alaw_encode(uint8_t *alaw, int16_t *samples, int nr)
 	for (i = 0; i < nr; i++) {
 		alaw[i] = s16_to_alaw(samples[i]);
 	}
+}
+
+uint8_t *alaw_beep(double freq, double rate, double length)
+{
+	int samples = length * rate;
+	uint8_t *buffer = malloc(samples);
+	int16_t raw[samples];
+	int i;
+	
+	if (!buffer)
+		return NULL;
+	
+	for (i = 0; i < samples; i++) {
+		raw[i] = 16384 * sin(i * M_PI * 2 * freq / rate);
+	}
+	alaw_encode(buffer, raw, samples);
+	
+	return buffer;
 }

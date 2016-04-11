@@ -1,7 +1,7 @@
 include build.mk
 
 CFLAGS += -g -Wall -Werror -O3
-LDFLAGS += -lcrypto
+LDFLAGS += -lcrypto -lm
 
 DML_SRCS = \
 	dml_client.c \
@@ -36,8 +36,8 @@ dmld: $(DML_OBJS) dmld.o
 SRCS += dml_list.c
 dml_list: $(DML_OBJS) dml_list.o
 
-SRCS += dml_reflector.c
-dml_reflector: $(DML_OBJS) $(ETH_AR_OBJS) dml_reflector.o
+SRCS += dml_reflector.c alaw.c
+dml_reflector: $(DML_OBJS) $(ETH_AR_OBJS) dml_reflector.o alaw.o
 
 SRCS += dml_trx.c trx_sound.c alaw.c
 dml_trx_LDFLAGS += -lasound -lcodec2

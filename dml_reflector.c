@@ -26,6 +26,7 @@
 #include "dml_stream.h"
 
 #include "eth_ar.h"
+#include "alaw.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -50,7 +51,8 @@ size_t header_size = 0;
 
 struct dml_crypto_key *dk;
 
-void recv_data(void *data, size_t size);
+void recv_data(void *data, size_t size, uint64_t timestamp);
+void send_beep(void);
 
 static uint16_t alloc_data_id(void)
 {
@@ -230,6 +232,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 					if (priv->match_mime && key) {
 						connect(ds_rev);
+						send_beep();
 					}
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
@@ -280,7 +283,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
 //					fprintf(stderr, "Received %zd ok\n", payload_len);
-					recv_data(payload_data, payload_len);
+					recv_data(payload_data, payload_len, timestamp);
 				}
 			}
 			break;
@@ -333,39 +336,39 @@ void client_connect(struct dml_client *client, void *arg)
 	dml_packet_send_route(dc, ref_id, 0);
 }
 
-time_t prev_sec;
-uint16_t prev_ctr;
+uint64_t prev_timestamp = 0;
 
-void send_data(void *data, size_t size)
+void send_data(void *data, size_t size, uint64_t timestamp)
 {
-	uint64_t timestamp;
 	struct timespec ts;
-	
+	uint64_t tmax;
+		
 	if (!packet_id)
 		return;
 	
-	clock_gettime(CLOCK_REALTIME, &ts);
-	if (prev_sec != ts.tv_sec) {
-		prev_ctr = 0;
-		prev_sec = ts.tv_sec;
-	} else {
-		prev_ctr++;
-		if (prev_ctr > 50) {
-			/* No more than 50, probably multiple senders */
-			fprintf(stderr, "Dropping packet %d\n", prev_ctr);
-			return;
-		}
+	if (timestamp <= prev_timestamp)
+		return;
+
+	if (timestamp <= prev_timestamp) {
+		fprintf(stderr, "Dropping packet %"PRId64"\n", timestamp);
+		return;
 	}
-	timestamp = ts.tv_sec << 16;
-	timestamp |= prev_ctr;
+
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	tmax = (ts.tv_sec + 2) << 16;
+	if (timestamp > tmax)
+		return;
 	
+	prev_timestamp = timestamp;
+
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
 
 static bool tx_state = false;
 
-void recv_data(void *data, size_t size)
+void recv_data(void *data, size_t size, uint64_t timestamp)
 {
 	if (size < 8)
 		return;
@@ -384,10 +387,33 @@ void recv_data(void *data, size_t size)
 		
 		eth_ar_mac2call(call, &ssid, &multicast, data);
 		tx_state = state;
-		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", call, ssid);
+		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", multicast ? "MULTICAST" : call, ssid);
 	}
 	
-	send_data(data, size);
+	send_data(data, size, timestamp);
+}
+
+
+int beepsize;
+uint8_t *beep;
+
+void send_beep(void)
+{
+	uint8_t data[beepsize + 8];
+	struct timespec ts;
+	uint64_t timestamp;
+
+	memset(data, 0xff, 6);
+	data[6] = 'A';
+	data[7] = 1;
+	memcpy(data + 8, beep, beepsize);
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	timestamp = (ts.tv_sec + 2) << 16;
+	if (timestamp <= prev_timestamp)
+		timestamp = prev_timestamp + 1;;
+	
+	send_data(data, beepsize + 8, timestamp);
 }
 
 
@@ -442,6 +468,12 @@ int main(int argc, char **argv)
 		printf("Could not connect to server\n");
 		return -1;
 	}
+
+	beep = alaw_beep(400, 8000, 0.08);
+	if (!beep) {
+		printf("Could not generate beep\n");
+	}
+	beepsize = 8000 * 0.08;
 
 	dml_poll_loop();
 
