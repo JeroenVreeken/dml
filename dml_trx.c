@@ -417,6 +417,7 @@ void recv_data(void *data, size_t size)
 
 int beepsize;
 uint8_t *beep800, *beep1600;
+bool do_beep800, do_beep1600;
 
 void send_beep800(void)
 {
@@ -440,6 +441,15 @@ int rx_watchdog(void *arg)
 		data[7] = rx_state;
 
 		send_data(data, 8);
+		
+		if (do_beep800) {
+			send_beep800();
+			do_beep800 = false;
+		}
+		if (do_beep1600) {
+			send_beep1600();
+			do_beep1600 = false;
+		}
 	}
 
 	return 0;
@@ -526,9 +536,9 @@ void command_cb_handle(char *command)
 		connect(ds);
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(ds), ref_id,
 		    DML_PACKET_REQ_REVERSE_CONNECT);
-		send_beep800();
+		do_beep800 = true;
 	} else {
-		send_beep1600();
+		do_beep1600 = true;
 	}
 	
 }
