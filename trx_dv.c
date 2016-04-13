@@ -143,7 +143,7 @@ int trx_dv_transcode(uint8_t from[6], uint8_t to[6], int from_mode, uint8_t *fro
 		int copy = samples;
 		if (copy > trans_samples_frame - trans_samples)
 			copy = trans_samples_frame - trans_samples;
-		memcpy(trans_speech + trans_samples, speech, copy);
+		memcpy(trans_speech + trans_samples, speech, copy * 2);
 		samples -= copy;
 		trans_samples += copy;
 		
