@@ -600,7 +600,7 @@ int main(int argc, char **argv)
 	if (dv_dev) {
 		dv_mode = dml_config_value("dv_mode", NULL, NULL);
 		if (dv_mode) {
-			printf("DV limited to mode %s", dv_mode);
+			printf("DV limited to mode %s\n", dv_mode);
 		}
 		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, NULL, dv_mode))
 			fprintf(stderr, "Could not open DV device\n");
