@@ -549,6 +549,8 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 	static int command_len = 0;
 
 	for (; size; size--, ctrl++) {
+		if (!command_len && ctrl[0] != '*')
+			continue;
 		command[command_len] = ctrl[0];
 		command[command_len+1] = 0;
 		
