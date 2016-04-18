@@ -235,7 +235,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			
 			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action))
 				break;
-			printf("Recevied reverse request %d\n", action);
+			printf("Received reverse request %d\n", action);
 
 			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
 			if (!ds_rev)
