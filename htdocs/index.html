@@ -274,37 +274,67 @@ var routes = new Array();
 function update_routes()
 {
 	var i;
-	str = "";
+	routes_str = "";
 	
 	for (i = 0; i < routes.length; i++) {
 		var can_play_mse = false;
 		var can_play_dml = false;
 		
-		str += "<pre>";
-		str += "id: " + sha2str(routes[i].id) + " hops: " + routes[i].hops + "\n";
+		var ui_id = routes[i].id;
 		if (routes[i].description) {
-			str += "\tbps:\t" + routes[i].description.bps + "\n";
-			str += "\tmime:\t" + routes[i].description.mime + "\n";
-			str += "\tname:\t" + routes[i].description.name + "\n";
-			str += "\talias:\t" + routes[i].description.alias + "\n";
-			str += "\tdescription:\t" + routes[i].description.description + "\n";
+			ui_id = routes[i].description.name;
+			if (routes[i].description.alias)
+				ui_id += " (" + routes[i].description.alias + ")";
 			can_play_mse = mse.supported(routes[i].description.mime);
 			can_play_dml = dmlc2.supported(routes[i].description.mime);
 		}
-		if (routes[i].certificate) {
-			str += "\tcertificate length:\t" + routes[i].certificate.data.byteLength;
+		var str = "";
+		shastr = sha2str(routes[i].id)
+		
+		str += "<div style='background-color:yellow;margin: 1px 1px 1px 30px; display: none' id='desc_" + shastr + "'>";
+		if (routes[i].description) {
+			str += "\tdescription:\t" + routes[i].description.description + "<br>";
+			str += "\tbps:\t" + routes[i].description.bps + "<br>";
+			str += "\tmime:\t" + routes[i].description.mime + "<br>";
+			str += "\tname:\t" + routes[i].description.name + "<br>";
+			str += "\talias:\t" + routes[i].description.alias + "<br>";
 		}
-		str += "</pre>";
+		if (routes[i].certificate) {
+			str += "\tcertificate length:\t" + routes[i].certificate.data.byteLength + "<br>";
+		}
+		str += "\tid:\t" + shastr + "<br>";
+		str += "\thops:\t" + routes[i].hops + "<br>";
+		str += "</div>";
 
 		if (can_play_mse) {
-			str += "<button onclick=\"mse.connect(" + i + ")\">Connect</button>";
+			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_dml) {
-			str += "<button onclick=\"dmlc2.connect(" + i + ")\">Connect</button>";
+			button_str = "<button onclick=\"dmlc2.connect(" + i + ")\">Connect & monitor state</button>";
 		} else {
-			str += "Mime type not supported by browser\n";
+			button_str = "Mime type not supported by browser\n";
 		}
+		id_str = "<div width='100%' style='background-color:lightblue;'>";
+		id_str += "<button onclick=\"div_toggle('desc_" + shastr + "')\">i</button>";
+		id_str += ui_id + " " + button_str;
+		id_str += str;
+		id_str += "</div>";
+		
+		routes_str += id_str;
 	}
-	document.getElementById("routes").innerHTML = str;
+	document.getElementById("routes").innerHTML = routes_str;
+}
+
+function div_toggle(id)
+{
+	var dis = document.getElementById(id).style.display;
+	
+	console.log("toggle " + dis);
+	
+	if (dis == "block")
+		dis = "none";
+	else
+		dis = "block";
+	document.getElementById(id).style.display = dis;
 }
 
 connection = new dml();
@@ -470,6 +500,7 @@ function dmlc2()
 	var state = false;
 	var mode = -1;
 	var callsign = "?";
+	var timeout_var = false;
 	
 	this.data = function dmlc2_data(newdata) {
 		if (data.byteLength >= 8) {
@@ -479,15 +510,35 @@ function dmlc2()
 			var newmode = dv.getUint8(6);
 			var newcallsign = eth_ar.call(newdata);
 
-			if (newstate != state || newmode != mode || callsign != newcallsign) {
-				var str = "state: " + newstate + " mode: " + newmode + " callsign: " + newcallsign;
+			if (dmlc2_this.timeout_var) {
+				clearTimeout(dmlc2_this.timeout_var);
+				dmlc2_this.timeout_var = false;
+			}
 
-				document.getElementById("dmlc2_state").innerHTML = str;
-				    
-				state = newstate;
-				mode = newmode;
+			dmlc2_this.update_ui(newstate, newmode, newcallsign);
+			
+			if (newstate) {
+				dmlc2_this.timeout_var = setTimeout(this.tx_timeout, 100);
 			}
 		}
+	}
+	
+	this.tx_timeout = function () {
+		dmlc2_this.timeout_var = false;
+		
+		dmlc2_this.update_ui(0, 0, "-");
+	}
+	
+	this.update_ui = function (newstate, newmode, newcallsign) {
+		if (newstate != dmlc2_this.state || newmode != dmlc2_this.mode || dmlc2_this.callsign != newcallsign) {
+			var str = "state: " + newstate + " mode: " + newmode + " callsign: " + newcallsign;
+
+			document.getElementById("dmlc2_state").innerHTML = str;
+				    
+			dmlc2_this.state = newstate;
+			dmlc2_this.mode = newmode;
+			dmlc2_this.callsign = newcallsign;
+		}	
 	}
 }
 
