@@ -657,6 +657,9 @@ int main(int argc, char **argv)
 	}
 	beepsize = 8000 * 0.08;
 
+	dml_poll_timeout(&rx_state, 
+	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
+
 	dml_poll_loop();
 
 	return 0;

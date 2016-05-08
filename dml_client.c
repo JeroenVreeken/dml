@@ -30,6 +30,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <signal.h>
+#include <resolv.h>
 
 struct dml_client {
 	int fd;
@@ -98,6 +99,7 @@ int dml_client_connect(struct dml_client *dc)
 	
 	error = getaddrinfo(dc->host, port, &hints, &result);
 	if (error) {
+		res_init();
 		goto err_getaddrinfo;
 	}
 	for (entry = result; entry; entry = entry->ai_next) {
