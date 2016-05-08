@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define DMLD_DATA_KEEPALIVE	60
+
 struct connection_update {
 	uint8_t id[DML_ID_SIZE];
 	uint8_t hops;
@@ -46,6 +48,7 @@ struct connection_data {
 	uint8_t id[DML_ID_SIZE];
 	struct dml_connection *dc;
 	uint16_t packet_id;
+	time_t t_data;
 	
 	struct connection_data_client *client_list;
 	
@@ -266,6 +269,26 @@ int connection_data_remove(struct connection_data *data)
 	free(data);
 	return 0;
 }
+
+int connection_data_keepalive(void *arg)
+{
+	time_t now = time(NULL);
+	struct connection_data *entry;
+	
+	for (entry = data_list; entry; entry = entry->next) {
+		if (now > entry->t_data + DMLD_DATA_KEEPALIVE) {
+			printf("No data for a while, sending keepalive connect %p %p\n",
+			    entry, entry->dc);
+			dml_packet_send_connect(entry->dc, entry->id, entry->packet_id);
+			entry->t_data = now;
+		}
+	}
+
+	dml_poll_timeout(connection_data_keepalive, &(struct timespec){ DMLD_DATA_KEEPALIVE, 0 });
+	return 0;
+}
+
+
 
 /* A connection has been updated, recheck */
 void connection_data_update(struct dml_connection *dc, bool old_valid)
@@ -688,6 +711,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 //			printf("Found connection\n");
 			
+			cdat->t_data = time(NULL);
+			
 			struct connection_data_client *cdatc;
 			
 			for (cdatc = cdat->client_list; cdatc; cdatc = cdatc->next) {
@@ -827,6 +852,8 @@ int main(int argc, char **argv)
 
 	dml_poll_add(cleanup, NULL, NULL, cleanup);
 	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
+	dml_poll_add(connection_data_keepalive, NULL, NULL, connection_data_keepalive);
+	dml_poll_timeout(connection_data_keepalive, &(struct timespec){ DMLD_DATA_KEEPALIVE, 0 });
 
 	dml_poll_loop();
 

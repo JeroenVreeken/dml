@@ -36,6 +36,7 @@
 #include <time.h>
 
 
+#define DML_TRX_DATA_KEEPALIVE 10
 
 uint8_t ref_id[DML_ID_SIZE];
 char *mime = "audio/dml-codec2";
@@ -430,27 +431,32 @@ void send_beep1600(void)
 
 int rx_watchdog(void *arg)
 {
-	if (rx_state) {
-		printf("No activity, sending state off packet\n");
-		rx_state = false;
+	printf("No activity, sending state off packet\n");
 	
-		uint8_t data[8];
+	uint8_t data[8];
 
+	if (rx_state)
 		memcpy(data, mac_last, 6);
-		data[6] = 0;
-		data[7] = rx_state;
+	else
+		memset(data, 0, 6);
+	data[6] = 0;
+	data[7] = false;
 
-		send_data(data, 8);
-		
-		if (do_beep800) {
-			send_beep800();
-			do_beep800 = false;
-		}
-		if (do_beep1600) {
-			send_beep1600();
-			do_beep1600 = false;
-		}
+	send_data(data, 8);
+
+	rx_state = false;
+
+	if (do_beep800) {
+		send_beep800();
+		do_beep800 = false;
 	}
+	if (do_beep1600) {
+		send_beep1600();
+		do_beep1600 = false;
+	}
+
+	dml_poll_timeout(&rx_state, 
+	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
 
 	return 0;
 }
@@ -650,6 +656,9 @@ int main(int argc, char **argv)
 		printf("Could not generate beep\n");
 	}
 	beepsize = 8000 * 0.08;
+
+	dml_poll_timeout(&rx_state, 
+	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
 
 	dml_poll_loop();
 
