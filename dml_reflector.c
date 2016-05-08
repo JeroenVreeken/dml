@@ -346,14 +346,10 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	if (!packet_id)
 		return;
 	
-	if (timestamp <= prev_timestamp)
-		return;
-
 	if (timestamp <= prev_timestamp) {
 		fprintf(stderr, "Dropping packet %"PRId64"\n", timestamp);
 		return;
 	}
-
 
 	clock_gettime(CLOCK_REALTIME, &ts);
 	tmax = (ts.tv_sec + 2) << 16;
