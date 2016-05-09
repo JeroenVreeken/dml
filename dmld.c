@@ -141,6 +141,7 @@ void connection_destroy(struct connection *con)
 		
 		connection_data_remove_client(data, con->dc);
 		if (!data->client_list && data->dc != con->dc) {
+			printf("Sending disconnect request upstream\n");
 			dml_packet_send_req_disc(data->dc, data->id);
 			connection_data_remove(data);
 		}
@@ -231,11 +232,12 @@ uint16_t connection_data_new_id(void)
 	static uint16_t id = DML_PACKET_DATA;
 	struct connection_data *entry;
 	
+	id++;
 	do {
 		for (entry = data_list; entry; entry = entry->next) {
 			if (entry->packet_id == id) {
 				id++;
-				if (!id)
+				if (id < DML_PACKET_DATA)
 					id = DML_PACKET_DATA;
 				break;
 			}
@@ -680,6 +682,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			connection_data_remove_client(cdat, dc);
 			dml_packet_send_disc(dc, id, DML_PACKET_DISC_REQUESTED);
 			if (!cdat->client_list) {
+				printf("Sending disconnect request upstream\n");
+				dml_packet_send_req_disc(cdat->dc, cdat->id);
 				connection_data_remove(cdat);
 			}
 			break;
@@ -813,6 +817,7 @@ int cleanup(void *arg)
 	}
 
 	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
+
 	return 0;
 }
 
