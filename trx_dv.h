@@ -27,5 +27,6 @@ int trx_dv_init(char *dev,
     void *arg,
     char *mode);
 int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size);
+int trx_dv_duration(size_t size, int mode);
 
 #endif /* _INCLUDE_TRX_DV_H_ */

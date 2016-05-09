@@ -27,6 +27,7 @@
 
 #include "eth_ar.h"
 #include "alaw.h"
+#include "trx_dv.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -35,6 +36,8 @@
 #include <time.h>
 
 
+#define DML_REFLECTOR_PARROT_WAIT (500*1000*1000)
+#define DML_REFLECTOR_PARROT_MAX (60*60*50)
 
 uint8_t ref_id[DML_ID_SIZE];
 char *mime = "audio/dml-codec2";
@@ -42,6 +45,7 @@ char *name;
 char *alias;
 char *description;
 uint32_t bps = 6400;
+bool parrot = false;
 
 uint16_t packet_id = 0;
 struct dml_connection *dml_con;
@@ -361,6 +365,75 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
+struct parrot_data {
+	struct parrot_data *next;
+	
+	void *data;
+	size_t size;
+	int duration;
+};
+
+struct parrot_data *parrot_queue = NULL;
+uint64_t parrot_timestamp;
+
+
+int parrot_dequeue(void *data)
+{
+	if (parrot_queue) {
+		struct parrot_data *entry = parrot_queue;
+
+		dml_poll_timeout(&parrot_queue,
+		    &(struct timespec){ 0, entry->duration * 1000000});
+
+		if (!parrot_timestamp) {
+			struct timespec ts;
+			clock_gettime(CLOCK_REALTIME, &ts);
+			parrot_timestamp = (ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+		}
+		
+		dml_packet_send_data(dml_con, packet_id, 
+		    entry->data, entry->size, parrot_timestamp, dk);
+		
+		parrot_timestamp += entry->duration;
+		if ((parrot_timestamp & 0xffff) >= 1000) {
+			parrot_timestamp = (parrot_timestamp & ~0xffff) + (1 << 16);
+		}
+		
+		parrot_queue = parrot_queue->next;
+		free(entry->data);
+		free(entry);
+	} else {
+		parrot_timestamp = 0;
+	}
+	
+	return 0;
+}
+
+void parrot_queue_add(void *data, size_t size)
+{
+	struct parrot_data *entry, **listp;
+	uint8_t *datab = data;
+	int i;
+	int mode = datab[6];
+	
+	entry = malloc(sizeof(struct parrot_data));
+	entry->data = malloc(size);
+	
+	memcpy(entry->data, data, size);
+	entry->size = size;
+	entry->duration = trx_dv_duration(size, mode);
+	entry->next = NULL;
+	
+	for (listp = &parrot_queue, i = 0; *listp; listp = &(*listp)->next, i++)
+		if (i > DML_REFLECTOR_PARROT_MAX) {
+			free(entry->data);
+			free(entry);
+			return;
+		}
+	
+	*listp = entry;
+}
+
 
 static bool tx_state = false;
 
@@ -386,7 +459,14 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", multicast ? "MULTICAST" : call, ssid);
 	}
 	
-	send_data(data, size, timestamp);
+	if (!parrot)
+		send_data(data, size, timestamp);
+	else {
+		parrot_queue_add(data, size);
+
+		dml_poll_timeout(&parrot_queue,
+		    &(struct timespec){ 0, DML_REFLECTOR_PARROT_WAIT });
+	}
 }
 
 
@@ -433,6 +513,8 @@ int main(int argc, char **argv)
 	alias = dml_config_value("alias", NULL, "0000");
 	description = dml_config_value("description", NULL, "Test reflector");
 
+	parrot = atoi(dml_config_value("parrot", NULL, "0"));
+
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
@@ -470,6 +552,9 @@ int main(int argc, char **argv)
 		printf("Could not generate beep\n");
 	}
 	beepsize = 8000 * 0.08;
+
+	if (parrot)
+		dml_poll_add(&parrot_queue, NULL, NULL, parrot_dequeue);
 
 	dml_poll_loop();
 

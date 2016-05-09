@@ -37,7 +37,8 @@ SRCS += dml_list.c
 dml_list: $(DML_OBJS) dml_list.o
 
 SRCS += dml_reflector.c alaw.c
-dml_reflector: $(DML_OBJS) $(ETH_AR_OBJS) dml_reflector.o alaw.o
+dml_reflector_LDFLAGS += -lcodec2
+dml_reflector: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_reflector.o alaw.o
 
 SRCS += dml_trx.c trx_sound.c alaw.c
 dml_trx_LDFLAGS += -lasound -lcodec2
