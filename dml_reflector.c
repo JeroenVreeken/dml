@@ -404,6 +404,13 @@ int parrot_dequeue(void *data)
 		free(entry);
 	} else {
 		parrot_timestamp = 0;
+		uint8_t data[8];
+
+		memset(data, 0xff, 6);
+		data[6] = 0;
+		data[7] = 0;
+
+		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
 	}
 	
 	return 0;
@@ -416,12 +423,15 @@ void parrot_queue_add(void *data, size_t size)
 	int i;
 	int mode = datab[6];
 	
+	if (size <= 8)
+		return;
+	
 	entry = malloc(sizeof(struct parrot_data));
 	entry->data = malloc(size);
 	
 	memcpy(entry->data, data, size);
 	entry->size = size;
-	entry->duration = trx_dv_duration(size, mode);
+	entry->duration = trx_dv_duration(size - 8, mode);
 	entry->next = NULL;
 	
 	for (listp = &parrot_queue, i = 0; *listp; listp = &(*listp)->next, i++)
