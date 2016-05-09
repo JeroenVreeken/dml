@@ -181,7 +181,7 @@ static void client_connect(struct dml_client *client, void *arg)
 	struct timespec ts;
 	
 	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (ts.tv_sec - DML_TIME_MARGIN) << 16;
+	timestamp = (uint64_t)(ts.tv_sec - DML_TIME_MARGIN) << 16;
 	dml_stream_timestamp_set(ds, timestamp);
 
 	dss->dc = dc;

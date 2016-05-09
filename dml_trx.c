@@ -374,7 +374,7 @@ void send_data(void *data, size_t size)
 	} else {
 		prev_ctr++;
 	}
-	timestamp = ts.tv_sec << 16;
+	timestamp = ((uint64_t)ts.tv_sec) << 16;
 	timestamp |= prev_ctr;
 	
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);

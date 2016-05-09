@@ -356,7 +356,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	}
 
 	clock_gettime(CLOCK_REALTIME, &ts);
-	tmax = (ts.tv_sec + 2) << 16;
+	tmax = ((uint64_t)ts.tv_sec + 2) << 16;
 	if (timestamp > tmax)
 		return;
 	
@@ -388,7 +388,7 @@ int parrot_dequeue(void *data)
 		if (!parrot_timestamp) {
 			struct timespec ts;
 			clock_gettime(CLOCK_REALTIME, &ts);
-			parrot_timestamp = (ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+			parrot_timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 		}
 		
 		dml_packet_send_data(dml_con, packet_id, 
