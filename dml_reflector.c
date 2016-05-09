@@ -442,6 +442,9 @@ void parrot_queue_add(void *data, size_t size)
 		}
 	
 	*listp = entry;
+
+	dml_poll_timeout(&parrot_queue,
+	    &(struct timespec){ 0, DML_REFLECTOR_PARROT_WAIT });
 }
 
 
@@ -473,9 +476,6 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 		send_data(data, size, timestamp);
 	else {
 		parrot_queue_add(data, size);
-
-		dml_poll_timeout(&parrot_queue,
-		    &(struct timespec){ 0, DML_REFLECTOR_PARROT_WAIT });
 	}
 }
 
