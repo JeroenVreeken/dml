@@ -214,6 +214,32 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 	return -1;
 }
 
+int trx_dv_duration(size_t size, int mode)
+{
+	switch (mode) {
+		case CODEC2_MODE_3200:
+			return (size * 20) / 8;
+		case CODEC2_MODE_2400:
+			return (size * 20) / 6;
+		case CODEC2_MODE_1600:
+			return (size * 40) / 8;
+		case CODEC2_MODE_1400:
+			return (size * 40) / 7;
+		case CODEC2_MODE_1300:
+			return (size * 40) / 7;
+		case CODEC2_MODE_1200:
+			return (size * 40) / 6;
+		case CODEC2_MODE_700:
+			return (size * 40) / 4;
+		case CODEC2_MODE_700B:
+			return (size * 40) / 4;
+		case 'A':
+			return size / 8;
+		default:
+			return -1;
+	}
+}
+
 int trx_dv_init(char *dev, 
     int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
