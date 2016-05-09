@@ -403,7 +403,6 @@ int parrot_dequeue(void *data)
 		free(entry->data);
 		free(entry);
 	} else {
-		parrot_timestamp = 0;
 		uint8_t data[8];
 
 		memset(data, 0xff, 6);
@@ -411,6 +410,7 @@ int parrot_dequeue(void *data)
 		data[7] = 0;
 
 		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
+		parrot_timestamp = 0;
 	}
 	
 	return 0;
