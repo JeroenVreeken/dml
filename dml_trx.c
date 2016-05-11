@@ -438,7 +438,7 @@ int rx_watchdog(void *arg)
 	if (rx_state)
 		memcpy(data, mac_last, 6);
 	else
-		memset(data, 0, 6);
+		memset(data, 0xff, 6);
 	data[6] = 0;
 	data[7] = false;
 
