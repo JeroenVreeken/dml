@@ -407,7 +407,7 @@ function prep_connect(id)
 
 function do_connect(id)
 {
-	connection.send_req_header(connected_id);
+	connection.send_req_header(id);
 }
 
 function disconnect()
@@ -482,12 +482,20 @@ function dmlc2()
 		return mime == "audio/dml-codec2";
 	}
 	
+	var ui_name;
+	
 	this.connect = function dmlc2_connect(id) {
-		document.getElementById("dmlc2_div").style.display = "block";
-		document.getElementById("dmlc2_state").innerHTML = "Connect send";
-
 		prep_connect(id);
 		curcon = dmlc2_this;
+
+		if (routes[id].description) {
+			dmlc2_this.ui_name = routes[id].description.name;
+		} else {
+			dmlc2_this.ui_name = "";
+		}
+
+		document.getElementById("dmlc2_div").style.display = "block";
+		document.getElementById("dmlc2_state").innerHTML = dmlc2_this.ui_name + ": Connect send";
 
 		do_connect(connected_id);
 	}
@@ -531,7 +539,7 @@ function dmlc2()
 	
 	this.update_ui = function (newstate, newmode, newcallsign) {
 		if (newstate != dmlc2_this.state || newmode != dmlc2_this.mode || dmlc2_this.callsign != newcallsign) {
-			var str = "state: " + newstate + " mode: " + newmode + " callsign: " + newcallsign;
+			var str = dmlc2_this.ui_name + ": state: " + newstate + " mode: " + newmode + " callsign: " + newcallsign;
 
 			document.getElementById("dmlc2_state").innerHTML = str;
 				    

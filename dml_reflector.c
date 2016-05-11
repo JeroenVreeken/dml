@@ -39,6 +39,8 @@
 #define DML_REFLECTOR_PARROT_WAIT (500*1000*1000)
 #define DML_REFLECTOR_PARROT_MAX (60*60*50)
 
+#define DML_REFLECTOR_DATA_KEEPALIVE 10
+
 uint8_t ref_id[DML_ID_SIZE];
 char *mime = "audio/dml-codec2";
 char *name;
@@ -57,6 +59,7 @@ struct dml_crypto_key *dk;
 
 void recv_data(void *data, size_t size, uint64_t timestamp);
 void send_beep(void);
+static int watchdog(void *arg);
 
 static uint16_t alloc_data_id(void)
 {
@@ -347,6 +350,9 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	struct timespec ts;
 	uint64_t tmax;
 		
+	dml_poll_timeout(&watchdog, 
+	    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
+
 	if (!packet_id)
 		return;
 	
@@ -356,7 +362,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	}
 
 	clock_gettime(CLOCK_REALTIME, &ts);
-	tmax = (ts.tv_sec + 2) << 16;
+	tmax = ((uint64_t)ts.tv_sec + 2) << 16;
 	if (timestamp > tmax)
 		return;
 	
@@ -388,7 +394,7 @@ int parrot_dequeue(void *data)
 		if (!parrot_timestamp) {
 			struct timespec ts;
 			clock_gettime(CLOCK_REALTIME, &ts);
-			parrot_timestamp = (ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+			parrot_timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 		}
 		
 		dml_packet_send_data(dml_con, packet_id, 
@@ -502,6 +508,28 @@ void send_beep(void)
 	send_data(data, beepsize + 8, timestamp);
 }
 
+static int watchdog(void *arg)
+{
+	struct timespec ts;
+	uint64_t timestamp;
+	printf("No activity, sending state off packet\n");
+	
+	uint8_t data[8];
+
+	memset(data, 0xff, 6);
+	data[6] = 0;
+	data[7] = false;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	timestamp = (ts.tv_sec + 2) << 16;
+	if (timestamp <= prev_timestamp)
+		timestamp = prev_timestamp + 1;;
+	
+	send_data(data, 8, timestamp);
+
+	return 0;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -565,6 +593,11 @@ int main(int argc, char **argv)
 
 	if (parrot)
 		dml_poll_add(&parrot_queue, NULL, NULL, parrot_dequeue);
+
+	dml_poll_add(&watchdog, NULL, NULL, watchdog);
+
+	dml_poll_timeout(&watchdog, 
+	    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
 
 	dml_poll_loop();
 
