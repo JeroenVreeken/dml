@@ -15,6 +15,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
+#define _GNU_SOURCE
+
 #include "dml_client.h"
 #include "dml_connection.h"
 #include "dml_poll.h"
@@ -543,10 +545,15 @@ void command_cb_handle(char *command)
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(ds), ref_id,
 		    DML_PACKET_REQ_REVERSE_CONNECT);
 		do_beep800 = true;
+		
+		char *constr;
+		asprintf(&constr, "Connecting %s", command);
+		trx_dv_send_control(mac_bcast, mac_bcast, constr);
+		free(constr);
 	} else {
 		do_beep1600 = true;
-	}
-	
+		trx_dv_send_control(mac_bcast, mac_bcast, "NACK");
+	}	
 }
 
 static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size)
