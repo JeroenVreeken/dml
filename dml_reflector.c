@@ -501,7 +501,7 @@ void send_beep(void)
 	memcpy(data + 8, beep, beepsize);
 
 	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (ts.tv_sec + 2) << 16;
+	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
 	
@@ -521,7 +521,7 @@ static int watchdog(void *arg)
 	data[7] = false;
 
 	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (ts.tv_sec + 2) << 16;
+	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
 	
