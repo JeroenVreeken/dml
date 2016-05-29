@@ -217,7 +217,7 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 int trx_dv_send_control(uint8_t from[6], uint8_t to[6], char *control)
 {
 	size_t control_size = strlen(control);
-	uint16_t type = ETH_P_AR_CONTROL;
+	uint16_t type = htons(ETH_P_AR_CONTROL);
 
 	uint8_t dv_frame[6 + 6 + 2 + control_size];
 	memcpy(dv_frame + 0, to, 6);
