@@ -368,6 +368,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	
 	prev_timestamp = timestamp;
 
+printf("+ %016lx\n", timestamp);
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
@@ -388,15 +389,32 @@ int parrot_dequeue(void *data)
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
 
-		dml_poll_timeout(&parrot_queue,
-		    &(struct timespec){ 0, entry->duration * 1000000});
+		dml_poll_timeout(&watchdog, 
+		    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
+
+		struct timespec ts;
+		uint64_t timestamp;
+		clock_gettime(CLOCK_REALTIME, &ts);
+		timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+printf("%ld ", ts.tv_sec);
 
 		if (!parrot_timestamp) {
-			struct timespec ts;
-			clock_gettime(CLOCK_REALTIME, &ts);
-			parrot_timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+			parrot_timestamp = timestamp;
+		}
+		long diff = timestamp - parrot_timestamp;
+		if (diff < 0)
+			diff = 0;
+		long waitms = entry->duration;
+		waitms -= diff;
+		if (waitms < 1) {
+			waitms = 1;
+			parrot_timestamp = timestamp;
 		}
 		
+		dml_poll_timeout(&parrot_queue,
+		    &(struct timespec){ 0, waitms * 1000000});
+		
+printf("e %016lx %ld %ld\n", parrot_timestamp, diff, waitms);
 		dml_packet_send_data(dml_con, packet_id, 
 		    entry->data, entry->size, parrot_timestamp, dk);
 		
@@ -415,6 +433,7 @@ int parrot_dequeue(void *data)
 		data[6] = 0;
 		data[7] = 0;
 
+printf("= %016lx\n", parrot_timestamp);
 		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
 		parrot_timestamp = 0;
 	}
@@ -501,6 +520,7 @@ void send_beep(void)
 	memcpy(data + 8, beep, beepsize);
 
 	clock_gettime(CLOCK_REALTIME, &ts);
+printf("%ld ", ts.tv_sec);
 	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
@@ -521,6 +541,7 @@ static int watchdog(void *arg)
 	data[7] = false;
 
 	clock_gettime(CLOCK_REALTIME, &ts);
+printf("%ld ", ts.tv_sec);
 	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
