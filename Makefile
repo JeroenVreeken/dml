@@ -19,16 +19,12 @@ DML_SRCS = \
 TRX_SRCS = \
 	trx_dv.c
 
-ETH_AR_SRCS = \
-	eth_ar.c	
-
 DML_OBJS = $(DML_SRCS:.c=.o)
 TRX_OBJS = $(TRX_SRCS:.c=.o)
-ETH_AR_OBJS = $(ETH_AR_SRCS:.c=.o)
 
 all: dmld dml_list dml_reflector dml_streamer dml_stream_client dml_trx dml_httpd
 
-SRCS += $(DML_SRCS) $(TRX_SRCS) $(ETH_AR_SRCS)
+SRCS += $(DML_SRCS) $(TRX_SRCS)
 
 SRCS += dmld.c
 dmld: $(DML_OBJS) dmld.o
@@ -37,12 +33,12 @@ SRCS += dml_list.c
 dml_list: $(DML_OBJS) dml_list.o
 
 SRCS += dml_reflector.c alaw.c
-dml_reflector_LDFLAGS += -lcodec2
-dml_reflector: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_reflector.o alaw.o
+dml_reflector_LDFLAGS += -lcodec2 -leth_ar
+dml_reflector: $(DML_OBJS) $(TRX_OBJS) dml_reflector.o alaw.o
 
 SRCS += dml_trx.c trx_sound.c alaw.c
-dml_trx_LDFLAGS += -lasound -lcodec2
-dml_trx: $(DML_OBJS) $(TRX_OBJS) $(ETH_AR_OBJS) dml_trx.o alaw.o
+dml_trx_LDFLAGS += -lasound -lcodec2 -leth_ar
+dml_trx: $(DML_OBJS) $(TRX_OBJS) dml_trx.o alaw.o
 
 SRCS += dml_streamer.c matroska.c ogg.c
 dml_streamer: $(DML_OBJS) dml_streamer.o matroska.o ogg.o

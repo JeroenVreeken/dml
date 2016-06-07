@@ -16,7 +16,7 @@
 
  */
 #include "trx_dv.h"
-#include "eth_ar.h"
+#include <eth_ar/eth_ar.h>
 #include "dml_poll.h"
 #include "alaw.h"
 

@@ -29,7 +29,7 @@
 
 #include "trx_dv.h"
 #include "alaw.h"
-#include "eth_ar.h"
+#include <eth_ar/eth_ar.h>
 
 #include <stdlib.h>
 #include <unistd.h>

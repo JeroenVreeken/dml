@@ -25,7 +25,7 @@
 #include "dml_config.h"
 #include "dml_stream.h"
 
-#include "eth_ar.h"
+#include <eth_ar/eth_ar.h>
 #include "alaw.h"
 #include "trx_dv.h"
 
