@@ -1,6 +1,5 @@
 *.pem
 *.o
-*.d
 dmld
 dml_httpd
 dml_list
@@ -8,3 +7,32 @@ dml_reflector
 dml_streamer
 dml_stream_client
 dml_trx
+
+# http://www.gnu.org/software/automake
+
+Makefile.in
+
+# http://www.gnu.org/software/autoconf
+
+/Makefile
+/Makefile.in
+/autom4te.cache
+/autoscan.log
+/autoscan-*.log
+/aclocal.m4
+/compile
+/config.*
+/configure
+/configure.scan
+/depcomp
+/install-sh
+/libtool
+/ltmain.sh
+/m4/
+/missing
+/stamp-h?
+.deps/
+.dirstamp
+.libs/
+*.l[ao]
+*~
