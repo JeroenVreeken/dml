@@ -262,7 +262,8 @@ int trx_dv_init(char *dev,
     int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
     void *arg,
-    char *mode)
+    char *mode,
+    uint8_t devaddr[6])
 {
 	int sock;
 	short protocol = htons(ETH_P_ALL);
@@ -326,6 +327,14 @@ int trx_dv_init(char *dev,
 	if(bind(sock, (struct sockaddr *)&sll , sizeof(sll)) < 0)
 		goto err_bind;
 
+	struct ifreq if_mac;
+
+	memset(&if_mac, 0, sizeof(struct ifreq));
+	strcpy(if_mac.ifr_name, dev);
+	if (ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0)
+		goto err_ioctl_mac; 
+	memcpy(devaddr, (uint8_t *)&if_mac.ifr_hwaddr.sa_data, 6);
+
 	if (dml_poll_add(trx_dv_init, trx_dv_in_cb, NULL, NULL))
 		goto err_poll;
 	dml_poll_fd_set(trx_dv_init, sock);
@@ -336,6 +345,7 @@ int trx_dv_init(char *dev,
 	return 0;
 
 err_poll:
+err_ioctl_mac:
 err_bind:
 err_ioctl:
 err_len:

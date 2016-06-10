@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -388,6 +388,7 @@ static bool tx_state = false;
 
 uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 void recv_data(void *data, size_t size)
 {
@@ -424,11 +425,11 @@ bool do_beep800, do_beep1600;
 
 void send_beep800(void)
 {
-	trx_dv_send(mac_bcast, mac_bcast, 'A', beep800, beepsize);
+	trx_dv_send(mac_dev, mac_bcast, 'A', beep800, beepsize);
 }
 void send_beep1600(void)
 {
-	trx_dv_send(mac_bcast, mac_bcast, 'A', beep1600, beepsize);
+	trx_dv_send(mac_dev, mac_bcast, 'A', beep1600, beepsize);
 }
 
 int rx_watchdog(void *arg)
@@ -548,11 +549,11 @@ void command_cb_handle(char *command)
 		
 		char *constr;
 		asprintf(&constr, "Connecting %s", command);
-		trx_dv_send_control(mac_bcast, mac_bcast, constr);
+		trx_dv_send_control(mac_dev, mac_bcast, constr);
 		free(constr);
 	} else {
 		do_beep1600 = true;
-		trx_dv_send_control(mac_bcast, mac_bcast, "NACK");
+		trx_dv_send_control(mac_dev, mac_bcast, "NACK");
 	}	
 }
 
@@ -617,8 +618,15 @@ int main(int argc, char **argv)
 		if (dv_mode) {
 			printf("DV limited to mode %s\n", dv_mode);
 		}
-		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, NULL, dv_mode))
+		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, NULL, dv_mode, mac_dev))
 			fprintf(stderr, "Could not open DV device\n");
+
+		char call[ETH_AR_CALL_SIZE];
+		int ssid;
+		bool multicast;
+		
+		eth_ar_mac2call(call, &ssid, &multicast, mac_dev);
+		printf("Interface address: %s-%d\n", multicast ? "MULTICAST" : call, ssid);
 	} else {
 		fprintf(stderr, "No DV device configured\n");
 		return -1;
