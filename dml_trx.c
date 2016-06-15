@@ -40,29 +40,29 @@
 
 #define DML_TRX_DATA_KEEPALIVE 10
 
-uint8_t ref_id[DML_ID_SIZE];
-char *mime = "audio/dml-codec2";
-char *name;
-char *alias;
-char *description;
-uint32_t bps = 6400;
-bool fullduplex = false;
+static uint8_t ref_id[DML_ID_SIZE];
+static char *mime = "audio/dml-codec2";
+static char *name;
+static char *alias;
+static char *description;
+static uint32_t bps = 6400;
+static bool fullduplex = false;
 
-uint16_t packet_id = 0;
-struct dml_connection *dml_con;
+static uint16_t packet_id = 0;
+static struct dml_connection *dml_con;
 
-uint8_t *header = &(uint8_t){ 0 };
-size_t header_size = 0;
+static uint8_t *header = &(uint8_t){ 0 };
+static size_t header_size = 0;
 
-struct dml_crypto_key *dk;
+static struct dml_crypto_key *dk;
 
 static struct dml_stream *cur_con = NULL;
 static uint16_t cur_id = 0;
 static struct dml_crypto_key *cur_dk = NULL;
 
-void recv_data(void *data, size_t size);
-void send_beep800(void);
-void send_beep1600(void);
+static void recv_data(void *data, size_t size);
+static void send_beep800(void);
+static void send_beep1600(void);
 
 
 static uint16_t alloc_data_id(void)
@@ -79,12 +79,12 @@ struct dml_stream_priv {
 	bool match_mime;
 };
 
-struct dml_stream_priv *stream_priv_new(void)
+static struct dml_stream_priv *stream_priv_new(void)
 {
 	return calloc(1, sizeof(struct dml_stream_priv));
 }
 
-void stream_priv_free(struct dml_stream_priv *priv)
+static void stream_priv_free(struct dml_stream_priv *priv)
 {
 	free(priv);
 }
@@ -106,7 +106,7 @@ static int connect(struct dml_stream *ds)
 	return 0;
 }
 
-void rx_packet(struct dml_connection *dc, void *arg, 
+static void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
 {
 //	printf("got id: %d\n", id);
@@ -315,7 +315,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	return;
 }
 
-int client_reconnect(void *clientv)
+static int client_reconnect(void *clientv)
 {
 	struct dml_client *client = clientv;
 
@@ -327,7 +327,7 @@ int client_reconnect(void *clientv)
 	return 0;
 }
 
-int client_connection_close(struct dml_connection *dc, void *arg)
+static int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	dml_con = NULL;
 	packet_id = 0;
@@ -341,7 +341,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 		return 0;
 }
 
-void client_connect(struct dml_client *client, void *arg)
+static void client_connect(struct dml_client *client, void *arg)
 {
 	struct dml_connection *dc;
 	int fd;
@@ -358,10 +358,10 @@ void client_connect(struct dml_client *client, void *arg)
 	dml_packet_send_route(dc, ref_id, 0);
 }
 
-time_t prev_sec;
-uint16_t prev_ctr;
+static time_t prev_sec;
+static uint16_t prev_ctr;
 
-void send_data(void *data, size_t size)
+static void send_data(void *data, size_t size)
 {
 	uint64_t timestamp;
 	struct timespec ts;
@@ -386,11 +386,11 @@ void send_data(void *data, size_t size)
 static bool rx_state = false;
 static bool tx_state = false;
 
-uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
-void recv_data(void *data, size_t size)
+static void recv_data(void *data, size_t size)
 {
 	if (size < 8)
 		return;
@@ -419,20 +419,20 @@ void recv_data(void *data, size_t size)
 	}
 }
 
-int beepsize;
-uint8_t *beep800, *beep1600;
-bool do_beep800, do_beep1600;
+static int beepsize;
+static uint8_t *beep800, *beep1600;
+static bool do_beep800, do_beep1600;
 
-void send_beep800(void)
+static void send_beep800(void)
 {
 	trx_dv_send(mac_dev, mac_bcast, 'A', beep800, beepsize);
 }
-void send_beep1600(void)
+static void send_beep1600(void)
 {
 	trx_dv_send(mac_dev, mac_bcast, 'A', beep1600, beepsize);
 }
 
-int rx_watchdog(void *arg)
+static int rx_watchdog(void *arg)
 {
 	printf("No activity, sending state off packet\n");
 	
@@ -465,7 +465,7 @@ int rx_watchdog(void *arg)
 }
 
 
-int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
+static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
 {
 	uint8_t data[8 + size];
 
@@ -493,17 +493,8 @@ int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size
 	return 0;
 }
 
-int state_cb(bool state)
-{
-	printf("state: %d\n", state);
-	rx_state = state;
-	
-	return 0;
-}
 
-	
-
-void command_cb_handle(char *command)
+static void command_cb_handle(char *command)
 {	
 	struct dml_stream *ds;
 	bool is_73;
