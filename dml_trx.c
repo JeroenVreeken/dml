@@ -763,7 +763,7 @@ int main(int argc, char **argv)
 	priv_fprs->mine = true;
 	dml_stream_priv_set(stream_fprs, priv_dv);
     	dml_stream_name_set(stream_fprs, name);
-	dml_stream_alias_set(stream_fprs, alias);
+	dml_stream_alias_set(stream_fprs, "");
 	dml_stream_mime_set(stream_fprs, DML_MIME_FPRS);
 	dml_stream_description_set(stream_fprs, description);
 	dml_stream_bps_set(stream_fprs, bps);
