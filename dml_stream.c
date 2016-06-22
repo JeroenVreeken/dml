@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -42,6 +42,20 @@ struct dml_stream {
 };
 
 static struct dml_stream *streams = NULL;
+
+struct dml_stream *dml_stream_iterate(struct dml_stream *prev)
+{
+	if (!prev)
+		return streams;
+	
+	struct dml_stream *entry;
+	
+	for (entry = streams; entry; entry = entry->next) {
+		if (entry == prev)
+			return entry->next;
+	}
+	return NULL;
+}
 
 struct dml_stream *dml_stream_by_id(uint8_t id[DML_ID_SIZE])
 {
@@ -175,14 +189,63 @@ char *dml_stream_name_get(struct dml_stream *stream)
 	return stream->name;
 }
 
+int dml_stream_name_set(struct dml_stream *stream, char *name)
+{
+	char *aname = strdup(name);
+	if (!aname)
+		return -1;
+	free(stream->name);
+	stream->name = aname;
+
+	return 0;
+}
+
 char *dml_stream_alias_get(struct dml_stream *stream)
 {
 	return stream->alias;
 }
 
+int dml_stream_alias_set(struct dml_stream *stream, char *alias)
+{
+	char *aalias = strdup(alias);
+	if (!aalias)
+		return -1;
+	free(stream->alias);
+	stream->alias = aalias;
+
+	return 0;
+}
+
 char *dml_stream_mime_get(struct dml_stream *stream)
 {
 	return stream->mime;
+}
+
+int dml_stream_mime_set(struct dml_stream *stream, char *mime)
+{
+	char *amime = strdup(mime);
+	if (!amime)
+		return -1;
+	free(stream->mime);
+	stream->mime = amime;
+
+	return 0;
+}
+
+char *dml_stream_description_get(struct dml_stream *stream)
+{
+	return stream->description;
+}
+
+int dml_stream_description_set(struct dml_stream *stream, char *description)
+{
+	char *adescription = strdup(description);
+	if (!adescription)
+		return -1;
+	free(stream->description);
+	stream->description = adescription;
+
+	return 0;
 }
 
 struct dml_crypto_key *dml_stream_crypto_get(struct dml_stream *stream)
@@ -193,6 +256,17 @@ struct dml_crypto_key *dml_stream_crypto_get(struct dml_stream *stream)
 int dml_stream_crypto_set(struct dml_stream *stream, struct dml_crypto_key *crypto)
 {
 	stream->crypto = crypto;
+	return 0;
+}
+
+uint32_t dml_stream_bps_get(struct dml_stream *ds)
+{
+	return ds->bps;
+}
+
+int dml_stream_bps_set(struct dml_stream *ds, uint32_t bps)
+{
+	ds->bps = bps;
 	return 0;
 }
 

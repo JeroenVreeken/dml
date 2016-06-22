@@ -357,6 +357,7 @@ int update(struct connection *con)
 
 int update_all(struct connection *con)
 {
+	dml_route_sort_lock_dec();
 //	printf("update_all\n");
 	while (dml_connection_send_empty(con->dc)) {
 		uint8_t hops;
@@ -380,6 +381,8 @@ int update_all(struct connection *con)
 		dml_packet_send_route(con->dc, con->update_id, hops);
 	}
 //	printf("wait a little %p\n", con);
+
+	dml_route_sort_lock_inc();
 	dml_poll_add(con, NULL, NULL, (int (*)(void *))update_all);
 	dml_poll_timeout(con, &(struct timespec){ 1, 0 });
 
@@ -495,6 +498,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			dml_packet_parse_hello(data, len, &con->flags, NULL);
 			if (con->flags & DML_PACKET_HELLO_UPDATES) {
 				update_clear(con);
+				dml_route_sort_lock_inc();
 				update_all(con);
 			}
 			break;
@@ -814,6 +818,10 @@ int cleanup(void *arg)
 			printf("Removing route\n");
 			dml_route_destroy(id);
 		}
+	}
+
+	if (dml_route_sort()) {
+		printf("Sorted routes\n");
 	}
 
 	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });

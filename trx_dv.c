@@ -38,6 +38,7 @@ static int limit_mode = -1;
 
 static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode) = NULL;
 static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size) = NULL;
+static int (*fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size) = NULL;
 static void *in_cb_arg = NULL;
 
 static int trx_dv_in_cb(void *arg)
@@ -88,8 +89,9 @@ static int trx_dv_in_cb(void *arg)
 				datasize = ret - 14;
 				break;
 			case ETH_P_AR_CONTROL:
-				ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
-				/* fall through */;
+				return ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
+			case ETH_P_FPRS:
+				return fprs_cb(in_cb_arg, dv_frame + 6, dv_frame + 14, ret - 14);
 			default:
 				return 0;
 		}
@@ -261,6 +263,7 @@ int trx_dv_duration(size_t size, int mode)
 int trx_dv_init(char *dev, 
     int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
+    int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,
     char *mode,
     uint8_t devaddr[6])
@@ -271,6 +274,7 @@ int trx_dv_init(char *dev,
 	in_cb = new_in_cb;
 	in_cb_arg = arg;
 	ctrl_cb = new_ctrl_cb;
+	fprs_cb = new_fprs_cb;
 	
 	if (mode) {
 		if (!strcmp(mode, "3200")) {

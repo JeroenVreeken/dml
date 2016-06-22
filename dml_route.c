@@ -256,3 +256,52 @@ struct dml_connection *dml_route_connection_get(uint8_t id[DML_ID_SIZE])
 	}
 	return NULL;
 }
+
+
+static int dml_route_sort_lock = 0;
+void dml_route_sort_lock_inc(void)
+{
+	dml_route_sort_lock++;
+}
+
+void dml_route_sort_lock_dec(void)
+{
+	dml_route_sort_lock--;
+}
+
+bool dml_route_sort(void)
+{
+	bool sorted = false;
+	
+	if (dml_route_sort_lock)
+		return sorted;
+
+	struct dml_route **entry;
+	int lasthops = 0;
+	
+	for (entry = &route_list; *entry; entry = &(*entry)->next) {
+		int hops = 255;
+
+		if ((*entry)->links)
+			hops = (*entry)->link[(*entry)->lowest].hops;
+
+		if (hops < lasthops) {
+			struct dml_route *tmp;
+			
+			/* remove entry from list*/
+			tmp = *entry;
+			*entry = (*entry)->next;
+			
+			tmp->next = route_list;
+			route_list = tmp;
+			
+			/* Jump to second entry in list */
+			entry = &route_list;
+			
+			sorted = true;
+		}
+		lasthops = hops;
+	}
+	
+	return sorted;
+}

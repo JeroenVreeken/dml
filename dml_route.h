@@ -31,4 +31,9 @@ void dml_route_update_cb_set(void (*dml_route_update_cb)(uint8_t id[DML_ID_SIZE]
 
 struct dml_connection *dml_route_connection_get(uint8_t id[DML_ID_SIZE]);
 
+void dml_route_sort_lock_inc(void);
+void dml_route_sort_lock_dec(void);
+
+bool dml_route_sort(void);
+
 #endif /* _INCLUDE_DML_ROUTE_H_ */

@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -31,19 +31,28 @@ struct dml_stream *dml_stream_by_alias(char *alias);
 
 uint8_t *dml_stream_id_get(struct dml_stream *ds);
 char *dml_stream_name_get(struct dml_stream *ds);
+int dml_stream_name_set(struct dml_stream *stream, char *name);
 char *dml_stream_alias_get(struct dml_stream *stream);
+int dml_stream_alias_set(struct dml_stream *stream, char *alias);
 char *dml_stream_mime_get(struct dml_stream *stream);
+int dml_stream_mime_set(struct dml_stream *stream, char *mime);
+char *dml_stream_description_get(struct dml_stream *stream);
+int dml_stream_description_set(struct dml_stream *stream, char *description);
 struct dml_crypto_key *dml_stream_crypto_get(struct dml_stream *ds);
 int dml_stream_crypto_set(struct dml_stream *ds, struct dml_crypto_key *crypto);
 uint16_t dml_stream_data_id_get(struct dml_stream *ds);
 int dml_stream_data_id_set(struct dml_stream *ds, uint16_t data_id);
 uint64_t dml_stream_timestamp_get(struct dml_stream *ds);
 int dml_stream_timestamp_set(struct dml_stream *ds, uint64_t timestamp);
+uint32_t dml_stream_bps_get(struct dml_stream *ds);
+int dml_stream_bps_set(struct dml_stream *ds, uint32_t bps);
 
 struct dml_stream_priv;
 struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds);
 int dml_stream_priv_set(struct dml_stream *ds, struct dml_stream_priv *priv);
 
 void dml_stream_remove(struct dml_stream *ds);
+
+struct dml_stream *dml_stream_iterate(struct dml_stream *prev);
 
 #endif /* _INCLUDE_DML_STREAM_H_ */

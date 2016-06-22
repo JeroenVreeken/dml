@@ -24,6 +24,7 @@
 int trx_dv_init(char *dev, 
     int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
+    int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,
     char *mode,
     uint8_t devaddr[6]);

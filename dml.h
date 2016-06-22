@@ -27,4 +27,7 @@
 #define DML_SIG_SIZE	((256 * 2) / 8)
 #define DML_TIME_MARGIN	60
 
+#define DML_MIME_DV_C2 "audio/dml-codec2"
+#define DML_MIME_FPRS "application/fprs"
+
 #endif /* _INCLUDE_DML_H_ */
