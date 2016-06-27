@@ -40,6 +40,7 @@
 
 
 #define DML_TRX_DATA_KEEPALIVE 10
+#define DML_TRX_FPRS_TIMER (10 * 60)
 
 static bool fullduplex = false;
 
@@ -57,6 +58,14 @@ static struct dml_crypto_key *cur_dk = NULL;
 static void recv_data(void *data, size_t size);
 static void send_beep800(void);
 static void send_beep1600(void);
+
+static bool rx_state = false;
+static bool tx_state = false;
+
+static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
 
 
 static uint16_t alloc_data_id(void)
@@ -87,6 +96,58 @@ static void stream_priv_free(struct dml_stream_priv *priv)
 	free(priv);
 }
 
+static void send_data(void *data, size_t size, struct dml_stream *sender)
+{
+	uint64_t timestamp;
+	struct timespec ts;
+	uint16_t packet_id = dml_stream_data_id_get(sender);
+	
+	if (!packet_id)
+		return;
+	
+	clock_gettime(CLOCK_REALTIME, &ts);
+	timestamp = (((uint64_t)ts.tv_sec) << 16) | ((uint64_t)ts.tv_nsec << 16)/1000000000;
+	
+	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+}
+
+
+static int fprs_update_status(uint8_t callsign[6], char *stream, char *assoc)
+{
+	struct fprs_frame *fprs_frame;
+	uint8_t dml_data[1024];
+	size_t dml_size = 1024;
+
+	fprs_frame = fprs_frame_create();
+	if (!fprs_frame)
+		return -1;
+	
+	memcpy(fprs_frame_element_add(fprs_frame, FPRS_DMLSTREAM, strlen(stream)), stream, strlen(stream));
+	memcpy(fprs_frame_element_add(fprs_frame, FPRS_DMLASSOC, strlen(assoc)), assoc, strlen(assoc));
+	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
+
+	fprs_frame_add_callsign(fprs_frame, callsign);
+
+	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+	send_data(dml_data, dml_size, stream_fprs);
+	
+	fprs_frame_destroy(fprs_frame);
+
+	return 0;
+}
+
+static int fprs_timer(void *arg)
+{
+	fprs_update_status(mac_dev, dml_stream_name_get(stream_dv),
+	   cur_con ? dml_stream_name_get(cur_con) : "");
+
+	dml_poll_timeout(&fprs_timer, 
+	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
+	    
+	return 0;
+}
+
 static int connect(struct dml_stream *ds)
 {
 	uint16_t data_id = alloc_data_id();
@@ -100,6 +161,7 @@ static int connect(struct dml_stream *ds)
 	cur_con = ds;
 	cur_id = data_id;
 	cur_dk = dml_stream_crypto_get(ds);
+	fprs_update_status(mac_dev, dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
 	
 	return 0;
 }
@@ -127,6 +189,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					if (ds == cur_con) {
 						cur_con = NULL;
 						cur_id = 0;
+						fprs_update_status(mac_dev, 
+						    dml_stream_name_get(stream_dv), "");
 					}
 					stream_priv_free(priv);
 					dml_stream_remove(ds);
@@ -331,6 +395,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					dml_packet_send_req_disc(dml_con, id_rev);
 					cur_con = NULL;
 					cur_id = 0;
+					fprs_update_status(mac_dev, 
+					    dml_stream_name_get(stream_dv), "");
 				}
 			}
 			
@@ -432,28 +498,6 @@ static void client_connect(struct dml_client *client, void *arg)
 	}
 }
 
-static void send_data(void *data, size_t size, struct dml_stream *sender)
-{
-	uint64_t timestamp;
-	struct timespec ts;
-	uint16_t packet_id = dml_stream_data_id_get(sender);
-	
-	if (!packet_id)
-		return;
-	
-	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (((uint64_t)ts.tv_sec) << 16) | ((uint64_t)ts.tv_nsec << 16)/1000000000;
-	
-	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
-}
-
-
-static bool rx_state = false;
-static bool tx_state = false;
-
-static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 static void recv_data(void *data, size_t size)
 {
@@ -559,6 +603,7 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 }
 
 
+
 static void command_cb_handle(char *command)
 {	
 	struct dml_stream *ds;
@@ -600,6 +645,7 @@ static void command_cb_handle(char *command)
 		    DML_PACKET_REQ_REVERSE_DISC);
 		cur_con = NULL;
 		cur_id = 0;
+		fprs_update_status(mac_dev, dml_stream_name_get(stream_dv), "");
 	}		
 	if (do_connect) {
 		connect(ds);
@@ -776,6 +822,7 @@ int main(int argc, char **argv)
 	}
 
 	dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
+	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
 
 	beep800 = alaw_beep(800, 8000, 0.08);
 	if (!beep800) {
@@ -789,6 +836,8 @@ int main(int argc, char **argv)
 
 	dml_poll_timeout(&rx_state, 
 	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
+	dml_poll_timeout(&fprs_timer, 
+	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
 
 	dml_poll_loop();
 

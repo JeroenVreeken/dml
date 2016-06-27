@@ -234,6 +234,23 @@ int trx_dv_send_control(uint8_t from[6], uint8_t to[6], char *control)
 	return -1;
 }
 
+int trx_dv_send_fprs(uint8_t from[6], uint8_t to[6], uint8_t *data, size_t size)
+{
+	uint16_t type = htons(ETH_P_FPRS);
+
+	uint8_t dv_frame[6 + 6 + 2 + size];
+	memcpy(dv_frame + 0, to, 6);
+	memcpy(dv_frame + 6, from, 6);
+	memcpy(dv_frame + 12, &type, 2);
+	memcpy(dv_frame + 14, data, size);
+
+	ssize_t ret = send(dv_sock, dv_frame, 14 + size, 0);
+	if (ret == 14 + size)
+		return 0;
+	
+	return -1;
+}
+
 int trx_dv_duration(size_t size, int mode)
 {
 	switch (mode) {
