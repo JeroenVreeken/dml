@@ -207,9 +207,9 @@ static int fprs_db_check(void *arg)
 			if (!data_id)
 				cur_db = NULL;
 
-			printf("Connect to DB %p\n", cur_ds);
-			dml_stream_data_id_set(cur_ds, data_id);
-			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_ds), data_id);
+			printf("Connect to DB %p\n", cur_db);
+			dml_stream_data_id_set(cur_db, data_id);
+			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_db), data_id);
 		}
 	}
 
