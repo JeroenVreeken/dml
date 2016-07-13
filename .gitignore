@@ -7,6 +7,8 @@ dml_reflector
 dml_streamer
 dml_stream_client
 dml_trx
+dml_fprs_db
+
 
 # http://www.gnu.org/software/automake
 

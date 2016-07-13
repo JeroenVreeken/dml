@@ -29,5 +29,6 @@
 
 #define DML_MIME_DV_C2 "audio/dml-codec2"
 #define DML_MIME_FPRS "application/fprs"
+#define DML_ALIAS_FPRS_DB "DB"
 
 #endif /* _INCLUDE_DML_H_ */
