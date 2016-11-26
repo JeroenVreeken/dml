@@ -20,6 +20,11 @@ dml_httpd works!
 	<button onclick="curcon.disconnect()">Disconnect</button>
 </div>
 
+<div id="fprs_div" style="display: none;">
+	<div style="border: 2px solid" id="fprs_state"></div>
+	<button onclick="curcon.disconnect()">Disconnect</button>
+</div>
+
 <div id = "routes"></div>
 
 
@@ -54,6 +59,26 @@ var DML = {
 	},
 };
 
+var FPRS = {
+	ELEMENT: {
+		/* length limited ,to 7 */
+		ERROR: -1,
+		POSITION: 0,
+		CALLSIGN: 1,
+		SYMBOL: 2,
+		ALTITUDE: 3,
+		VECTOR: 4,
+		/* length limited to 255 */
+		OBJECTNAME: 16,
+		COMMENT: 17,
+		REQUEST: 18,
+		DESTINATION: 19,
+		TIMESTAMP: 20,
+		DMLSTREAM: 21,
+		DMLASSOC: 22,
+	}
+};
+
 function char2hex(c)
 {
 	str = c.toString(16);
@@ -62,12 +87,14 @@ function char2hex(c)
 	return str;
 }
 
-function data2str(data)
+function data2str(data, length, offset)
 {
 	var str = "";
 	var i;
+	var l = typeof length !== 'undefined' ? length : data.byteLength;
+	var o = typeof offset !== 'undefined' ? offset : 0;
 	
-	for (i = 0; i < data.byteLength; i++) {
+	for (i = o; i < l; i++) {
 		var c = data.getUint8(i, false);
 
 		if (!c)
@@ -279,17 +306,19 @@ function update_routes()
 	for (i = 0; i < routes.length; i++) {
 		var can_play_mse = false;
 		var can_play_dml = false;
-		
-		var ui_id = routes[i].id;
+		var can_play_fprs = false;
+	
+		var shastr = sha2str(routes[i].id);	
+		var ui_id = shastr;
 		if (routes[i].description) {
 			ui_id = routes[i].description.name;
 			if (routes[i].description.alias)
 				ui_id += " (" + routes[i].description.alias + ")";
 			can_play_mse = mse.supported(routes[i].description.mime);
 			can_play_dml = dmlc2.supported(routes[i].description.mime);
+			can_play_fprs = fprs.supported(routes[i].description.mime);
 		}
 		var str = "";
-		shastr = sha2str(routes[i].id)
 		
 		str += "<div style='background-color:yellow;margin: 1px 1px 1px 30px; display: none' id='desc_" + shastr + "'>";
 		if (routes[i].description) {
@@ -310,6 +339,8 @@ function update_routes()
 			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_dml) {
 			button_str = "<button onclick=\"dmlc2.connect(" + i + ")\">Connect & monitor state</button>";
+		} else if (can_play_fprs) {
+			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect & monitor FPRS frames</button>";
 		} else {
 			button_str = "Mime type not supported by browser\n";
 		}
@@ -351,8 +382,9 @@ function eth_ar()
 	];
 
 	
-	this.call = function (mac) {
-		var dv = new DataView(mac);
+	this.call = function (mac, offset) {
+		var offset = typeof offset !== 'undefined' ? offset : 0;
+		var dv = new DataView(mac, offset);
 		
 		var multicast = dv.getUint8(0) & 0x01;
 		var ssid = (dv.getUint8(0) & 0x3c) >> 2;
@@ -473,6 +505,203 @@ function mse()
 }
 
 mse = new mse();
+
+function fprs_element(eltype, elsize, eldataview, eloff)
+{
+	var type = eltype;
+	var size = elsize;
+	var dataview = new DataView(eldataview.buffer, eldataview.byteOffset + eloff, elsize);
+
+	this.tostring = function fprs_element_tostring() {
+		var str = "";
+
+		switch (type) {
+			case FPRS.ELEMENT.POSITION:
+				str+= "POSITION: ";
+	
+				var fixed = dataview.getUint8(3) & 0x08;
+				var longitude = 0;
+				var latitude = 0;
+
+				longitude  = dataview.getUint8(0) << 20;
+				longitude |= dataview.getUint8(1) << 12;
+				longitude |= dataview.getUint8(2) << 4;
+				longitude |= (dataview.getUint8(3) & 0xf0) >> 4;
+				if (longitude & 0x08000000) {
+					longitude ^= 0x0fffffff;
+					longitude += 1;
+					longitude = - longitude;
+				}
+				longitude = (longitude * 180.0) / 134217728;
+				if (longitude > 180)
+					longitude -= 360;
+
+				latitude  = (dataview.getUint8(3) & 0x07) << 24;
+				latitude |= dataview.getUint8(4) << 16;
+				latitude |= dataview.getUint8(5) << 8;
+				latitude |= dataview.getUint8(6);
+
+				if (latitude & 0x04000000) {
+					latitude ^= 0x07ffffff;
+					latitude += 1;
+					latitude = - latitude;
+				}
+				latitude = (latitude * 90.0) / 67108864;
+				
+				str += longitude + " " + latitude;
+				if (fixed)
+					str += " Fixed";
+				
+				break;
+			case FPRS.ELEMENT.CALLSIGN:
+				str+= "CALLSIGN: ";
+				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
+				break;
+			case FPRS.ELEMENT.SYMBOL:
+				str+= "SYMBOL: ";
+				var c0 = dataview.getUint8(0, false);
+				var c1 = dataview.getUint8(1, false);
+				str += String.fromCharCode(c0);
+				str += String.fromCharCode(c1);
+				break;
+			case FPRS.ELEMENT.ALTITUDE:
+				str+= "ALTITUDE";
+				break;
+			case FPRS.ELEMENT.VECTOR:
+				str+= "VECTOR";
+				break;
+			case FPRS.ELEMENT.OBJECTNAME:
+				str+= "OBJECTNAME";
+				break;
+			case FPRS.ELEMENT.COMMENT:
+				str+= "COMMENT: ";
+				str+= data2str(dataview);
+				break;
+			case FPRS.ELEMENT.REQUEST:
+				str+= "REQUEST";
+				break;
+			case FPRS.ELEMENT.DESTINATION:
+				str+= "DESTINATION";
+				break;
+			case FPRS.ELEMENT.TIMESTAMP:
+				str+= "TIMESTAMP";
+				break;
+			case FPRS.ELEMENT.DMLSTREAM:
+				str+= "DMLSTREAM: ";
+				str+= data2str(dataview);
+				break;
+			case FPRS.ELEMENT.DMLASSOC:
+				str+= "DMLASSOC: ";
+				str+= data2str(dataview);
+				break;
+		}
+		
+		return str;
+	}
+}
+
+function fprs_frame(fprs_arraybuffer)
+{
+	var dv = new DataView(fprs_arraybuffer);
+	
+	this.elements = new Array();
+	var i;
+	
+	for (i = 0; i < dv.byteLength;) {
+		var left = dv.byteLength - i;
+		var el0 = dv.getUint8(i+0);
+		var el_size_total = 1;
+		var el_size = 0;
+		var el_start = i;
+		var el_type = FPRS.ELEMENT.ERROR;
+		var el_off;
+		
+		if ((el0 & 0x80) == 0) {
+			el_size = el0 & 0x07;
+			el_size_total = el_size + 1;
+			el_type = (el0 & 0x78) >> 3;
+			el_off = i + 1;
+		} else if (left >= 2) {
+			var el1 = dv.getUint8(i+1);
+			
+			if ((el0 & 0xc0) == 0x80) {
+				el_size = el1;
+				el_size_total = el_size + 2;
+				el_type = el0 & 0x3f;
+				el_off = i + 2;
+			} else if (left >= 3) {
+				var el2 = dv.getUint8(i+2);
+				
+				el_size = el2;
+				el_size_total = el_size + 3;
+				el_type = el1 + ((el0 & 0x1f) << 8);
+				el_off = i + 3;
+			}
+		}
+		
+		if (el_size_total && el_size_total <= left) {
+			/* Got an element */
+			
+			this.elements.push(new fprs_element(el_type, el_size, dv, el_off));
+		}
+		
+		i += el_size_total;
+	}
+}
+
+function fprs()
+{
+	var fprs_this = this;
+	
+	this.supported = function supported(mime) {
+		return mime == "application/fprs";
+	}
+	var ui_name;
+	
+	this.connect = function fprs_connect(id) {
+		prep_connect(id);
+		curcon = fprs_this;
+
+		if (routes[id].description) {
+			fprs_this.ui_name = routes[id].description.name;
+		} else {
+			fprs_this.ui_name = "";
+		}
+
+		document.getElementById("fprs_div").style.display = "block";
+		document.getElementById("fprs_state").innerHTML = fprs_this.ui_name + ": Connect send";
+
+		do_connect(connected_id);
+	}
+	this.disconnect = function fprs_disconnect() 
+	{
+		disconnect();
+		document.getElementById("fprs_div").style.display = "none";
+	}
+
+	this.data = function fprs_data(newdata) {
+		frame = new fprs_frame(newdata);
+		
+		var str;
+		
+		str = "";
+		var i;
+		for (i = 0; i < frame.elements.length; i++) {
+			str += frame.elements[i].tostring() + " ";
+		}
+		str+= "<br>";
+		
+		fprs_this.update_ui(str);
+	}
+	
+	this.update_ui = function (length) {
+		var str = fprs_this.ui_name + ": " + length +"\n";
+
+		document.getElementById("fprs_state").innerHTML += str;
+	}
+}
+
+fprs = new fprs();
 
 function dmlc2()
 {

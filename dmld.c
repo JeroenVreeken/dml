@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <string.h>
 
+static bool debug = true;
+
 #define DMLD_DATA_KEEPALIVE	60
 
 struct connection_update {
@@ -492,7 +494,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 {
 	struct connection *con = arg;
 	
-//	printf("%d\n", id);
+	if (debug) printf("packet: %d\n", id);
 	switch (id) {
 		case DML_PACKET_HELLO:
 			dml_packet_parse_hello(data, len, &con->flags, NULL);
@@ -713,18 +715,18 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (id < DML_PACKET_DATA)
 				break;
 
-//			printf("Got data (%d)\n", len);
+			if (debug) printf("Got data (%d)\n", len);
 			struct connection_data *cdat = connection_data_by_connection(dc, id);
 			if (!cdat)
 				break;
-//			printf("Found connection\n");
+			if (debug) printf("Found connection\n");
 			
 			cdat->t_data = time(NULL);
 			
 			struct connection_data_client *cdatc;
 			
 			for (cdatc = cdat->client_list; cdatc; cdatc = cdatc->next) {
-//				printf("Sending to client as %d\n", cdatc->packet_id);
+				if (debug) printf("Sending to client as %d\n", cdatc->packet_id);
 				dml_connection_send_data(cdatc->dc, data, cdatc->packet_id, len);
 			}
 

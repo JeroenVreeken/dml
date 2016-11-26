@@ -248,7 +248,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	struct ws_client *ws_client;
 	struct writebuf *wb;
 	
-//	printf("Received packet, id %d, len %d\n", id, len);
+	printf("Received packet, id %d, len %d\n", id, len);
 	ws_client = ws_client_get_by_dc(dc);
 	wb = writebuf_alloc(len + 4);
 	msg = (uint8_t *)wb->msg;
