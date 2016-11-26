@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS=-I m4
 CFLAGS+= -Wall -Werror -O3
 
 
-bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_trx dml_httpd
+bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_trx dml_httpd dml_fprs_db
 
 DML_SRCS = \
 	dml_client.c \
@@ -49,3 +49,5 @@ dml_stream_client_LDFLAGS = -lcrypto
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c
 dml_httpd_LDFLAGS = -lwebsockets -lmagic -lcrypto
 
+dml_fprs_db_SOURCES = $(DML_SRCS) dml_fprs_db.c
+dml_fprs_db_LDFLAGS = -leth_ar -lm -lcrypto

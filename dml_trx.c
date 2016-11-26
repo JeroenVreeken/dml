@@ -41,6 +41,8 @@
 
 #define DML_TRX_DATA_KEEPALIVE 10
 #define DML_TRX_FPRS_TIMER (10 * 60)
+#define DML_TRX_FPRS_DB_TIMER 10
+
 
 static bool fullduplex = false;
 
@@ -51,9 +53,9 @@ static struct dml_connection *dml_con;
 
 static struct dml_crypto_key *dk;
 
+/* Stream we are connected to */
 static struct dml_stream *cur_con = NULL;
-static uint16_t cur_id = 0;
-static struct dml_crypto_key *cur_dk = NULL;
+static struct dml_stream *cur_db = NULL;
 
 static void recv_data(void *data, size_t size);
 static void send_beep800(void);
@@ -66,6 +68,9 @@ static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
+static double my_fprs_longitude = 0.0;
+static double my_fprs_latitude = 0.0;
+static char *my_fprs_text = "";
 
 
 static uint16_t alloc_data_id(void)
@@ -84,6 +89,8 @@ struct dml_stream_priv {
 
 	uint8_t *header;
 	size_t header_size;
+	
+	bool requested_disc;
 };
 
 static struct dml_stream_priv *stream_priv_new(void)
@@ -112,7 +119,7 @@ static void send_data(void *data, size_t size, struct dml_stream *sender)
 }
 
 
-static int fprs_update_status(uint8_t callsign[6], char *stream, char *assoc)
+static int fprs_update_status(char *stream, char *assoc)
 {
 	struct fprs_frame *fprs_frame;
 	uint8_t dml_data[1024];
@@ -122,13 +129,14 @@ static int fprs_update_status(uint8_t callsign[6], char *stream, char *assoc)
 	if (!fprs_frame)
 		return -1;
 	
-	memcpy(fprs_frame_element_add(fprs_frame, FPRS_DMLSTREAM, strlen(stream)), stream, strlen(stream));
-	memcpy(fprs_frame_element_add(fprs_frame, FPRS_DMLASSOC, strlen(assoc)), assoc, strlen(assoc));
+	memcpy(fprs_element_data(fprs_frame_element_add(fprs_frame, FPRS_DMLSTREAM, strlen(stream))), stream, strlen(stream));
+	memcpy(fprs_element_data(fprs_frame_element_add(fprs_frame, FPRS_DMLASSOC, strlen(assoc))), assoc, strlen(assoc));
 	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
 	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
 
-	fprs_frame_add_callsign(fprs_frame, callsign);
+	fprs_frame_add_callsign(fprs_frame, mac_dev);
 
+	dml_size = sizeof(dml_data);
 	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
 	send_data(dml_data, dml_size, stream_fprs);
 	
@@ -139,12 +147,75 @@ static int fprs_update_status(uint8_t callsign[6], char *stream, char *assoc)
 
 static int fprs_timer(void *arg)
 {
-	fprs_update_status(mac_dev, dml_stream_name_get(stream_dv),
+	fprs_update_status(dml_stream_name_get(stream_dv),
 	   cur_con ? dml_stream_name_get(cur_con) : "");
+
+
+	if (my_fprs_longitude != 0.0 ||
+	    my_fprs_latitude != 0.0) {
+		struct fprs_frame *fprs_frame;
+		uint8_t dml_data[1024];
+		size_t dml_size = 1024;
+	
+		fprs_frame = fprs_frame_create();
+		if (!fprs_frame)
+			return -1;
+		
+		fprs_frame_add_position(fprs_frame, my_fprs_longitude, my_fprs_latitude, true);
+		fprs_frame_add_symbol(fprs_frame, (uint8_t[2]){'F','&'});
+		
+		if (my_fprs_text && strlen(my_fprs_text))
+			fprs_frame_add_comment(fprs_frame, my_fprs_text);
+
+		fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+		trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
+		
+		fprs_frame_add_callsign(fprs_frame, mac_dev);
+		
+		dml_size = sizeof(dml_data);
+		fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+		send_data(dml_data, dml_size, stream_fprs);
+		
+		fprs_frame_destroy(fprs_frame);
+	}
 
 	dml_poll_timeout(&fprs_timer, 
 	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
 	    
+	return 0;
+}
+
+static int fprs_db_check(void *arg)
+{
+	if (!cur_db) {
+		struct dml_stream *ds = NULL;
+	
+		while ((ds = dml_stream_iterate(ds))) {
+			char *mime = dml_stream_mime_get(ds);
+			char *alias = dml_stream_alias_get(ds);
+			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
+			if (!strcmp(DML_MIME_FPRS, mime) &&
+			    !strcmp(DML_ALIAS_FPRS_DB, alias) &&
+			    priv && !priv->requested_disc &&
+			    !cur_db) {
+				cur_db = ds;
+			}
+		}
+		
+		if (cur_db) {
+			uint16_t data_id = alloc_data_id();
+			if (!data_id)
+				cur_db = NULL;
+
+			printf("Connect to DB %p\n", cur_db);
+			dml_stream_data_id_set(cur_db, data_id);
+			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_db), data_id);
+		}
+	}
+
+	dml_poll_timeout(&cur_db,
+	    &(struct timespec){ DML_TRX_FPRS_DB_TIMER, 0 });
+	
 	return 0;
 }
 
@@ -159,9 +230,7 @@ static int connect(struct dml_stream *ds)
 	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
 
 	cur_con = ds;
-	cur_id = data_id;
-	cur_dk = dml_stream_crypto_get(ds);
-	fprs_update_status(mac_dev, dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
+	fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
 	
 	return 0;
 }
@@ -188,9 +257,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 						break;
 					if (ds == cur_con) {
 						cur_con = NULL;
-						cur_id = 0;
-						fprs_update_status(mac_dev, 
+						fprs_update_status(
 						    dml_stream_name_get(stream_dv), "");
+					}
+					if (ds == cur_db) {
+						cur_db = NULL;
 					}
 					stream_priv_free(priv);
 					dml_stream_remove(ds);
@@ -374,8 +445,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					break;
 				}
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
-		
-				if (do_connect && priv) {
+				if (!priv || !priv->match_mime) {
+					do_reject = true;
+					do_connect = false;
+				}
+				if (do_connect) {
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 					if (priv->match_mime && key) {
 						printf("Request accepted, connecting\n");
@@ -394,9 +468,18 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					printf("Disconnect\n");
 					dml_packet_send_req_disc(dml_con, id_rev);
 					cur_con = NULL;
-					cur_id = 0;
-					fprs_update_status(mac_dev, 
+					fprs_update_status(
 					    dml_stream_name_get(stream_dv), "");
+				}
+				if (ds_rev == cur_db) {
+					printf("DB requests disconnect\n");
+					dml_packet_send_req_disc(dml_con, id_rev);
+					cur_db = NULL;
+					
+					struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
+					if (priv) {
+						priv->requested_disc = true;
+					}
 				}
 			}
 			
@@ -411,14 +494,23 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			uint64_t timestamp;
 			size_t payload_len;
 			void *payload_data;
+			struct dml_crypto_key *dk;
+			struct dml_stream *ds;
 			
-			if (id != cur_id) {
-				fprintf(stderr, "Spurious data from %d\n", id);
+			ds = dml_stream_by_data_id(id);
+			if (!ds) {
+				fprintf(stderr, "Could not find dml stream\n");
 				break;
 			}
-						
+			if (ds != cur_con && ds != cur_db) {
+				fprintf(stderr, "Received spurious data from %p %d\n", ds, id);
+				break;
+			}
+			
+			dk = dml_stream_crypto_get(ds);
+
 			if (dml_packet_parse_data(data, len,
-			    &payload_data, &payload_len, &timestamp, cur_dk)) {
+			    &payload_data, &payload_len, &timestamp, dk)) {
 				fprintf(stderr, "Decoding failed\n");
 			} else {
 				if (timestamp <= dml_stream_timestamp_get(cur_con)) {
@@ -644,8 +736,7 @@ static void command_cb_handle(char *command)
 		    dml_stream_id_get(stream_dv),
 		    DML_PACKET_REQ_REVERSE_DISC);
 		cur_con = NULL;
-		cur_id = 0;
-		fprs_update_status(mac_dev, dml_stream_name_get(stream_dv), "");
+		fprs_update_status(dml_stream_name_get(stream_dv), "");
 	}		
 	if (do_connect) {
 		connect(ds);
@@ -784,6 +875,12 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
+	
+	my_fprs_longitude = atof(dml_config_value("longitude", NULL, "0.0"));
+	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
+	my_fprs_text = dml_config_value("fprs_text", NULL, "");
+	
+	
 	if (dml_id_gen(id, DML_PACKET_DESCRIPTION_VERSION_0, bps, 
 	    DML_MIME_DV_C2, name, alias, description))
 		return -1;
@@ -823,6 +920,7 @@ int main(int argc, char **argv)
 
 	dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
 	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
+	dml_poll_add(&cur_db, NULL, NULL, fprs_db_check);
 
 	beep800 = alaw_beep(800, 8000, 0.08);
 	if (!beep800) {
@@ -838,6 +936,9 @@ int main(int argc, char **argv)
 	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
 	dml_poll_timeout(&fprs_timer, 
 	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
+	
+	dml_poll_timeout(&cur_db,
+	    &(struct timespec){ DML_TRX_FPRS_DB_TIMER, 0 });
 
 	dml_poll_loop();
 
