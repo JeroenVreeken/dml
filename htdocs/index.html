@@ -578,13 +578,29 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.REQUEST:
-				str+= "REQUEST";
+				str+= "REQUEST: ";
+				var i;
+				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
+				str+= ":"
+				for (i = 6; i < dataview.byteLength; i+=2) {
+					var rt = dataview.getUint16(i, false);
+					str+= " " + rt;
+				}
 				break;
 			case FPRS.ELEMENT.DESTINATION:
 				str+= "DESTINATION";
 				break;
 			case FPRS.ELEMENT.TIMESTAMP:
-				str+= "TIMESTAMP";
+				str+= "TIMESTAMP: ";
+				var t = 0;
+				var i;
+				for (i = 0; i < dataview.byteLength; i++) {
+					t *= 256;
+					t += dataview.getUint8(i, false);
+				}
+				var timestamp_date = new Date(t*1000);
+				str += timestamp_date.toISOString();
+				
 				break;
 			case FPRS.ELEMENT.DMLSTREAM:
 				str+= "DMLSTREAM: ";
@@ -689,13 +705,12 @@ function fprs()
 		for (i = 0; i < frame.elements.length; i++) {
 			str += frame.elements[i].tostring() + " ";
 		}
-		str+= "<br>";
 		
 		fprs_this.update_ui(str);
 	}
 	
 	this.update_ui = function (length) {
-		var str = fprs_this.ui_name + ": " + length +"\n";
+		var str = "<br>"+ fprs_this.ui_name + ": " + length +"\n";
 
 		document.getElementById("fprs_state").innerHTML += str;
 	}

@@ -362,7 +362,9 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	}
 
 	clock_gettime(CLOCK_REALTIME, &ts);
-	tmax = ((uint64_t)ts.tv_sec + 2) << 16;
+	ts.tv_sec += 2;
+	ts.tv_nsec = 0;
+	tmax = dml_ts2timestamp(&ts);
 	if (timestamp > tmax)
 		return;
 	
@@ -395,8 +397,7 @@ int parrot_dequeue(void *data)
 		struct timespec ts;
 		uint64_t timestamp;
 		clock_gettime(CLOCK_REALTIME, &ts);
-		timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
-printf("%ld ", ts.tv_sec);
+		timestamp = dml_ts2timestamp(&ts);
 
 		if (!parrot_timestamp) {
 			parrot_timestamp = timestamp;
@@ -521,7 +522,7 @@ void send_beep(void)
 
 	clock_gettime(CLOCK_REALTIME, &ts);
 printf("%ld ", ts.tv_sec);
-	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+	timestamp = dml_ts2timestamp(&ts);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
 	
@@ -542,7 +543,7 @@ static int watchdog(void *arg)
 
 	clock_gettime(CLOCK_REALTIME, &ts);
 printf("%ld ", ts.tv_sec);
-	timestamp = ((uint64_t)ts.tv_sec << 16) + (ts.tv_nsec / 1000000);
+	timestamp = dml_ts2timestamp(&ts);
 	if (timestamp <= prev_timestamp)
 		timestamp = prev_timestamp + 1;;
 	

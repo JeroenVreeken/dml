@@ -26,6 +26,8 @@
 #include "dml_crypto.h"
 #include "dml_config.h"
 #include "dml_stream.h"
+#include "fprs_db.h"
+#include "fprs_parse.h"
 
 #include "trx_dv.h"
 #include "alaw.h"
@@ -40,9 +42,15 @@
 
 
 #define DML_TRX_DATA_KEEPALIVE 10
-#define DML_TRX_FPRS_TIMER (10 * 60)
+//#define DML_TRX_FPRS_TIMER (10 * 60)
+#define DML_TRX_FPRS_TIMER (1 * 60)
 #define DML_TRX_FPRS_DB_TIMER 10
 
+#define TIME_VALID_UPLINK 	(1*60)
+#define TIME_VALID_DOWNLINK	(5*60)
+#define TIME_VALID_OWN 		(60*60)
+
+#define debug(...) printf(__VA_ARGS__)
 
 static bool fullduplex = false;
 
@@ -57,7 +65,9 @@ static struct dml_crypto_key *dk;
 static struct dml_stream *cur_con = NULL;
 static struct dml_stream *cur_db = NULL;
 
+static int send_data_fprs(void *data, size_t size, unsigned int link, void *arg);
 static void recv_data(void *data, size_t size);
+static void recv_data_fprs(void *data, size_t size, uint64_t timestamp);
 static void send_beep800(void);
 static void send_beep1600(void);
 
@@ -103,19 +113,21 @@ static void stream_priv_free(struct dml_stream_priv *priv)
 	free(priv);
 }
 
-static void send_data(void *data, size_t size, struct dml_stream *sender)
+static int send_data(void *data, size_t size, void *sender_arg)
 {
+	struct dml_stream *sender = sender_arg;
 	uint64_t timestamp;
 	struct timespec ts;
 	uint16_t packet_id = dml_stream_data_id_get(sender);
 	
 	if (!packet_id)
-		return;
+		return -1;
 	
 	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (((uint64_t)ts.tv_sec) << 16) | ((uint64_t)ts.tv_nsec << 16)/1000000000;
+	timestamp = dml_ts2timestamp(&ts);
 	
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+	return 0;
 }
 
 
@@ -124,21 +136,59 @@ static int fprs_update_status(char *stream, char *assoc)
 	struct fprs_frame *fprs_frame;
 	uint8_t dml_data[1024];
 	size_t dml_size = 1024;
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
 
 	fprs_frame = fprs_frame_create();
 	if (!fprs_frame)
 		return -1;
 	
-	memcpy(fprs_element_data(fprs_frame_element_add(fprs_frame, FPRS_DMLSTREAM, strlen(stream))), stream, strlen(stream));
-	memcpy(fprs_element_data(fprs_frame_element_add(fprs_frame, FPRS_DMLASSOC, strlen(assoc))), assoc, strlen(assoc));
+	fprs_frame_add_dmlstream(fprs_frame, stream);
+	fprs_frame_add_dmlassoc(fprs_frame, assoc);
 	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+	/* Send FPRS frame with callsign in FreeDV header */
 	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
 
+	/* Add callsign to packet for others */
 	fprs_frame_add_callsign(fprs_frame, mac_dev);
 
 	dml_size = sizeof(dml_data);
 	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
-	send_data(dml_data, dml_size, stream_fprs);
+	fprs_parse_data(dml_data, dml_size, &ts,
+	    FPRS_PARSE_DOWNLINK,
+	    TIME_VALID_OWN,
+	    send_data_fprs,
+	    NULL
+	    );
+	
+	fprs_frame_destroy(fprs_frame);
+
+	return 0;
+}
+
+static int fprs_update_mac(uint8_t mac[6])
+{
+	struct fprs_frame *fprs_frame;
+	uint8_t dml_data[1024];
+	size_t dml_size = 1024;
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	fprs_frame = fprs_frame_create();
+	if (!fprs_frame)
+		return -1;
+
+	fprs_frame_add_callsign(fprs_frame, mac_dev);
+	fprs_frame_add_dmlassoc(fprs_frame, dml_stream_name_get(stream_dv));
+
+	dml_size = sizeof(dml_data);
+	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
+	fprs_parse_data(dml_data, dml_size, &ts,
+	    FPRS_PARSE_DOWNLINK,
+	    TIME_VALID_DOWNLINK,
+	    send_data_fprs,
+	    NULL
+	    );
 	
 	fprs_frame_destroy(fprs_frame);
 
@@ -147,6 +197,13 @@ static int fprs_update_status(char *stream, char *assoc)
 
 static int fprs_timer(void *arg)
 {
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	debug("fprs_timer elapsed\n");
+	
+	fprs_db_flush(ts.tv_sec);
+	
 	fprs_update_status(dml_stream_name_get(stream_dv),
 	   cur_con ? dml_stream_name_get(cur_con) : "");
 
@@ -174,7 +231,12 @@ static int fprs_timer(void *arg)
 		
 		dml_size = sizeof(dml_data);
 		fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
-		send_data(dml_data, dml_size, stream_fprs);
+		fprs_parse_data(dml_data, dml_size, &ts,
+		    FPRS_PARSE_DOWNLINK,
+		    TIME_VALID_OWN,
+		    send_data_fprs,
+		    NULL
+		    );
 		
 		fprs_frame_destroy(fprs_frame);
 	}
@@ -194,11 +256,15 @@ static int fprs_db_check(void *arg)
 			char *mime = dml_stream_mime_get(ds);
 			char *alias = dml_stream_alias_get(ds);
 			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-			if (!strcmp(DML_MIME_FPRS, mime) &&
-			    !strcmp(DML_ALIAS_FPRS_DB, alias) &&
+			if (mime && !strcmp(DML_MIME_FPRS, mime) &&
+			    alias && !strcmp(DML_ALIAS_FPRS_DB, alias) &&
 			    priv && !priv->requested_disc &&
 			    !cur_db) {
-				cur_db = ds;
+				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
+				if (ck) {
+					cur_db = ds;
+					break;
+				}
 			}
 		}
 		
@@ -210,7 +276,12 @@ static int fprs_db_check(void *arg)
 			printf("Connect to DB %p\n", cur_db);
 			dml_stream_data_id_set(cur_db, data_id);
 			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_db), data_id);
+			dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_db), 
+			    dml_stream_id_get(stream_fprs),
+			    DML_PACKET_REQ_REVERSE_CONNECT);
 		}
+	} else {
+		fprs_parse_request_flush(send_data_fprs, NULL);
 	}
 
 	dml_poll_timeout(&cur_db,
@@ -293,7 +364,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 			char *dmime = dml_stream_mime_get(ds);
 			uint8_t *rid = dml_stream_id_get(ds);
-			if (!strcmp(DML_MIME_DV_C2, dmime)) {
+			if (!strcmp(DML_MIME_DV_C2, dmime) ||
+			    !strcmp(DML_MIME_FPRS, dmime)) {
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
 				if (!priv) {
 					priv = stream_priv_new();
@@ -503,23 +575,32 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 			}
 			if (ds != cur_con && ds != cur_db) {
-				fprintf(stderr, "Received spurious data from %p %d\n", ds, id);
+				fprintf(stderr, "Received spurious data from %p id %d\n", ds, id);
 				break;
 			}
 			
 			dk = dml_stream_crypto_get(ds);
+			if (!dk) {
+				fprintf(stderr, "Could not find key for stream %p id %d\n", ds, id);
+				break;
+			}
 
 			if (dml_packet_parse_data(data, len,
 			    &payload_data, &payload_len, &timestamp, dk)) {
 				fprintf(stderr, "Decoding failed\n");
 			} else {
-				if (timestamp <= dml_stream_timestamp_get(cur_con)) {
+				if (timestamp <= dml_stream_timestamp_get(ds)) {
 					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
-					    timestamp, dml_stream_timestamp_get(cur_con));
+					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
-					dml_stream_timestamp_set(cur_con, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
-					recv_data(payload_data, payload_len);
+					dml_stream_timestamp_set(ds, timestamp);
+					if (ds == cur_con) {
+						fprintf(stderr, "Received %zd ok\n", payload_len);
+						recv_data(payload_data, payload_len);
+					} else {
+						fprintf(stderr, "Received %zd ok from DB\n", payload_len);
+						recv_data_fprs(payload_data, payload_len, timestamp);
+					}
 				}
 			}
 			break;
@@ -590,6 +671,30 @@ static void client_connect(struct dml_client *client, void *arg)
 	}
 }
 
+static int send_data_fprs(void *data, size_t size, unsigned int link, void *arg)
+{
+	int r = 0;
+	
+	if (link & FPRS_PARSE_DOWNLINK)
+		r |= trx_dv_send_fprs(mac_dev, mac_bcast, data, size);
+	if (link & FPRS_PARSE_UPLINK)
+		r |= send_data(data, size, stream_fprs);
+	return r;
+}
+
+static void recv_data_fprs(void *data, size_t size, uint64_t timestamp)
+{
+	struct timespec ts;
+	
+	dml_timestamp2ts(&ts, timestamp);
+	
+	fprs_parse_data(data, size, &ts,
+	    FPRS_PARSE_UPLINK,
+	    TIME_VALID_UPLINK,
+	    send_data_fprs,
+	    NULL
+	    );
+}
 
 static void recv_data(void *data, size_t size)
 {
@@ -686,6 +791,8 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 	if (fullduplex) {
 		trx_dv_send(from, mac_bcast, mode, dv, size);
 	}
+
+	fprs_update_mac(from);
 
 	dml_poll_timeout(&rx_state, rx_state ?
 	    &(struct timespec){0, 100000000} :
@@ -785,8 +892,8 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 {
 	struct fprs_frame *fprs_frame;
-	uint8_t dml_data[1024];
-	size_t dml_size = 1024;
+	uint8_t f_data[1024];
+	size_t f_size = 1024;
 	
 	fprs_frame = fprs_frame_create();
 	if (!fprs_frame)
@@ -797,9 +904,18 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	    !fprs_frame_element_by_type(fprs_frame, FPRS_OBJECTNAME))
 		fprs_frame_add_callsign(fprs_frame, from);
 
-	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
-	send_data(dml_data, dml_size, stream_fprs);
+	fprs_frame_data_get(fprs_frame, f_data, &f_size);
+
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
 	
+	fprs_parse_data(f_data, f_size, &ts,
+	    FPRS_PARSE_DOWNLINK,
+	    TIME_VALID_DOWNLINK,
+	    send_data_fprs,
+	    NULL
+	    );
+
 	fprs_frame_destroy(fprs_frame);
 
 	return 0;

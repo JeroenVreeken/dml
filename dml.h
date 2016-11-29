@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define DML_VERSION "0.1"
 
@@ -30,5 +31,21 @@
 #define DML_MIME_DV_C2 "audio/dml-codec2"
 #define DML_MIME_FPRS "application/fprs"
 #define DML_ALIAS_FPRS_DB "DB"
+#define DML_ALIAS_FPRS_BACKBONE "BACKBONE"
+
+static inline uint64_t dml_ts2timestamp(struct timespec *ts)
+{
+	uint64_t timestamp;
+	
+	timestamp = (((uint64_t)ts->tv_sec) << 16) | ((uint64_t)ts->tv_nsec*65536)/1000000000;
+
+	return timestamp;
+}
+
+static inline void dml_timestamp2ts(struct timespec *ts, uint64_t timestamp)
+{
+	ts->tv_nsec = ((timestamp & 0xffff) * 1000000000) / 65536;
+	ts->tv_sec = timestamp >> 16;
+}
 
 #endif /* _INCLUDE_DML_H_ */

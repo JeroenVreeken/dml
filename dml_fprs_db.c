@@ -24,6 +24,8 @@
 #include "dml_crypto.h"
 #include "dml_config.h"
 #include "dml_stream.h"
+#include "fprs_db.h"
+#include "fprs_parse.h"
 
 #include <eth_ar/eth_ar.h>
 
@@ -36,15 +38,21 @@
 
 #define DML_FPRS_DB_DATA_KEEPALIVE 10
 
+#define TIME_VALID_UPLINK	(5*60)
+#define TIME_VALID_DOWNLINK	(5*60*60)
+#define DML_FPRS_DB_TIMER	(60)
+#define DML_FPRS_REQ_TIMER	(5)
+
+#define debug(...) printf(__VA_ARGS__)
+
 static struct dml_stream *stream_fprs;
 static struct dml_stream *stream_fprs_db;
 
-uint16_t packet_id = 0;
 struct dml_connection *dml_con;
 
 struct dml_crypto_key *dk;
 
-void recv_data(void *data, size_t size, uint64_t timestamp);
+void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *from);
 
 static uint16_t alloc_data_id(void)
 {
@@ -60,6 +68,8 @@ struct dml_stream_priv {
 	bool mine;
 	bool match_mime;
 	bool connected;
+	unsigned int link;
+	time_t time_valid;
 	
 	uint8_t *header;
 	size_t header_size;
@@ -77,7 +87,9 @@ void stream_priv_free(struct dml_stream_priv *priv)
 
 static int connect(struct dml_stream *ds)
 {
-	uint16_t data_id = alloc_data_id();
+	uint16_t data_id = dml_stream_data_id_get(ds);
+	if (!data_id)
+		data_id = alloc_data_id();
 	if (!data_id)
 		return -1;
 
@@ -169,7 +181,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			break;
 		}
 		case DML_PACKET_HEADER: {
-			/* our current codec2 use doesn't need a header */
+			/* our fprs use doesn't need a header */
 			
 			break;
 		}
@@ -196,9 +208,22 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			break;
 		}
 		case DML_PACKET_CONNECT: {
-			uint8_t cid[DML_ID_SIZE];
+			uint16_t connect_packet_id;
+			uint8_t connect_id[DML_ID_SIZE];
 			
-			dml_packet_parse_connect(data, len, cid, &packet_id);
+			dml_packet_parse_connect(data, len, connect_id, &connect_packet_id);
+			printf("Received connect, packet_id: %d\n", connect_packet_id);
+
+			struct dml_stream *ds;
+			if ((ds = dml_stream_by_id(connect_id))) {
+				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
+				if (!priv)
+					break;
+				if (!priv->mine)
+					break;
+				dml_stream_data_id_set(ds, connect_packet_id);
+			}	
+			
 			break;
 		}
 		case DML_PACKET_REQ_DISC: {
@@ -216,6 +241,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					break;
 				dml_stream_data_id_set(ds, 0);
 				dml_packet_send_disc(dc, rid, DML_PACKET_DISC_REQUESTED);
+				debug("Received disconnect\n");
 			}
 			break;
 		}
@@ -263,7 +289,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			printf("Recevied reverse request %d\n", action);
 
 			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
-			if (!ds_rev)
+			struct dml_stream *ds_me = dml_stream_by_id(id_me);
+			if (!ds_rev || !ds_me)
 				break;
 			if (action & DML_PACKET_REQ_REVERSE_CONNECT) {
 				bool do_connect = true;
@@ -274,6 +301,15 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 					if (priv->match_mime && key) {
 						connect(ds_rev);
+						if (ds_me == stream_fprs) {
+							printf("Connect request to backbone\n");
+							priv->link = FPRS_PARSE_UPLINK;
+							priv->time_valid = TIME_VALID_UPLINK;
+						} else {
+							printf("Connect request to DB\n");
+							priv->link = FPRS_PARSE_DOWNLINK;
+							priv->time_valid = TIME_VALID_DOWNLINK;
+						}
 					}
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
@@ -313,7 +349,11 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			}
 			
 			dk = dml_stream_crypto_get(ds);
-			
+			if (!dk) {
+				fprintf(stderr, "Could not find key for stream %p id %d\n", ds, id);
+				break;
+			}
+
 			if (dml_packet_parse_data(data, len,
 			    &payload_data, &payload_len, &timestamp, dk)) {
 				fprintf(stderr, "Decoding failed\n");
@@ -323,8 +363,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
-					recv_data(payload_data, payload_len, timestamp);
+					fprintf(stderr, "Received %zd ok\n", payload_len);
+					recv_data(payload_data, payload_len, timestamp, ds);
 				}
 			}
 			break;
@@ -349,7 +389,16 @@ int client_reconnect(void *clientv)
 int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	dml_con = NULL;
-	packet_id = 0;
+
+	struct dml_stream *ds = NULL;
+	while ((ds = dml_stream_iterate(ds))) {
+		struct dml_stream_priv *priv = dml_stream_priv_get(ds);
+		if (!priv)
+			continue;
+		if (!priv->mine)
+			continue;
+		dml_stream_data_id_set(ds, 0);
+	}
 
 	dml_poll_add(arg, NULL, NULL, client_reconnect);
 	dml_poll_timeout(arg, &(struct timespec){ 1, 0 });
@@ -387,29 +436,87 @@ void client_connect(struct dml_client *client, void *arg)
 }
 
 
-static void send_data(void *data, size_t size, struct dml_stream *sender)
+static int send_data(void *data, size_t size, unsigned int link, void *arg)
 {
 	uint64_t timestamp;
 	struct timespec ts;
-	uint16_t packet_id = dml_stream_data_id_get(sender);
-	
-	if (!packet_id)
-		return;
+	uint16_t packet_id;
 	
 	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (((uint64_t)ts.tv_sec) << 16) | ((uint64_t)ts.tv_nsec << 16)/1000000000;
+	timestamp = dml_ts2timestamp(&ts);
 	
-	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+	if (link & FPRS_PARSE_UPLINK) {
+		packet_id = dml_stream_data_id_get(stream_fprs);
+		if (packet_id)
+			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+	}
+	if (link & FPRS_PARSE_DOWNLINK) {
+		packet_id = dml_stream_data_id_get(stream_fprs_db);
+		if (packet_id)
+			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+	}
+	return 0;
 }
 
 
-void recv_data(void *data, size_t size, uint64_t timestamp)
+void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *from)
 {
-	send_data(data, size, stream_fprs);
-	send_data(data, size, stream_fprs_db);
+	struct timespec ts;
+	struct dml_stream_priv *priv = dml_stream_priv_get(from);
+	
+	dml_timestamp2ts(&ts, timestamp);
+	
+	fprs_parse_data(data, size, &ts,
+	    priv->link,
+	    priv->time_valid,
+	    send_data,
+	    NULL
+	    );
 }
 
 
+static int fprs_timer(void *arg)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	debug("fprs_timer elapsed\n");
+	
+	fprs_db_flush(ts.tv_sec);
+
+	if (dml_con) {
+		struct dml_stream *ds = NULL;
+		while ((ds = dml_stream_iterate(ds))) {
+			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
+			if (!priv)
+				continue;
+			if (priv->mine)
+				continue;
+			if (!strcmp(dml_stream_alias_get(ds), DML_ALIAS_FPRS_BACKBONE)) {
+				connect(ds);
+			}
+
+		}
+	}
+
+	dml_poll_timeout(&fprs_timer, 
+	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
+	    
+	return 0;
+}
+
+static int fprs_req_timer(void *arg)
+{
+	struct timespec ts;
+	clock_gettime(CLOCK_REALTIME, &ts);
+
+	fprs_parse_request_flush(send_data, NULL);
+
+	dml_poll_timeout(&fprs_timer, 
+	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
+	    
+	return 0;
+}
 
 int main(int argc, char **argv)
 {
@@ -457,7 +564,7 @@ int main(int argc, char **argv)
 	}
 	
 	if (dml_id_gen(id, DML_PACKET_DESCRIPTION_VERSION_0, bps, 
-	    DML_MIME_FPRS, name, "", description))
+	    DML_MIME_FPRS, name, DML_ALIAS_FPRS_BACKBONE, description))
 		return -1;
 	struct dml_stream_priv *priv_fprs;
 	
@@ -466,7 +573,7 @@ int main(int argc, char **argv)
 	priv_fprs->mine = true;
 	dml_stream_priv_set(stream_fprs, priv_fprs);
     	dml_stream_name_set(stream_fprs, name);
-	dml_stream_alias_set(stream_fprs, "");
+	dml_stream_alias_set(stream_fprs, DML_ALIAS_FPRS_BACKBONE);
 	dml_stream_mime_set(stream_fprs, DML_MIME_FPRS);
 	dml_stream_description_set(stream_fprs, description);
 	dml_stream_bps_set(stream_fprs, bps);
@@ -493,6 +600,13 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
+	dml_poll_add(&fprs_req_timer, NULL, NULL, fprs_req_timer);
+
+	dml_poll_timeout(&fprs_timer, 
+	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
+	dml_poll_timeout(&fprs_req_timer, 
+	    &(struct timespec){ DML_FPRS_REQ_TIMER, 0});
 
 	dml_poll_loop();
 
