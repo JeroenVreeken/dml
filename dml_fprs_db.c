@@ -446,11 +446,13 @@ static int send_data(void *data, size_t size, unsigned int link, void *arg)
 	timestamp = dml_ts2timestamp(&ts);
 	
 	if (link & FPRS_PARSE_UPLINK) {
+printf("send to uplink\n");
 		packet_id = dml_stream_data_id_get(stream_fprs);
 		if (packet_id)
 			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 	}
 	if (link & FPRS_PARSE_DOWNLINK) {
+printf("send to downlink\n");
 		packet_id = dml_stream_data_id_get(stream_fprs_db);
 		if (packet_id)
 			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
