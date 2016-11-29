@@ -341,9 +341,9 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 		}
 	}
 
-	fprs_parse_request_flush(cb, arg);
 
 skip:
+	fprs_parse_request_flush(cb, arg);
 	fprs_frame_destroy(fprs_frame_prop);
 err_prop:
 	fprs_frame_destroy(fprs_frame);

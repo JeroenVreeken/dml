@@ -515,7 +515,7 @@ static int fprs_req_timer(void *arg)
 	fprs_parse_request_flush(send_data, NULL);
 
 	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
+	    &(struct timespec){ DML_FPRS_REQ_TIMER, 0});
 	    
 	return 0;
 }
