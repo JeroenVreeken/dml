@@ -105,6 +105,7 @@ int fprs_parse_request_flush(
 	
 	for (entryp = &requests; *entryp; entryp = nextp) {
 		nextp = &(*entryp)->next;
+		bool remove = false;
 		
 		switch ((*entryp)->type) {
 			case FPRS_POSITION:
@@ -137,6 +138,7 @@ int fprs_parse_request_flush(
 						memcpy(fprs_element_data(el), el_data, el_size);
 					}
 					fprs_request_remove(&(*entryp)->id, (*entryp)->type);
+					remove = true;
 					nextp = entryp;
 					free(el_data);
 
@@ -155,32 +157,35 @@ int fprs_parse_request_flush(
 				break;
 			}
 			default:
+				remove = true;
 				fprs_request_remove(&(*entryp)->id, (*entryp)->type);
 				nextp = entryp;
 
 				break;
 		}
-		if (now - (*entryp)->t_req > FPRS_REQ_TIMEOUT) {
-			fprs_request_remove(&(*entryp)->id, (*entryp)->type);
-			nextp = entryp;
-		} else if (now - (*entryp)->t_up > FPRS_REQ_RETRY &&
-		    (*entryp)->link & FPRS_PARSE_DOWNLINK) {
-			struct fprs_frame *frame_up;
-			frame_up = fprs_frame_create();
-			if (frame_up) {
-				uint8_t *up_data;
-				size_t up_size;
-				
-				fprs_frame_add_request(frame_up, (*entryp)->id.id.callsign, &(*entryp)->type, 1);
+		if (!remove) {
+			if (now - (*entryp)->t_req > FPRS_REQ_TIMEOUT) {
+				fprs_request_remove(&(*entryp)->id, (*entryp)->type);
+				nextp = entryp;
+			} else if (now - (*entryp)->t_up > FPRS_REQ_RETRY &&
+			    (*entryp)->link & FPRS_PARSE_DOWNLINK) {
+				struct fprs_frame *frame_up;
+				frame_up = fprs_frame_create();
+				if (frame_up) {
+					uint8_t *up_data;
+					size_t up_size;
+					
+					fprs_frame_add_request(frame_up, (*entryp)->id.id.callsign, &(*entryp)->type, 1);
 
-				up_size = fprs_frame_data_size(frame_up);
-				up_data = calloc(up_size, sizeof(uint8_t));
-				if (up_data) {
-					fprs_frame_data_get(frame_up, up_data, &up_size);
-					cb(up_data, up_size, FPRS_PARSE_UPLINK, arg);
-				
-					(*entryp)->t_up = now;
-					free(up_data);
+					up_size = fprs_frame_data_size(frame_up);
+					up_data = calloc(up_size, sizeof(uint8_t));
+					if (up_data) {
+						fprs_frame_data_get(frame_up, up_data, &up_size);
+						cb(up_data, up_size, FPRS_PARSE_UPLINK, arg);
+					
+						(*entryp)->t_up = now;
+						free(up_data);
+					}
 				}
 			}
 		}
