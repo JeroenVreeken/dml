@@ -174,6 +174,10 @@ static int fprs_update_mac(uint8_t mac[6])
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 
+	/* Only if it is from someone else */
+	if (!memcmp(mac, mac_dev, 6))
+		return 0;
+
 	fprs_frame = fprs_frame_create();
 	if (!fprs_frame)
 		return -1;
@@ -885,6 +889,7 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 		if (command_len >= sizeof(command))
 			command_len = 0;
 	}
+	fprs_update_mac(from);
 
 	return 0;
 }
@@ -917,6 +922,8 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	    );
 
 	fprs_frame_destroy(fprs_frame);
+
+	fprs_update_mac(from);
 
 	return 0;
 }
