@@ -182,7 +182,7 @@ static int fprs_update_mac(uint8_t mac[6])
 	if (!fprs_frame)
 		return -1;
 
-	fprs_frame_add_callsign(fprs_frame, mac_dev);
+	fprs_frame_add_callsign(fprs_frame, mac);
 	fprs_frame_add_dmlassoc(fprs_frame, dml_stream_name_get(stream_dv));
 
 	dml_size = sizeof(dml_data);
