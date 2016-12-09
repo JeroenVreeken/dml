@@ -278,7 +278,7 @@ static int fprs_db_check(void *arg)
 			if (!data_id)
 				cur_db = NULL;
 
-			printf("Connect to DB %p\n", cur_db);
+			printf("Connect to DB %s\n", dml_stream_name_get(cur_db));
 			dml_stream_data_id_set(cur_db, data_id);
 			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_db), data_id);
 			dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_db), 
@@ -301,7 +301,7 @@ static int connect(struct dml_stream *ds)
 	if (!data_id)
 		return -1;
 
-	printf("Connect to %p\n", ds);
+	printf("Connect to %s\n", dml_stream_name_get(ds));
 	dml_stream_data_id_set(ds, data_id);
 	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
 
@@ -840,7 +840,9 @@ static void command_cb_handle(char *command)
 			}
 		}
 	}
-	printf("connect: %d disconnect: %d %p %p\n", do_connect, do_disconnect, ds, cur_con);
+	printf("connect: %d disconnect: %d %s %s\n", do_connect, do_disconnect, 
+	   ds ? dml_stream_name_get(ds) : "UNKNOWN", 
+	   cur_con ? dml_stream_name_get(cur_con) : "NONE");
 	
 	if (do_disconnect && cur_con) {
 		dml_packet_send_req_disc(dml_con, dml_stream_id_get(cur_con));

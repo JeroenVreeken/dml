@@ -93,7 +93,7 @@ static int connect(struct dml_stream *ds)
 	if (!data_id)
 		return -1;
 
-	printf("Connect to %p\n", ds);
+	printf("Connect to %s\n", dml_stream_name_get(ds));
 	dml_stream_data_id_set(ds, data_id);
 	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
 
@@ -241,7 +241,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					break;
 				dml_stream_data_id_set(ds, 0);
 				dml_packet_send_disc(dc, rid, DML_PACKET_DISC_REQUESTED);
-				debug("Received disconnect\n");
+				debug("Received disconnect from %s\n", dml_stream_name_get(ds));
 			}
 			break;
 		}
@@ -316,7 +316,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
 				
 				if (priv && priv->connected) {
-					printf("Disconnect\n");
+					printf("Disconnect from %s\n", dml_stream_name_get(ds_rev));
 					dml_packet_send_req_disc(dml_con, id_rev);
 					priv->connected = false;
 				}
@@ -338,19 +338,20 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			
 			ds = dml_stream_by_data_id(id);
 			if (!ds) {
-				fprintf(stderr, "Could not find dml stream\n");
+				fprintf(stderr, "Could not find dml stream for id %d\n", id);
 				break;
 			}
 			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
 			
 			if (!priv || !priv->connected) {
-				fprintf(stderr, "Spurious data from %p\n", ds);
+				fprintf(stderr, "Spurious data from %s\n", dml_stream_name_get(ds));
 				break;
 			}
 			
 			dk = dml_stream_crypto_get(ds);
 			if (!dk) {
-				fprintf(stderr, "Could not find key for stream %p id %d\n", ds, id);
+				fprintf(stderr, "Could not find key for stream %s id %d\n",
+				    dml_stream_name_get(ds), id);
 				break;
 			}
 
@@ -363,7 +364,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-					fprintf(stderr, "Received %zd ok\n", payload_len);
+//					fprintf(stderr, "Received %zd ok\n", payload_len);
 					recv_data(payload_data, payload_len, timestamp, ds);
 				}
 			}
