@@ -321,8 +321,11 @@ int connection_data_keepalive(void *arg)
 	
 	for (entry = data_list; entry; entry = entry->next) {
 		if (now > entry->t_data + DMLD_DATA_KEEPALIVE) {
-			printf("No data for a while, sending keepalive connect %p %p\n",
-			    entry, entry->dc);
+			char *idstr = dml_id_str(entry->id);
+			struct connection *con = dml_connection_arg_get(entry->dc);
+			printf("No data for a while, sending keepalive connect %s to %s\n",
+			    idstr, connection_name_get(con));
+			free(idstr);
 			dml_packet_send_connect(entry->dc, entry->id, entry->packet_id);
 			entry->t_data = now;
 		}
