@@ -53,6 +53,7 @@
 #define debug(...) printf(__VA_ARGS__)
 
 static bool fullduplex = false;
+static bool repeater = false;
 
 static struct dml_stream *stream_dv;
 static struct dml_stream *stream_fprs;
@@ -579,13 +580,13 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 			}
 			if (ds != cur_con && ds != cur_db) {
-				fprintf(stderr, "Received spurious data from %p id %d\n", ds, id);
+				fprintf(stderr, "Received spurious data from %s id %d\n", dml_stream_name_get(ds), id);
 				break;
 			}
 			
 			dk = dml_stream_crypto_get(ds);
 			if (!dk) {
-				fprintf(stderr, "Could not find key for stream %p id %d\n", ds, id);
+				fprintf(stderr, "Could not find key for stream %s id %d\n", dml_stream_name_get(ds), id);
 				break;
 			}
 
@@ -712,7 +713,7 @@ static void recv_data(void *data, size_t size)
 	
 //	printf("mode %d state %d\n", mode, state);
 	
-	if (!rx_state || fullduplex) {
+	if (!rx_state || (fullduplex && !repeater)) {
 		if (state != tx_state) {
 			char call[ETH_AR_CALL_SIZE];
 			int ssid;
@@ -792,7 +793,7 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 
 	send_data(data, 8 + size, stream_dv);
 
-	if (fullduplex) {
+	if (repeater) {
 		trx_dv_send(from, mac_bcast, mode, dv, size);
 	}
 
@@ -960,6 +961,7 @@ int main(int argc, char **argv)
 	key = dml_config_value("key", NULL, "");
 
 	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
+	repeater = atoi(dml_config_value("repeater", NULL, "0"));
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {

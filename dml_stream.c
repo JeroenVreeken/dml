@@ -77,6 +77,7 @@ struct dml_stream *dml_stream_by_id_alloc(uint8_t id[DML_ID_SIZE])
 			stream->next = streams;
 			streams = stream;
 			memcpy(stream->id, id, DML_ID_SIZE);
+			dml_stream_name_set(stream, "");
 		}
 	}
 		

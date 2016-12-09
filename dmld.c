@@ -15,6 +15,9 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
+
+#define _GNU_SOURCE
+
 #include "dml_server.h"
 #include "dml_connection.h"
 #include "dml_poll.h"
@@ -23,6 +26,7 @@
 #include "dml.h"
 #include "dml_config.h"
 #include "dml_client.h"
+#include "dml_id.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -78,6 +82,7 @@ struct connection {
 	struct connection_update *req_certificate;
 	struct connection_update *req_header;
 	
+	char *name;
 	struct connection *next;
 };
 
@@ -88,11 +93,39 @@ struct connection *connection_create(void)
 	struct connection *con;
 	
 	con = calloc(1, sizeof(struct connection));
+	if (!con)
+		goto err_calloc;
+	
+	con->name = strdup("unknown connection");
+	if (!con->name)
+		goto err_name;
 	
 	con->next = connection_list;
 	connection_list = con;
 
 	return con;
+
+err_name:
+	free(con);
+err_calloc:
+	return NULL;
+}
+
+char *connection_name_get(struct connection *con)
+{
+	return con->name;
+}
+
+int connection_name_set(struct connection *con, char *name)
+{
+	char *tmp = strdup(name);
+	if (!tmp)
+		return -1;
+
+	free(con->name);
+	con->name = tmp;
+	
+	return 0;
 }
 
 void connection_destroy(struct connection *con)
@@ -137,7 +170,7 @@ void connection_destroy(struct connection *con)
 
 	struct connection_data *data, *dnext;
 
-	printf("remove client from data list\n");
+	printf("remove client %s from data list\n", con->name);
 	for (data = data_list; data; data = dnext) {
 		dnext = data->next;
 		
@@ -149,6 +182,7 @@ void connection_destroy(struct connection *con)
 		}
 	}
 	
+	free(con->name);
 	free(con);
 }
 
@@ -192,7 +226,8 @@ struct connection_data *connection_data_by_id(uint8_t id[DML_ID_SIZE])
 int connection_data_add_client(struct connection_data *data, struct dml_connection *dc, uint16_t packet_id)
 {
 	struct connection_data_client *entry;
-	
+	struct connection *con = dml_connection_arg_get(dc);
+
 	for (entry = data->client_list; entry; entry = entry->next) {
 		if (entry->dc == dc)
 			break;
@@ -204,7 +239,9 @@ int connection_data_add_client(struct connection_data *data, struct dml_connecti
 		entry->next = data->client_list;
 		data->client_list = entry;
 	}
-	printf("Add client: %p %d\n", dc, packet_id);
+	char *idstr = dml_id_str(data->id);
+	printf("Add client to %s: %s %d\n", idstr, connection_name_get(con), packet_id);
+	free(idstr);
 	entry->packet_id = packet_id;
 	entry->dc = dc;
 	
@@ -214,8 +251,11 @@ int connection_data_add_client(struct connection_data *data, struct dml_connecti
 int connection_data_remove_client(struct connection_data *data, struct dml_connection *dc)
 {
 	struct connection_data_client **entry;
+	struct connection *con = dml_connection_arg_get(dc);
 	
-	printf("Remove client: %p\n", dc);
+	char *idstr = dml_id_str(data->id);
+	printf("Remove client from %s: %s\n", idstr, connection_name_get(con));
+	free(idstr);
 	for (entry = &data->client_list; *entry; entry = &(*entry)->next) {
 		struct connection_data_client *old = *entry;
 		if (old->dc != dc)
@@ -342,7 +382,9 @@ int update(struct connection *con)
 		}
 		if (!up)
 			break;
-		printf("Send update %p (%d hops)\n", up, up->hops);
+		char *idstr = dml_id_str(up->id);
+		printf("Send update %s (%d hops)\n", idstr, up->hops);
+		free(idstr);
 		dml_packet_send_route(con->dc, up->id, up->hops);
 		free(up);
 	}
@@ -740,7 +782,7 @@ int server_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct connection *con = arg;
 	
-	printf("server close %p %p\n", dc, arg);
+	printf("server close %p %s\n", dc, connection_name_get(con));
 	dml_route_remove(dc);
 	connection_destroy(con);
 	return dml_connection_destroy(dc);
@@ -750,10 +792,16 @@ void server_connection(void *arg, int fd)
 {
 	struct dml_connection *dc;
 	struct connection *con;
+	char *name;
+	
+	asprintf(&name, "server-%d", fd);
 	
 	con = connection_create();
 	if (!con)
 		return;
+	connection_name_set(con, name);
+	free(name);
+	
 	dc = dml_connection_create(fd, con, rx_packet, server_connection_close);
 //	printf("new server connection %p %p\n", con, dc);
 	con->dc = dc;
@@ -775,7 +823,7 @@ int client_reconnect(void *clientv)
 int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct connection *con = arg;
-	printf("client close %p %p\n", dc, arg);
+	printf("client close %p %s\n", dc, connection_name_get(con));
 	struct dml_client *client = con->client;
 
 	dml_poll_add(client, NULL, NULL, client_reconnect);
@@ -791,12 +839,14 @@ void client_connect(struct dml_client *client, void *arg)
 {
 	struct dml_connection *dc;
 	struct connection *con;
+	char *name = arg;
 
-	printf("Connected to DML server\n");
+	printf("Connected to DML server %s\n", name);
 	
 	con = connection_create();
 	if (!con)
 		return;
+	connection_name_set(con, name);
 	int fd = dml_client_fd_get(client);
 	
 	dc = dml_connection_create(fd, con, rx_packet, client_connection_close);
@@ -854,10 +904,10 @@ int main(int argc, char **argv)
 		struct dml_client *dc;
 		
 		printf("Connect to %s\n", server);
-		dc = dml_client_create(server, 0, client_connect, NULL);		
+		dc = dml_client_create(server, 0, client_connect, strdup(server));		
 
 		if (dml_client_connect(dc)) {
-			printf("Failed to connect, try again later %p\n", dc);
+			printf("Failed to connect to %s, try again later\n", server);
 			dml_poll_add(dc, NULL, NULL, client_reconnect);
 			dml_poll_timeout(dc, &(struct timespec){ 1, 0 });
 		}

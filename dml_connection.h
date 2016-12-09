@@ -35,5 +35,6 @@ int dml_connection_handle(struct dml_connection *dc);
 int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len);
 bool dml_connection_send_empty(struct dml_connection *dc);
 int dml_connection_send_data(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len);
+void *dml_connection_arg_get(struct dml_connection *dc);
 
 #endif /* _INCLUDE_DML_CONNECTION_H_ */

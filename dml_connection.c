@@ -206,3 +206,8 @@ int dml_connection_send_data(struct dml_connection *dc, void *datav, uint16_t id
 	// For now we just map to the control connection, add UDP stuff later...
 	return dml_connection_send(dc, datav, id, len);
 }
+
+void *dml_connection_arg_get(struct dml_connection *dc)
+{
+	return dc->arg;
+}
