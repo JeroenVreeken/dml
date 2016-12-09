@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool debug = true;
+static bool debug = false;
 
 #define DMLD_DATA_KEEPALIVE	60
 
