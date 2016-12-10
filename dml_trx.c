@@ -528,9 +528,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				}
 				if (do_connect) {
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
-					if (priv->match_mime && key) {
+					if (key) {
 						printf("Request accepted, connecting\n");
 						connect(ds_rev);
+					} else {
+						printf("No valid crypto key for this stream (yet)\n");
 					}
 				}
 				if (do_reject) {

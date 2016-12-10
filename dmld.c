@@ -293,7 +293,9 @@ int connection_data_remove(struct connection_data *data)
 {
 	struct connection_data **entry;
 
-	printf("Removing %p from data list\n", data);	
+	char *idstr = dml_id_str(data->id);
+	printf("Removing %s from data list\n", idstr);
+	free(idstr);	
 	for (entry = &data_list; *entry; entry = &(*entry)->next) {
 		if (*entry == data) {
 			*entry = data->next;
