@@ -27,57 +27,14 @@ dml_httpd works!
 
 <div id = "routes"></div>
 
-
+<script src="dml.js"></script>
+<script src="eth_ar.js"></script>
+<script src="fprs.js"></script>
+<script src="alaw.js"></script>
+<script src="resample.js"></script>
 <script>
 
-var DML = {
-	PACKET:  {
-		HELLO: 0,
-		ROUTE: 1,
-		DESCRIPTION: 2,
-		CERTIFICATE: 3,
-		HEADER: 4,
-		CONNECT: 5,
-		DISC: 6,
 
-		REQ_DESCRIPTION: 34,
-		REQ_CERTIFICATE: 35,
-		REQ_HEADER: 36,
-		REQ_REVERSE: 37,
-		REQ_DISC: 38,
-		
-		DATA: 4096,
-	},
-	ID: {
-		SIZE: 32,
-	},
-	SIG: {
-		SIZE: ((256 * 2) / 8),
-	},
-	TIMESTAMP: {
-		SIZE: 8,
-	},
-};
-
-var FPRS = {
-	ELEMENT: {
-		/* length limited ,to 7 */
-		ERROR: -1,
-		POSITION: 0,
-		CALLSIGN: 1,
-		SYMBOL: 2,
-		ALTITUDE: 3,
-		VECTOR: 4,
-		/* length limited to 255 */
-		OBJECTNAME: 16,
-		COMMENT: 17,
-		REQUEST: 18,
-		DESTINATION: 19,
-		TIMESTAMP: 20,
-		DMLSTREAM: 21,
-		DMLASSOC: 22,
-	}
-};
 
 function char2hex(c)
 {
@@ -148,153 +105,6 @@ function ab_copy(dst_ab, dst_off, src_ab, src_off, len)
 	}
 }
 
-function dml()
-{
-	url = "ws://" + location.host;
-	ws = new WebSocket(url);
-
-	var dml_this = this;
-	
-	var packet_hello_cb = function(flags, ident) {}
-	var packet_route_cb = function(hops, id) {}
-	var packet_description_cb = function(id, version, bps, mime, name, alias, description) {}
-	var packet_header_cb = function(header_id, header_data, header_sig) {}
-	var packet_data_cb = function(data, timestamp, signature) {}
-	var packet_certificate_cb = function(certificate_id, certificate_payload) {}
-
-	ws.onmessage = function(msg) {
-//		console.log("ws.onmessage: " + msg.data.byteLength);
-	
-		header = new DataView(msg.data, 0, 4);
-		id = header.getUint16(0, false);
-		len = header.getUint16(2, false);
-		data = new DataView(msg.data, 4);
-		pos = 4;
-	
-//		console.log("len: " + len + " id: " + id);
-
-		switch(id) {
-			case DML.PACKET.HELLO: {
-				flags = data.getUint32(0, false);
-				pos += 4;
-				data = new DataView(msg.data, pos);
-
-				ident = data2str(data);
-				dml_this.packet_hello_cb(flags, ident);
-				break;
-			}
-			case DML.PACKET.ROUTE: {
-				hops = data.getUint8(32);
-				route_id = msg.data.slice(pos, pos + DML.ID.SIZE);
-				
-				dml_this.packet_route_cb(hops, route_id);
-				break;
-			}
-			case DML.PACKET.DESCRIPTION: {
-				desc_id = msg.data.slice(pos, pos + DML.ID.SIZE);
-				pos += DML.ID.SIZE;
-				data = new DataView(msg.data, pos);
-				desc_version = data.getUint8(0);
-				desc_bps = data.getUint32(1, false);
-				pos += 5;
-				data = new DataView(msg.data, pos);
-				desc_mime = data2str(data);
-				pos += desc_mime.length + 1;
-				data = new DataView(msg.data, pos);
-				desc_name = data2str(data);
-				pos += desc_name.length + 1;
-				data = new DataView(msg.data, pos);
-				desc_alias = data2str(data);
-				pos += desc_alias.length + 1;
-				data = new DataView(msg.data, pos);
-				desc_description = data2str(data);
-				pos += desc_description.length + 1;
-				
-				dml_this.packet_description_cb(
-				    desc_id, desc_version, desc_bps, desc_mime, 
-				    desc_name, desc_alias, desc_description);
-				break;
-			}
-			case DML.PACKET.HEADER: {
-				header_id = msg.data.slice(pos, pos + DML.ID.SIZE);
-				header_data = msg.data.slice(pos + DML.ID.SIZE, pos + len - DML.SIG.SIZE);
-				header_sig = msg.data.slice(pos + len - DML.SIG.SIZE, pos + len);
-				
-				dml_this.packet_header_cb(
-				    header_id, header_data, header_sig);
-				break;
-			}
-			case DML.PACKET.CERTIFICATE: {
-				certificate_id = msg.data.slice(pos, pos + DML.ID.SIZE);
-				certificate_payload = msg.data.slice(pos + DML.ID.SIZE, pos + len);
-				
-				dml_this.packet_certificate_cb(
-				    certificate_id, certificate_payload);
-				break;
-			}
-			default: {
-				if (id == connected_data_id) {
-					data = msg.data.slice(pos, pos + len - DML.SIG.SIZE - DML.TIMESTAMP.SIZE);
-					signature = msg.data.slice(pos + len - DML.SIG.SIZE, pos + len);
-					timestampdata = new DataView(msg.data, pos + len - DML.SIG.SIZE - DML.TIMESTAMP.SIZE);
-					timestamp = timestampdata.getUint32(0, false) << 32;
-					timestamp += timestampdata.getUint32(4, false);
-					
-					dml_this.packet_data_cb(data, timestamp, signature);
-				}
-			}
-		}
-	}
-
-	ws.onopen = function(event) {
-		console.log("ws.onopen()");
-		ws.binaryType = "arraybuffer";
-	}
-
-	ws.onclose = function(event) {
-		console.log("ws.onclose(): " + event.code + ", " + event.reason);
-	}
-
-	ws.onerror = function(event) {
-		console.log("ws.onerror(): " + event.data);
-	}
-	
-	this.send = function dml_connection_send(id, payload_arraybuffer) {
-		data = new ArrayBuffer(payload_arraybuffer.byteLength + 4);
-		dataview = new DataView(data);
-		dataview.setUint16(0, id, false);
-		dataview.setUint16(2, payload_arraybuffer.byteLength, false);
-		
-		payloadview = new DataView(payload_arraybuffer);
-		
-		var i;
-		for (i = 0; i < payload_arraybuffer.byteLength; i++) {
-			dataview.setUint8(4 + i, payloadview.getUint8(i));
-		}
-		ws.send(data);
-	}
-	
-	this.send_req_description = function dml_packet_send_req_description(id) {
-		dml_this.send(DML.PACKET.REQ_DESCRIPTION, id);
-	}
-	this.send_req_header = function dml_packet_send_req_header(id) {
-		dml_this.send(DML.PACKET.REQ_HEADER, id);
-	}
-	this.send_req_disc = function dml_packet_send_req_disc(id) {
-		dml_this.send(DML.PACKET.REQ_DISC, id);
-	}
-	this.send_req_certificate = function dml_packet_send_req_certificate(id) {
-		dml_this.send(DML.PACKET.REQ_CERTIFICATE, id);
-	}
-	this.send_connect = function dml_packet_send_connect(id, packet_id) {
-		data = new ArrayBuffer(id.byteLength + 2);
-		ab_copy(data, 0, id, 0, DML.ID.SIZE);
-		dataview = new DataView(data);
-		dataview.setUint16(id.byteLength, packet_id, false);
-		dml_this.send(DML.PACKET.CONNECT, data);
-	}
-}
-
 
 var routes = new Array();
 
@@ -315,7 +125,7 @@ function update_routes()
 			if (routes[i].description.alias)
 				ui_id += " (" + routes[i].description.alias + ")";
 			can_play_mse = mse.supported(routes[i].description.mime);
-			can_play_dml = dmlc2.supported(routes[i].description.mime);
+			can_play_dml = dc2.supported(routes[i].description.mime);
 			can_play_fprs = fprs.supported(routes[i].description.mime);
 		}
 		var str = "";
@@ -338,7 +148,7 @@ function update_routes()
 		if (can_play_mse) {
 			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_dml) {
-			button_str = "<button onclick=\"dmlc2.connect(" + i + ")\">Connect & monitor state</button>";
+			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect & monitor state</button>";
 		} else if (can_play_fprs) {
 			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect & monitor FPRS frames</button>";
 		} else {
@@ -368,57 +178,7 @@ function div_toggle(id)
 	document.getElementById(id).style.display = dis;
 }
 
-connection = new dml();
 
-function eth_ar()
-{
-	var eth_ar_this = this;
-	
-	this.alnum2code = [
-		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 
-		''
-	];
-
-	
-	this.call = function (mac, offset) {
-		var offset = typeof offset !== 'undefined' ? offset : 0;
-		var dv = new DataView(mac, offset);
-		
-		var multicast = dv.getUint8(0) & 0x01;
-		var ssid = (dv.getUint8(0) & 0x3c) >> 2;
-		var macc = (dv.getUint8(0) & 0xc0) >> 6;
-
-		/* Do not use binary operators here!
-		   They are limited to 32bit in this poor excuse for a language... */
-		macc *= 256;
-		macc += dv.getUint8(1);
-		macc *= 256;
-		macc += dv.getUint8(2);
-		macc *= 256;
-		macc += dv.getUint8(3);
-		macc *= 256;
-		macc += dv.getUint8(4);
-		macc *= 256;
-		macc += dv.getUint8(5);
-		
-		var i;
-		var callsign = "";
-		for (i = 0; i < 8; i++) {
-			var c = (macc % 37)  & 0x3f;
-			callsign += eth_ar_this.alnum2code[c];
-			macc /= 37;
-		}
-		callsign += "-" + ssid;
-		
-		if (multicast) {
-			callsign = "MULTICAST";
-		}
-		
-		return callsign;
-	}
-}
 
 var eth_ar = new eth_ar();
 
@@ -505,166 +265,6 @@ function mse()
 }
 
 mse = new mse();
-
-function fprs_element(eltype, elsize, eldataview, eloff)
-{
-	var type = eltype;
-	var size = elsize;
-	var dataview = new DataView(eldataview.buffer, eldataview.byteOffset + eloff, elsize);
-
-	this.tostring = function fprs_element_tostring() {
-		var str = "";
-
-		switch (type) {
-			case FPRS.ELEMENT.POSITION:
-				str+= "POSITION: ";
-	
-				var fixed = dataview.getUint8(3) & 0x08;
-				var longitude = 0;
-				var latitude = 0;
-
-				longitude  = dataview.getUint8(0) << 20;
-				longitude |= dataview.getUint8(1) << 12;
-				longitude |= dataview.getUint8(2) << 4;
-				longitude |= (dataview.getUint8(3) & 0xf0) >> 4;
-				if (longitude & 0x08000000) {
-					longitude ^= 0x0fffffff;
-					longitude += 1;
-					longitude = - longitude;
-				}
-				longitude = (longitude * 180.0) / 134217728;
-				if (longitude > 180)
-					longitude -= 360;
-
-				latitude  = (dataview.getUint8(3) & 0x07) << 24;
-				latitude |= dataview.getUint8(4) << 16;
-				latitude |= dataview.getUint8(5) << 8;
-				latitude |= dataview.getUint8(6);
-
-				if (latitude & 0x04000000) {
-					latitude ^= 0x07ffffff;
-					latitude += 1;
-					latitude = - latitude;
-				}
-				latitude = (latitude * 90.0) / 67108864;
-				
-				str += longitude + " " + latitude;
-				if (fixed)
-					str += " Fixed";
-				
-				break;
-			case FPRS.ELEMENT.CALLSIGN:
-				str+= "CALLSIGN: ";
-				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
-				break;
-			case FPRS.ELEMENT.SYMBOL:
-				str+= "SYMBOL: ";
-				var c0 = dataview.getUint8(0, false);
-				var c1 = dataview.getUint8(1, false);
-				str += String.fromCharCode(c0);
-				str += String.fromCharCode(c1);
-				break;
-			case FPRS.ELEMENT.ALTITUDE:
-				str+= "ALTITUDE";
-				break;
-			case FPRS.ELEMENT.VECTOR:
-				str+= "VECTOR";
-				break;
-			case FPRS.ELEMENT.OBJECTNAME:
-				str+= "OBJECTNAME";
-				break;
-			case FPRS.ELEMENT.COMMENT:
-				str+= "COMMENT: ";
-				str+= data2str(dataview);
-				break;
-			case FPRS.ELEMENT.REQUEST:
-				str+= "REQUEST: ";
-				var i;
-				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
-				str+= ":"
-				for (i = 6; i < dataview.byteLength; i+=2) {
-					var rt = dataview.getUint16(i, false);
-					str+= " " + rt;
-				}
-				break;
-			case FPRS.ELEMENT.DESTINATION:
-				str+= "DESTINATION";
-				break;
-			case FPRS.ELEMENT.TIMESTAMP:
-				str+= "TIMESTAMP: ";
-				var t = 0;
-				var i;
-				for (i = 0; i < dataview.byteLength; i++) {
-					t *= 256;
-					t += dataview.getUint8(i, false);
-				}
-				var timestamp_date = new Date(t*1000);
-				str += timestamp_date.toISOString();
-				
-				break;
-			case FPRS.ELEMENT.DMLSTREAM:
-				str+= "DMLSTREAM: ";
-				str+= data2str(dataview);
-				break;
-			case FPRS.ELEMENT.DMLASSOC:
-				str+= "DMLASSOC: ";
-				str+= data2str(dataview);
-				break;
-		}
-		
-		return str;
-	}
-}
-
-function fprs_frame(fprs_arraybuffer)
-{
-	var dv = new DataView(fprs_arraybuffer);
-	
-	this.elements = new Array();
-	var i;
-	
-	for (i = 0; i < dv.byteLength;) {
-		var left = dv.byteLength - i;
-		var el0 = dv.getUint8(i+0);
-		var el_size_total = 1;
-		var el_size = 0;
-		var el_start = i;
-		var el_type = FPRS.ELEMENT.ERROR;
-		var el_off;
-		
-		if ((el0 & 0x80) == 0) {
-			el_size = el0 & 0x07;
-			el_size_total = el_size + 1;
-			el_type = (el0 & 0x78) >> 3;
-			el_off = i + 1;
-		} else if (left >= 2) {
-			var el1 = dv.getUint8(i+1);
-			
-			if ((el0 & 0xc0) == 0x80) {
-				el_size = el1;
-				el_size_total = el_size + 2;
-				el_type = el0 & 0x3f;
-				el_off = i + 2;
-			} else if (left >= 3) {
-				var el2 = dv.getUint8(i+2);
-				
-				el_size = el2;
-				el_size_total = el_size + 3;
-				el_type = el1 + ((el0 & 0x1f) << 8);
-				el_off = i + 3;
-			}
-		}
-		
-		if (el_size_total && el_size_total <= left) {
-			/* Got an element */
-			
-			this.elements.push(new fprs_element(el_type, el_size, dv, el_off));
-		}
-		
-		i += el_size_total;
-	}
-}
-
 function fprs()
 {
 	var fprs_this = this;
@@ -721,7 +321,10 @@ fprs = new fprs();
 function dmlc2()
 {
 	var dmlc2_this = this;
-	
+
+	this.audio_ctx = new (window.AudioContext || window.webkitAudioContext)();
+	this.scriptnode = undefined;
+
 	this.supported = function supported(mime) {
 		return mime == "audio/dml-codec2";
 	}
@@ -742,9 +345,35 @@ function dmlc2()
 		document.getElementById("dmlc2_state").innerHTML = dmlc2_this.ui_name + ": Connect send";
 
 		do_connect(connected_id);
+		
+		dmlc2_this.audio_ctx = new (window.AudioContext || window.webkitAudioContext)();
+		dmlc2_this.rate = dmlc2_this.audio_ctx.sampleRate;
+		dmlc2_this.resample = new resample();
+		dmlc2_this.queue = new Array();
+		dmlc2_this.scriptnode = dmlc2_this.audio_ctx.createScriptProcessor(1024, 0, 1);
+		dmlc2_this.scriptnode.onaudioprocess = function (event) {
+//			console.log("event: " + event.outputBuffer.length);
+			var i, out, len;
+			len = event.outputBuffer.length;
+			out = event.outputBuffer.getChannelData(0);
+			for (i = 0; i < len; ++i) {
+				if (dmlc2_this.queue.length) {
+					out[i] = dmlc2_this.queue[0].shift();
+					if (dmlc2_this.queue[0].length == 0) {
+						dmlc2_this.queue.shift();
+					}
+				} else {
+					out[i] = 0;
+				}
+			}
+		};
+		dmlc2_this.scriptnode.connect(dmlc2_this.audio_ctx.destination);
 	}
 	this.disconnect = function dmlc2_disconnect() 
 	{
+		dmlc2_this.scriptnode.disconnect();
+		dmlc2_this.scriptnode = undefined;
+		dmlc2_this.audio_ctx = undefined;
 		disconnect();
 		document.getElementById("dmlc2_div").style.display = "none";
 	}
@@ -754,13 +383,27 @@ function dmlc2()
 	var callsign = "?";
 	var timeout_var = false;
 	
+	dmlc2_this.alaw_data = new alaw();
+	
 	this.data = function dmlc2_data(newdata) {
 		if (data.byteLength >= 8) {
 			var dv = new DataView(newdata);
 			
 			var newstate = dv.getUint8(7) & 0x1;
-			var newmode = dv.getUint8(6);
+			var newmode = CODEC2.MODE[dv.getUint8(6)];
 			var newcallsign = eth_ar.call(newdata);
+
+			if (newdata.byteLength > 8) {
+				if (newmode == 'ALAW') {
+					samples = dmlc2_this.alaw_data.decode(newdata.slice(8));
+				} else {
+					samples = new Array();
+				}
+				
+				samples = dmlc2_this.resample.convert(samples, 8000, dmlc2_this.rate);
+				
+				dmlc2_this.queue.push(samples)
+			}
 
 			if (dmlc2_this.timeout_var) {
 				clearTimeout(dmlc2_this.timeout_var);
@@ -794,9 +437,11 @@ function dmlc2()
 	}
 }
 
-dmlc2 = new dmlc2();
+var dc2 = new dmlc2();
 
 var curcon;
+
+connection = new dml();
 
 connection.packet_hello_cb = function(flags, ident) {
 	document.getElementById("hello").innerHTML = "Server identity: " + ident + "<br>Server flags: " + flags;
@@ -880,6 +525,7 @@ connection.packet_data_cb = function(data, timestamp, signature) {
 
 	curcon.data(data);
 }
+
 
 </script>
 </body>
