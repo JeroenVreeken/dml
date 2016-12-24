@@ -32,8 +32,11 @@ dml_httpd works!
 <script src="fprs.js"></script>
 <script src="alaw.js"></script>
 <script src="resample.js"></script>
+<script src="libcodec2.js"></script>
+<script src="codec2.js"></script>
 <script>
 
+CODEC2.MODE[65] = 'ALAW';
 
 
 function char2hex(c)
@@ -384,22 +387,26 @@ function dmlc2()
 	var timeout_var = false;
 	
 	dmlc2_this.alaw_data = new alaw();
+	dmlc2_this.c2 = new codec2();
 	
 	this.data = function dmlc2_data(newdata) {
 		if (data.byteLength >= 8) {
 			var dv = new DataView(newdata);
 			
 			var newstate = dv.getUint8(7) & 0x1;
-			var newmode = CODEC2.MODE[dv.getUint8(6)];
+			var bytemode = dv.getUint8(6);
+			var newmode = CODEC2.MODE[bytemode];
 			var newcallsign = eth_ar.call(newdata);
 
 			if (newdata.byteLength > 8) {
+				c2_buf = new Uint8Array(newdata.slice(8));
+				var samples
 				if (newmode == 'ALAW') {
-					samples = dmlc2_this.alaw_data.decode(newdata.slice(8));
+					samples = dmlc2_this.alaw_data.decode(c2_buf);
 				} else {
-					samples = new Array();
+					dmlc2_this.c2.create(bytemode);
+					samples = dmlc2_this.c2.decode(c2_buf);
 				}
-				
 				samples = dmlc2_this.resample.convert(samples, 8000, dmlc2_this.rate);
 				
 				dmlc2_this.queue.push(samples)

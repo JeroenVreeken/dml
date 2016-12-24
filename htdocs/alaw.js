@@ -1,4 +1,3 @@
-
 function alaw() 
 {
 	this.decode = function (arraybuffer) {
