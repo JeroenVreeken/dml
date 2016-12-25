@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define DML_VERSION "0.1"
+#define DML_VERSION "0.2"
 
 #define DML_ID_SIZE	32
 #define DML_SIG_SIZE	((256 * 2) / 8)
