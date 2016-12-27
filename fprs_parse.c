@@ -300,16 +300,18 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 				if (!r) {
 					update = false;
 					prop_el = false;
-					if (prev_size != el_size ||
-					    memcmp(prev_data, el_data, el_size)) {
-						update = true;
+					if (prev_t <= t_rx) {
+						if (prev_size != el_size ||
+						    memcmp(prev_data, el_data, el_size)) {
+							update = true;
+						}
+						if ((t_rx - prev_t >= FPRS_UNCHANGED_HOLDOFF) ||
+						    (t_rx - prev_t >= FPRS_MIN_HOLDOFF && update)) {
+							prop_el = true;
+							update = true;
+						}
+						free(prev_data);
 					}
-					if ((t_rx - prev_t >= FPRS_UNCHANGED_HOLDOFF) ||
-					    (t_rx - prev_t >= FPRS_MIN_HOLDOFF && update)) {
-						prop_el = true;
-						update = true;
-					}
-					free(prev_data);
 				}
 				if (update)
 					fprs_db_element_set(&id, fprs_type, 

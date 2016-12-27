@@ -39,48 +39,65 @@ var FPRS = {
 
 function fprs_element(eltype, elsize, eldataview, eloff)
 {
-	var type = eltype;
+	var type_el = eltype;
 	var size = elsize;
 	var dataview = new DataView(eldataview.buffer, eldataview.byteOffset + eloff, elsize);
+	
+	this.type_get = function() {
+		return type_el;
+	}
+	
+	this.position_dec = function() {
+		if (type_el != FPRS.ELEMENT.POSITION)
+			return undefined;
+		
+		var fixed = dataview.getUint8(3) & 0x08;
+		var longitude = 0;
+		var latitude = 0;
+
+		longitude  = dataview.getUint8(0) << 20;
+		longitude |= dataview.getUint8(1) << 12;
+		longitude |= dataview.getUint8(2) << 4;
+		longitude |= (dataview.getUint8(3) & 0xf0) >> 4;
+		if (longitude & 0x08000000) {
+			longitude ^= 0x0fffffff;
+			longitude += 1;
+			longitude = - longitude;
+		}
+		longitude = (longitude * 180.0) / 134217728;
+		if (longitude > 180)
+			longitude -= 360;
+
+		latitude  = (dataview.getUint8(3) & 0x07) << 24;
+		latitude |= dataview.getUint8(4) << 16;
+		latitude |= dataview.getUint8(5) << 8;
+		latitude |= dataview.getUint8(6);
+
+		if (latitude & 0x04000000) {
+			latitude ^= 0x07ffffff;
+			latitude += 1;
+			latitude = - latitude;
+		}
+		latitude = (latitude * 90.0) / 67108864;
+				
+		return { 
+		    longitude: longitude, 
+		    latitude: latitude,
+		    fixed: fixed,
+		};
+	}
 
 	this.tostring = function fprs_element_tostring() {
 		var str = "";
 
-		switch (type) {
+		switch (type_el) {
 			case FPRS.ELEMENT.POSITION:
 				str+= "POSITION: ";
 	
-				var fixed = dataview.getUint8(3) & 0x08;
-				var longitude = 0;
-				var latitude = 0;
-
-				longitude  = dataview.getUint8(0) << 20;
-				longitude |= dataview.getUint8(1) << 12;
-				longitude |= dataview.getUint8(2) << 4;
-				longitude |= (dataview.getUint8(3) & 0xf0) >> 4;
-				if (longitude & 0x08000000) {
-					longitude ^= 0x0fffffff;
-					longitude += 1;
-					longitude = - longitude;
-				}
-				longitude = (longitude * 180.0) / 134217728;
-				if (longitude > 180)
-					longitude -= 360;
-
-				latitude  = (dataview.getUint8(3) & 0x07) << 24;
-				latitude |= dataview.getUint8(4) << 16;
-				latitude |= dataview.getUint8(5) << 8;
-				latitude |= dataview.getUint8(6);
-
-				if (latitude & 0x04000000) {
-					latitude ^= 0x07ffffff;
-					latitude += 1;
-					latitude = - latitude;
-				}
-				latitude = (latitude * 90.0) / 67108864;
+				var dec = this.position_dec();
 				
-				str += longitude + " " + latitude;
-				if (fixed)
+				str += dec.longitude + " " + dec.latitude;
+				if (dec.fixed)
 					str += " Fixed";
 				
 				break;

@@ -309,6 +309,8 @@ function fprs()
 		document.getElementById("fprs_state").innerHTML = fprs_this.ui_name + ": Connect send";
 
 		do_connect(connected_id);
+		
+		fprs_this.ui = new Array();
 	}
 	this.disconnect = function fprs_disconnect() 
 	{
@@ -324,16 +326,37 @@ function fprs()
 		str = "";
 		var i;
 		for (i = 0; i < frame.elements.length; i++) {
-			str += frame.elements[i].tostring() + " ";
+			el_str = frame.elements[i].tostring();
+			if (frame.elements[i].type_get() == FPRS.ELEMENT.POSITION) {
+				pos = frame.elements[i].position_dec();
+				str += "<a target='_blank' href='http://www.openstreetmap.org/?" +
+				    "mlat=" + pos.latitude +
+				    "&mlon=" + pos.longitude +
+				    "&zoom=16&layers=M'>" +
+				    el_str +
+				    "</a> ";
+			} else {
+				str += el_str + " ";
+			}
 		}
 		
 		fprs_this.update_ui(str);
 	}
 	
-	this.update_ui = function (length) {
-		var str = "<br>"+ fprs_this.ui_name + ": " + length +"\n";
+	this.update_ui = function (str) {
+		fprs_this.ui.push(str);
+		
+		while (fprs_this.ui.length > 10)
+			fprs_this.ui.shift();
+		
+		var i;
+		var str = fprs_this.ui_name + ":<br>\n";
+		
+		for (i = 0; i < fprs_this.ui.length; i++) {
+			str = str + fprs_this.ui[i] + "<br>\n";
+		}
 
-		document.getElementById("fprs_state").innerHTML += str;
+		document.getElementById("fprs_state").innerHTML = str;
 	}
 }
 
