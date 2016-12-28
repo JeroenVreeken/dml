@@ -1,6 +1,9 @@
 /*
 	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2016
 
+	@licstart  The following is the entire license notice for the 
+	JavaScript code in this page.
+
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
@@ -14,6 +17,8 @@
 	You should have received a copy of the GNU General Public License
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+	@licend  The above is the entire license notice
+	for the JavaScript code in this page.
  */
 
 var CODEC2 = {
