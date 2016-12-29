@@ -38,9 +38,14 @@ struct fprs_db_id {
 	} id;
 };
 
-int fprs_db_element_set(struct fprs_db_id *id, enum fprs_type type, time_t t, time_t t_valid, uint8_t *data, size_t datasize);
+int fprs_db_element_set(struct fprs_db_id *id, 
+    enum fprs_type type, 
+    time_t t, time_t t_valid, 
+    unsigned int link,
+    uint8_t *data, size_t datasize);
 int fprs_db_element_get(struct fprs_db_id *id, enum fprs_type type, time_t *t, uint8_t **data, size_t *datasize);
 int fprs_db_element_del(struct fprs_db_id *id, enum fprs_type type);
+unsigned int fprs_db_link_get(struct fprs_db_id *id);
 
 int fprs_db_flush(time_t t);
 

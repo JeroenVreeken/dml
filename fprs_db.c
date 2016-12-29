@@ -26,6 +26,9 @@ struct fprs_db_data {
 	enum fprs_type type;
 	uint8_t *data;
 	size_t datasize;
+	
+	unsigned int link;
+	
 	time_t t;
 	time_t t_valid;
 	
@@ -122,7 +125,11 @@ int fprs_db_flush(time_t t)
 }
 
 
-int fprs_db_element_set(struct fprs_db_id *id, enum fprs_type type, time_t t, time_t t_valid, uint8_t *data, size_t datasize)
+int fprs_db_element_set(struct fprs_db_id *id, 
+    enum fprs_type type, 
+    time_t t, time_t t_valid, 
+    unsigned int link, 
+    uint8_t *data, size_t datasize)
 {
 	struct fprs_db_entry *entry;
 	
@@ -213,4 +220,22 @@ int fprs_db_element_del(struct fprs_db_id *id, enum fprs_type type)
 	fprs_db_check(entry);
 	
 	return 0;
+}
+
+unsigned int fprs_db_link_get(struct fprs_db_id *id)
+{
+	struct fprs_db_entry *entry;
+	
+	entry = fprs_db_find(id);
+	if (!entry || !entry->elements) {
+		return 0;
+	}
+
+	unsigned int link = 0;
+	struct fprs_db_data *dentry;
+	
+	for (dentry = entry->elements; dentry; dentry = dentry->next)
+		link |= dentry->link;
+
+	return link;	
 }

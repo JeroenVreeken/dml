@@ -206,6 +206,7 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 	struct fprs_element *fprs_timestamp;
 	struct fprs_element *fprs_element = NULL;
 	struct fprs_element *fprs_request;
+	struct fprs_element *fprs_destination;
 	struct fprs_db_id id = { 0 }; /* initialize to null for comparison */
 	bool propagate = false;
 	time_t t_rx = recv_time->tv_sec;
@@ -247,6 +248,23 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 		for (i = 0; i < req_el_nr; i++) {
 			fprs_request_add(&req_id, req_el[i], t_rx, link);
 		}
+	}
+	
+	fprs_destination = fprs_frame_element_by_type(fprs_frame, FPRS_DESTINATION);
+	if (fprs_destination) {
+		struct fprs_db_id dest_id = { 0 };
+		
+		dest_id.type = FPRS_DB_ID_CALLSIGN;
+		memcpy(dest_id.id.callsign, fprs_element_data(fprs_destination), 6);
+		
+		unsigned int dest_link = fprs_db_link_get(&dest_id);
+
+		if (!dest_link) {
+			dest_link = FPRS_PARSE_UPLINK;
+		}
+		cb(data, size, dest_link, arg);
+		
+		goto skip;
 	}
 
 	if (!fprs_callsign)
@@ -315,7 +333,7 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 				}
 				if (update)
 					fprs_db_element_set(&id, fprs_type, 
-					    t_rx, t_valid, el_data, el_size);
+					    t_rx, t_valid, link, el_data, el_size);
 				if (prop_el) {
 					struct fprs_element *p_el = fprs_frame_element_add(
 					    fprs_frame_prop, fprs_type, el_size);
