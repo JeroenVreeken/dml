@@ -354,7 +354,11 @@ function fprs()
 				case FPRS.ELEMENT.SYMBOL:
 					sym = frame.elements[i].symbol_dec();
 					symurl = aprs_symbol(sym);
-					str += "<img src='" + symurl + "'></img> "
+					if (symurl) {
+						str += "<img src='" + symurl + "'></img> "
+					} else {
+						str += el_str + " ";
+					}
 					break;
 				default:
 					str += el_str + " ";
