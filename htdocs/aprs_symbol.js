@@ -40,6 +40,9 @@ function aprs_symbol(symbolcode) {
 	var canvas = document.createElement("canvas");
 	w = img.width / 16;
 	h = img.height / 6;
+	if (h == 0 || w == 0) {
+		return undefined;
+	}
 	canvas.width = w;
 	canvas.height = h;
 	
@@ -51,9 +54,10 @@ function aprs_symbol(symbolcode) {
 
 	if (overlay) {
 		img = aprs_symbol.table_ol;
-		
-		pos = aprs_symbol.code2pos[symbolcode[0]];
-		ctx.drawImage(img, -pos[1] * aprs_symbol.width, -pos[0] * aprs_symbol.height);
+		if (img.height && img.width) {
+			pos = aprs_symbol.code2pos[symbolcode[0]];
+			ctx.drawImage(img, -pos[1] * aprs_symbol.width, -pos[0] * aprs_symbol.height);
+		}
 	}
 	
 	return canvas.toDataURL();
@@ -156,21 +160,9 @@ aprs_symbol.code2pos = {
 	"~": [ 5, 13 ],
 };
 
-/* default image if symbol table is not available */
-aprs_symbol.table_backup = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYAQMAAADaua+7AAAABlBMVEUAAAD///+l2Z/dAAAAB3RJTUUH4AweFCwQkA8M6QAAABZ0RVh0U29mdHdhcmUAWFBhaW50IDIuOC4xNi832TsAAAA6SURBVAiZbYyxEQAQAMQyOaMZxQhKhSN8r/jqk6DS3HQXw8l0sOxsG8eKRcJ8974wYePETSOtNB9zAbVSQ71Dhgr1AAAAAElFTkSuQmCC";
-
 aprs_symbol.table_pri = new Image();
 aprs_symbol.table_alt = new Image();
 aprs_symbol.table_ol = new Image();
-aprs_symbol.table_pri.onerror = function() {
-	this.src = aprs_symbol.table_backup;
-}
-aprs_symbol.table_alt.onerror = function() {
-	this.src = aprs_symbol.table_backup;
-}
-aprs_symbol.table_ol.onerror = function() {
-	this.src = aprs_symbol.table_backup;
-}
 aprs_symbol.table_pri.src = "aprs-symbols-24-0.png";
 aprs_symbol.table_alt.src = "aprs-symbols-24-1.png";
 aprs_symbol.table_ol.src = "aprs-symbols-24-2.png";
