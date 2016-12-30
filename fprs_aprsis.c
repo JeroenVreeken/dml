@@ -64,7 +64,7 @@ static int tcp_connect(char *host, int port)
 	
 	error = getaddrinfo(host, port_str, &hints, &result);
 	if (error) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(error));
+		fprintf(stderr, "getaddrinfo: %s (%s:%s)\n", gai_strerror(error), host, port_str);
 		
 		res_init();
 		
