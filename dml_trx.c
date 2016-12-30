@@ -28,6 +28,7 @@
 #include "dml_stream.h"
 #include "fprs_db.h"
 #include "fprs_parse.h"
+#include "fprs_aprsis.h"
 
 #include "trx_dv.h"
 #include "alaw.h"
@@ -82,7 +83,7 @@ static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static double my_fprs_longitude = 0.0;
 static double my_fprs_latitude = 0.0;
 static char *my_fprs_text = "";
-
+static bool aprsis = false;
 
 static uint16_t alloc_data_id(void)
 {
@@ -149,6 +150,10 @@ static int fprs_update_status(char *stream, char *assoc)
 	fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
 	/* Send FPRS frame with callsign in FreeDV header */
 	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
+
+	if (aprsis) {
+		fprs_aprsis_frame(fprs_frame, mac_dev);
+	}
 
 	/* Add callsign to packet for others */
 	fprs_frame_add_callsign(fprs_frame, mac_dev);
@@ -919,6 +924,14 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	
+	if (repeater) {
+		/* Digipeat the incomming FPRS packet */
+		trx_dv_send_fprs(mac_dev, mac_bcast, f_data, f_size);
+	}
+	
+	if (aprsis) {
+		fprs_aprsis_frame(fprs_frame, from);
+	}
 	fprs_parse_data(f_data, f_size, &ts,
 	    FPRS_PARSE_DOWNLINK,
 	    TIME_VALID_DOWNLINK,
@@ -948,6 +961,9 @@ int main(int argc, char **argv)
 	char *alias;
 	static uint8_t id[DML_ID_SIZE];
 	uint32_t bps = 6400;
+	char *aprsis_host;
+	int aprsis_port;
+	char call[ETH_AR_CALL_SIZE];
 
 	if (argc > 1)
 		file = argv[1];
@@ -976,7 +992,6 @@ int main(int argc, char **argv)
 		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, fprs_cb, NULL, dv_mode, mac_dev))
 			fprintf(stderr, "Could not open DV device\n");
 
-		char call[ETH_AR_CALL_SIZE];
 		int ssid;
 		bool multicast;
 		
@@ -1008,7 +1023,17 @@ int main(int argc, char **argv)
 	my_fprs_longitude = atof(dml_config_value("longitude", NULL, "0.0"));
 	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
 	my_fprs_text = dml_config_value("fprs_text", NULL, "");
+
+	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
+	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
 	
+	if (aprsis_host) {
+		if (fprs_aprsis_init(aprsis_host, aprsis_port, call)) {
+			printf("Could not openn APRSIS connection\n");
+			return -1;
+		}
+		aprsis = true;
+	}
 	
 	if (dml_id_gen(id, DML_PACKET_DESCRIPTION_VERSION_0, bps, 
 	    DML_MIME_DV_C2, name, alias, description))

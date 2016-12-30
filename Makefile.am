@@ -25,7 +25,8 @@ TRX_SRCS = \
 
 FPRS_DB_SRCS = \
 	fprs_db.c \
-	fprs_parse.c
+	fprs_parse.c \
+	fprs_aprsis.c
 
 
 dmld_SOURCES = $(DML_SRCS) dmld.c
