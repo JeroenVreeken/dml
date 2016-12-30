@@ -60,6 +60,7 @@ dml_httpd works!
 <script src="dml.js"></script>
 <script src="eth_ar.js"></script>
 <script src="fprs.js"></script>
+<script src="aprs_symbol.js"></script>
 <script src="alaw.js"></script>
 <script src="resample.js"></script>
 <script src="libcodec2.js"></script>
@@ -340,16 +341,23 @@ function fprs()
 		var i;
 		for (i = 0; i < frame.elements.length; i++) {
 			el_str = frame.elements[i].tostring();
-			if (frame.elements[i].type_get() == FPRS.ELEMENT.POSITION) {
-				pos = frame.elements[i].position_dec();
-				str += "<a target='_blank' href='http://www.openstreetmap.org/?" +
-				    "mlat=" + pos.latitude +
-				    "&mlon=" + pos.longitude +
-				    "&zoom=16&layers=M'>" +
-				    el_str +
-				    "</a> ";
-			} else {
-				str += el_str + " ";
+			switch(frame.elements[i].type_get()) {
+				case FPRS.ELEMENT.POSITION:
+					pos = frame.elements[i].position_dec();
+					str += "<a target='_blank' href='http://www.openstreetmap.org/?" +
+					    "mlat=" + pos.latitude +
+					    "&mlon=" + pos.longitude +
+					    "&zoom=16&layers=M'>" +
+					    el_str +
+					    "</a> ";
+					break;
+				case FPRS.ELEMENT.SYMBOL:
+					sym = frame.elements[i].symbol_dec();
+					symurl = aprs_symbol(sym);
+					str += "<img src='" + symurl + "'></img> "
+					break;
+				default:
+					str += el_str + " ";
 			}
 		}
 		

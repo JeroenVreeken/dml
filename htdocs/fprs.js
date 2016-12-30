@@ -91,6 +91,18 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 		    fixed: fixed,
 		};
 	}
+	this.symbol_dec = function() {
+		if (type_el != FPRS.ELEMENT.SYMBOL)
+			return undefined;
+
+		var c0 = dataview.getUint8(0, false);
+		var c1 = dataview.getUint8(1, false);
+		
+		var str = String.fromCharCode(c0);
+		str += String.fromCharCode(c1);
+	
+		return str;
+	}
 
 	this.tostring = function fprs_element_tostring() {
 		var str = "";
@@ -112,10 +124,9 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				break;
 			case FPRS.ELEMENT.SYMBOL:
 				str+= "SYMBOL: ";
-				var c0 = dataview.getUint8(0, false);
-				var c1 = dataview.getUint8(1, false);
-				str += String.fromCharCode(c0);
-				str += String.fromCharCode(c1);
+				
+				var dec = this.symbol_dec();
+				str += dec;
 				break;
 			case FPRS.ELEMENT.ALTITUDE:
 				str+= "ALTITUDE";
