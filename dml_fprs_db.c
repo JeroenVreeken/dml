@@ -310,6 +310,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 							priv->link = FPRS_PARSE_DOWNLINK;
 							priv->time_valid = TIME_VALID_DOWNLINK;
 						}
+					} else {
+						printf("Ignore request: match_mime: %d, key: %p\n",
+						    priv->match_mime, key);
 					}
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {

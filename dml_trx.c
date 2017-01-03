@@ -251,6 +251,15 @@ static int fprs_timer(void *arg)
 		fprs_frame_destroy(fprs_frame);
 	}
 
+	if (cur_db) {
+		dml_packet_send_connect(dml_con, 
+		    dml_stream_id_get(cur_db), 
+		    dml_stream_data_id_get(cur_db));
+		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_db),
+		    dml_stream_id_get(stream_fprs),
+		    DML_PACKET_REQ_REVERSE_CONNECT);
+	}
+
 	dml_poll_timeout(&fprs_timer, 
 	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
 	    
@@ -647,6 +656,9 @@ static int client_connection_close(struct dml_connection *dc, void *arg)
 			continue;
 		dml_stream_data_id_set(ds, 0);
 	}
+	
+	cur_con = NULL;
+	cur_db = NULL;
 
 	dml_poll_add(arg, NULL, NULL, client_reconnect);
 	dml_poll_timeout(arg, &(struct timespec){ 1, 0 });
