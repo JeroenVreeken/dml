@@ -43,8 +43,8 @@
 
 
 #define DML_TRX_DATA_KEEPALIVE 10
-//#define DML_TRX_FPRS_TIMER (10 * 60)
-#define DML_TRX_FPRS_TIMER (1 * 60)
+#define DML_TRX_FPRS_TIMER (10 * 60)
+//#define DML_TRX_FPRS_TIMER (1 * 60)
 #define DML_TRX_FPRS_DB_TIMER 10
 
 #define TIME_VALID_UPLINK 	(1*60)
