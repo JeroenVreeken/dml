@@ -87,6 +87,8 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 		
 		if (certsize > size - 2)
 			break;
+		if (!certsize)
+			break;
 		
 		cert = d2i_X509(NULL, &cert_data, certsize);
 		if (!cert)
