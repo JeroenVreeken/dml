@@ -175,6 +175,27 @@ function update_routes()
 		}
 		if (routes[i].certificate) {
 			str += "\tcertificate length:\t" + routes[i].certificate.data.byteLength + "<br>";
+			ui8 = new Uint8Array(routes[i].certificate.data);
+			var pos = 0;
+			while (pos < ui8.length) {
+				var size = ui8[0] * 256 + ui8[1];
+				
+				if (size < 1) {
+					break;
+				}
+				
+				cert = ui8.slice(pos + 2, pos + 2 + size);
+				b64 = btoa(String.fromCharCode.apply(null, cert));
+				
+				str += "-----BEGIN CERTIFICATE-----<br>";
+				var j;
+				for (j = 0; j < b64.length; j += 64) {
+					str += b64.slice(j, j+64) + "<br>";
+				}
+				str += "-----END CERTIFICATE-----<br>";
+				
+				pos += size + 2;
+			}
 		}
 		str += "\tid:\t" + shastr + "<br>";
 		str += "\thops:\t" + routes[i].hops + "<br>";
