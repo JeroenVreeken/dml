@@ -81,11 +81,14 @@ static struct fprs_db_entry *fprs_db_add(struct fprs_db_id *id)
 static int fprs_db_check(struct fprs_db_entry *check)
 {
 	if (!check->elements) {
-		struct fprs_db_entry **entry;
+		struct fprs_db_entry **entry, **next;
 		
-		for (entry = &db; *entry; entry = &(*entry)->next) {
+		for (entry = &db; *entry; entry = next) {
 			if (*entry == check) {
 				*entry = check->next;
+				next = entry;
+			} else {
+				next = &(*entry)->next;
 			}
 		}
 		
