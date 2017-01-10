@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2016
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2016, 2017
 
 	@licstart  The following is the entire license notice for the 
 	JavaScript code in this page.
@@ -23,14 +23,14 @@
 
 var CODEC2 = {
 	MODE: {
-		0: '3200',
-		1: '2400',
-		2: '1600',
-		3: '1400',
-		4: '1300',
-		5: '1200',
-		6: '700',
-		7: '700B',
+		0: 'CODEC2_MODE_3200',
+		1: 'CODEC2_MODE_2400',
+		2: 'CODEC2_MODE_1600',
+		3: 'CODEC2_MODE_1400',
+		4: 'CODEC2_MODE_1300',
+		5: 'CODEC2_MODE_1200',
+		6: 'CODEC2_MODE_700',
+		7: 'CODEC2_MODE_700B',
 	}
 };
 
