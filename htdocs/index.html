@@ -458,6 +458,11 @@ function dmlc2()
 			}
 		};
 		dmlc2_this.scriptnode.connect(dmlc2_this.audio_ctx.destination);
+		
+		dmlc2_this.state = false;
+		dmlc2_this.mode = -1;
+		dmlc2_this.callsign = "?";
+
 	}
 	this.disconnect = function dmlc2_disconnect() 
 	{
