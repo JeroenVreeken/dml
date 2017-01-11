@@ -752,6 +752,8 @@ static void recv_data(void *data, size_t size)
 static int beepsize;
 static uint8_t *beep800, *beep1600;
 static bool do_beep800, do_beep1600;
+static int silencesize;
+static uint8_t *silence;
 
 static void send_beep800(void)
 {
@@ -761,6 +763,10 @@ static void send_beep1600(void)
 {
 	trx_dv_send(mac_dev, mac_bcast, 'A', beep1600, beepsize);
 }
+static void send_silence(void)
+{
+	trx_dv_send(mac_dev, mac_bcast, 'A', silence, silencesize);
+}
 
 static int rx_watchdog(void *arg)
 {
@@ -768,10 +774,7 @@ static int rx_watchdog(void *arg)
 	
 	uint8_t data[8];
 
-	if (rx_state)
-		memcpy(data, mac_last, 6);
-	else
-		memset(data, 0xff, 6);
+	memcpy(data, rx_state ? mac_last : mac_bcast, 6);
 	data[6] = 0;
 	data[7] = false;
 
@@ -780,10 +783,12 @@ static int rx_watchdog(void *arg)
 	rx_state = false;
 
 	if (do_beep800) {
+		send_silence();
 		send_beep800();
 		do_beep800 = false;
 	}
 	if (do_beep1600) {
+		send_silence();
 		send_beep1600();
 		do_beep1600 = false;
 	}
@@ -1097,6 +1102,11 @@ int main(int argc, char **argv)
 		printf("Could not generate beep\n");
 	}
 	beepsize = 8000 * 0.08;
+	silence = alaw_silence(8000, 0.16);
+	if (!silence) {
+		printf("Could not generate silence\n");
+	}
+	silencesize = 8000 * 0.16;
 
 	dml_poll_timeout(&rx_state, 
 	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});

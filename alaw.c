@@ -140,3 +140,21 @@ uint8_t *alaw_beep(double freq, double rate, double length)
 	
 	return buffer;
 }
+
+uint8_t *alaw_silence(double rate, double length)
+{
+	int samples = length * rate;
+	uint8_t *buffer = malloc(samples);
+	int16_t raw[samples];
+	int i;
+	
+	if (!buffer)
+		return NULL;
+	
+	for (i = 0; i < samples; i++) {
+		raw[i] = 0;
+	}
+	alaw_encode(buffer, raw, samples);
+
+	return buffer;
+}
