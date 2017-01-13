@@ -9,6 +9,10 @@ dml_stream_client
 dml_trx
 dml_fprs_db
 
+# Check licenses before including any icon set
+htdocs/aprs-symbols-24-0.png
+htdocs/aprs-symbols-24-1.png
+htdocs/aprs-symbols-24-2.png
 
 # http://www.gnu.org/software/automake
 
