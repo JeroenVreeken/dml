@@ -31,6 +31,7 @@ var CODEC2 = {
 		5: 'CODEC2_MODE_1200',
 		6: 'CODEC2_MODE_700',
 		7: 'CODEC2_MODE_700B',
+		8: 'CODEC2_MODE_700C',
 	}
 };
 
