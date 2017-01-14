@@ -33,6 +33,11 @@
 #include <codec2/codec2.h>
 
 static int dv_sock = -1;
+static char *dv_dev = NULL;
+static uint8_t dv_mac[6] = { 0 };
+static void (*dv_mac_cb)(uint8_t *mac) = NULL;
+
+#define TRX_DV_WATCHDOG 5
 
 static int limit_mode = -1;
 
@@ -103,7 +108,7 @@ static int trx_dv_in_cb(void *arg)
 			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 14, datasize, mode);
 		}
 	} else {
-		printf("frame not the right size\n");
+		printf("frame not the right size: %zd: \n", ret);
 		int i;
 		for (i = 0; i < ret; i++) {
 			printf("%02x ", dv_frame[i]);
@@ -286,21 +291,90 @@ int trx_dv_duration(size_t size, int mode)
 	}
 }
 
+static int trx_dv_bind_if(void)
+{
+	short protocol = htons(ETH_P_ALL);
+	uint8_t mac[6];
+	struct ifreq ifr;
+
+	size_t if_name_len = strlen(dv_dev);
+	if (if_name_len >= sizeof(ifr.ifr_name))
+		goto err_len;
+	strcpy(ifr.ifr_name, dv_dev);
+
+	if (ioctl(dv_sock, SIOCGIFINDEX, &ifr) < 0)
+		goto err_ioctl;
+	
+	int ifindex = ifr.ifr_ifindex;
+
+	struct sockaddr_ll sll = { 0 };
+	
+	sll.sll_family = AF_PACKET; 
+	sll.sll_ifindex = ifindex;
+	sll.sll_protocol = protocol;
+	if(bind(dv_sock, (struct sockaddr *)&sll , sizeof(sll)) < 0)
+		goto err_bind;
+
+
+	struct ifreq if_mac;
+
+	memset(&if_mac, 0, sizeof(struct ifreq));
+	strcpy(if_mac.ifr_name, dv_dev);
+	if (ioctl(dv_sock, SIOCGIFHWADDR, &if_mac) < 0)
+		goto err_ioctl_mac; 
+	memcpy(mac, (uint8_t *)&if_mac.ifr_hwaddr.sa_data, 6);
+
+	if (memcmp(mac, dv_mac, 6)) {
+		memcpy(dv_mac, mac, 6);
+		dv_mac_cb(dv_mac);
+	}
+
+	return 0;
+
+err_ioctl_mac:
+err_len:
+err_ioctl:
+err_bind:
+	return -1;
+}
+
+static bool dv_bound = false;
+
+static int trx_dv_watchdog(void *arg)
+{
+	bool bound = !trx_dv_bind_if();
+	
+	if (!bound && dv_bound) {
+		printf("Lost interface\n");
+	}
+	if (bound && !dv_bound) {
+		printf("Bound to interface\n");
+	}
+	dv_bound = bound;
+	
+	dml_poll_timeout(trx_dv_init, &(struct timespec){ TRX_DV_WATCHDOG, 0});
+	return 0;
+}
+
 int trx_dv_init(char *dev, 
     int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
     int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,
     char *mode,
-    uint8_t devaddr[6])
+    void (*new_mac_cb)(uint8_t *mac))
 {
 	int sock;
 	short protocol = htons(ETH_P_ALL);
+
+	free(dv_dev);
+	dv_dev = strdup(dev);
 	
 	in_cb = new_in_cb;
 	in_cb_arg = arg;
 	ctrl_cb = new_ctrl_cb;
 	fprs_cb = new_fprs_cb;
+	dv_mac_cb = new_mac_cb;
 	
 	if (mode) {
 		if (!strcmp(mode, "3200")) {
@@ -339,48 +413,24 @@ int trx_dv_init(char *dev,
 	if (sock < 0)
 		goto err_socket;
 
-	struct ifreq ifr;
+	dv_sock = sock;
 
-	size_t if_name_len = strlen(dev);
-	if (if_name_len >= sizeof(ifr.ifr_name))
-		goto err_len;
-	strcpy(ifr.ifr_name, dev);
-
-	if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0)
-		goto err_ioctl;
-	
-	int ifindex = ifr.ifr_ifindex;
-
-	struct sockaddr_ll sll = { 0 };
-	
-	sll.sll_family = AF_PACKET; 
-	sll.sll_ifindex = ifindex;
-	sll.sll_protocol = protocol;
-	if(bind(sock, (struct sockaddr *)&sll , sizeof(sll)) < 0)
+	if (trx_dv_bind_if())
 		goto err_bind;
 
-	struct ifreq if_mac;
+	dv_bound = true;
 
-	memset(&if_mac, 0, sizeof(struct ifreq));
-	strcpy(if_mac.ifr_name, dev);
-	if (ioctl(sock, SIOCGIFHWADDR, &if_mac) < 0)
-		goto err_ioctl_mac; 
-	memcpy(devaddr, (uint8_t *)&if_mac.ifr_hwaddr.sa_data, 6);
 
-	if (dml_poll_add(trx_dv_init, trx_dv_in_cb, NULL, NULL))
+	if (dml_poll_add(trx_dv_init, trx_dv_in_cb, NULL, trx_dv_watchdog))
 		goto err_poll;
 	dml_poll_fd_set(trx_dv_init, sock);
 	dml_poll_in_set(trx_dv_init, true);
-
-	dv_sock = sock;
+	dml_poll_timeout(trx_dv_init, &(struct timespec){ TRX_DV_WATCHDOG, 0});
 
 	return 0;
 
 err_poll:
-err_ioctl_mac:
 err_bind:
-err_ioctl:
-err_len:
 	close(sock);
 err_socket:
 	return -1;

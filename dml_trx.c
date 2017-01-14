@@ -85,6 +85,8 @@ static double my_fprs_latitude = 0.0;
 static char *my_fprs_text = "";
 static bool aprsis = false;
 
+static char my_call[ETH_AR_CALL_SIZE];
+
 static uint16_t alloc_data_id(void)
 {
 	uint16_t id;
@@ -963,6 +965,19 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	return 0;
 }
 
+void mac_dev_cb(uint8_t mac[6])
+{
+	int ssid;
+	bool multicast;
+
+	memcpy(mac_dev, mac, 6);
+		
+	eth_ar_mac2call(my_call, &ssid, &multicast, mac_dev);
+	printf("Interface address %02x:%02x:%02x:%02x:%02x:%02x %s-%d\n",
+	    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+	    multicast ? "MULTICAST" : my_call, ssid);
+}
+
 int main(int argc, char **argv)
 {
 	struct dml_client *dc;
@@ -980,7 +995,6 @@ int main(int argc, char **argv)
 	uint32_t bps = 6400;
 	char *aprsis_host;
 	int aprsis_port;
-	char call[ETH_AR_CALL_SIZE];
 
 	if (argc > 1)
 		file = argv[1];
@@ -1006,14 +1020,8 @@ int main(int argc, char **argv)
 		if (dv_mode) {
 			printf("DV limited to mode %s\n", dv_mode);
 		}
-		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, fprs_cb, NULL, dv_mode, mac_dev))
+		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, fprs_cb, NULL, dv_mode, mac_dev_cb))
 			fprintf(stderr, "Could not open DV device\n");
-
-		int ssid;
-		bool multicast;
-		
-		eth_ar_mac2call(call, &ssid, &multicast, mac_dev);
-		printf("Interface address: %s-%d\n", multicast ? "MULTICAST" : call, ssid);
 	} else {
 		fprintf(stderr, "No DV device configured\n");
 		return -1;
@@ -1045,7 +1053,7 @@ int main(int argc, char **argv)
 	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
 	
 	if (aprsis_host) {
-		if (fprs_aprsis_init(aprsis_host, aprsis_port, call)) {
+		if (fprs_aprsis_init(aprsis_host, aprsis_port, my_call)) {
 			printf("Could not openn APRSIS connection\n");
 			return -1;
 		}
