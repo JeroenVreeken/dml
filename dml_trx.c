@@ -886,9 +886,10 @@ static void command_cb_handle(char *command)
 		do_beep800 = true;
 		
 		char *constr;
-		asprintf(&constr, "Connecting %s", command);
-		trx_dv_send_control(mac_dev, mac_bcast, constr);
-		free(constr);
+		if (asprintf(&constr, "Connecting %s", command) >= 0) {
+			trx_dv_send_control(mac_dev, mac_bcast, constr);
+			free(constr);
+		}
 	} else {
 		do_beep1600 = true;
 		trx_dv_send_control(mac_dev, mac_bcast, "NACK");

@@ -215,7 +215,8 @@ int exec_cgi(struct lws *wsi, char *requested_uri, char *resource_path)
 	size_t pos = 0, r;
 	char *wd = get_current_dir_name();
 	
-	chdir(cgi_path);
+	if (chdir(cgi_path))
+		return -1;
 	
 	fpipe = popen(resource_path, "r");
 	if (!fpipe) {
@@ -302,13 +303,14 @@ int list_dir(struct lws *wsi, char *requested_uri, char *resource_path)
 		}
 				
 		char *line;
-		asprintf(&line, "<a href='%s'>%s</a><br>\n", 
-		    namelist[i]->d_name, namelist[i]->d_name);
+		if (asprintf(&line, "<a href='%s'>%s</a><br>\n", 
+		    namelist[i]->d_name, namelist[i]->d_name) >= 0) {
 		
-		outdata = realloc(outdata, pos + strlen(line) + 1);
-		strcpy((char*)outdata + pos, line);
-		pos += strlen(line);
-		free(line);
+			outdata = realloc(outdata, pos + strlen(line) + 1);
+			strcpy((char*)outdata + pos, line);
+			pos += strlen(line);
+			free(line);
+		}
 	}
 	if (n >= 0)
 		free(namelist);

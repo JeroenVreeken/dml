@@ -148,7 +148,8 @@ static int aprs_is_cb(void *arg)
 	
 	r = read(fd_is, buffer, 256);
 	if (r > 0) {
-		write(2, buffer, r);
+		if (write(2, buffer, r) != r)
+			return -1;
 	} else {
 		if (r == 0) {
 			close(fd_is);
@@ -172,7 +173,8 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 		return -1;
 
 	printf("%s", aprs);
-	write(fd_is, aprs, strlen(aprs));
+	if (write(fd_is, aprs, strlen(aprs)) <= 0)
+		return -1;
 
 	return 0;
 }
@@ -195,7 +197,8 @@ int fprs_aprsis_init(char *host, int port, char *mycall)
 	char loginline[256];
 	size_t loginline_len = sizeof(loginline) - 1;
 	fprs2aprs_login(loginline, &loginline_len, call);
-	write(fd_is, loginline, strlen(loginline));
+	if (write(fd_is, loginline, strlen(loginline)) <= 0)
+		goto err_write;
 
 	if (dml_poll_add(fprs_aprsis_init, aprs_is_cb, NULL, NULL))
 		goto err_poll;
@@ -203,6 +206,7 @@ int fprs_aprsis_init(char *host, int port, char *mycall)
 	dml_poll_in_set(fprs_aprsis_init, true);
 
 	return 0;
+err_write:
 err_poll:
 	return -1;
 }

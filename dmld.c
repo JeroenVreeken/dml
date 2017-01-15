@@ -799,7 +799,8 @@ void server_connection(void *arg, int fd)
 	struct connection *con;
 	char *name;
 	
-	asprintf(&name, "server-%d", fd);
+	if (asprintf(&name, "server-%d", fd) < 0)
+		return;
 	
 	con = connection_create();
 	if (!con)
