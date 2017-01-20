@@ -498,7 +498,10 @@ static int fprs_timer(void *arg)
 				continue;
 			if (priv->mine)
 				continue;
-			if (!strcmp(dml_stream_alias_get(ds), DML_ALIAS_FPRS_BACKBONE)) {
+			char *alias = dml_stream_alias_get(ds);
+			if (!alias)
+				continue;
+			if (!strcmp(alias, DML_ALIAS_FPRS_BACKBONE)) {
 				connect(ds);
 			}
 
