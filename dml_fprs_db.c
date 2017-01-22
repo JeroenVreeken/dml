@@ -155,11 +155,11 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t *rid = dml_stream_id_get(ds);
 			if (!strcmp(DML_MIME_FPRS, dmime)) {
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				priv->match_mime = true;
 				if (!priv) {
 					priv = stream_priv_new();
 					dml_stream_priv_set(ds, priv);
 				}				
+				priv->match_mime = true;
 				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
 				if (!ck)
 					dml_packet_send_req_certificate(dc, rid);
