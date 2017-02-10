@@ -129,7 +129,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					break;
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
 				if (!priv) {
-					dml_stream_priv_set(ds, stream_priv_new());
+					priv = stream_priv_new();
+					dml_stream_priv_set(ds, priv);
 				}
 				char *mime = dml_stream_mime_get(ds);
 				if (!mime)
