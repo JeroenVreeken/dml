@@ -169,8 +169,10 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 	char aprs[256] = { 0 };
 	size_t aprs_size = 255;
 	
-	if (fprs2aprs(aprs, &aprs_size, frame, from, call))
+	if (fprs2aprs(aprs, &aprs_size, frame, from, call)) {
+		printf("Could not convert to APRIS frame\n");
 		return -1;
+	}
 
 	printf("%s", aprs);
 	if (write(fd_is, aprs, strlen(aprs)) <= 0)
