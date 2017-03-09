@@ -45,7 +45,11 @@
 #include "fprs_aprsis.h"
 
 static int fd_is = -1;
-static char *call;
+static char *call = NULL;
+static char *is_host = NULL;
+static int is_port;
+
+static int aprs_is_cb(void *arg);
 
 static int tcp_connect(char *host, int port)
 {
@@ -141,58 +145,11 @@ static int tcp_connect(char *host, int port)
 	return sock;
 }
 
-static int aprs_is_cb(void *arg)
+static int aprsis_open(void)
 {
-	char buffer[256];
-	ssize_t r;
+	printf("Opening connection to APRS-IS\n");
 	
-	r = read(fd_is, buffer, 256);
-	if (r > 0) {
-		if (write(2, buffer, r) != r)
-			return -1;
-	} else {
-		if (r == 0) {
-			close(fd_is);
-			fd_is = -1;
-			dml_poll_fd_set(fprs_aprsis_init, fd_is);
-			dml_poll_in_set(fprs_aprsis_init, false);
-			//todo start rety timer here...
-		}
-		return -1;
-	}
-	
-	return 0;
-}
-
-int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
-{
-	char aprs[256] = { 0 };
-	size_t aprs_size = 255;
-	
-	if (fprs2aprs(aprs, &aprs_size, frame, from, call)) {
-		printf("Could not convert to APRIS frame\n");
-		return -1;
-	}
-
-	printf("%s", aprs);
-	if (write(fd_is, aprs, strlen(aprs)) <= 0)
-		return -1;
-
-	return 0;
-}
-
-
-int fprs_aprsis_init(char *host, int port, char *mycall)
-{
-	fd_is = tcp_connect(host, port);
-
-	call = strdup(mycall);
-	int i;
-		
-	for (i = 0; i < strlen(call); i++) {
-		call[i] = toupper(call[i]);
-	}
-
+	fd_is = tcp_connect(is_host, is_port);
 	if (fd_is < 0)
 		return -1;
 
@@ -211,4 +168,79 @@ int fprs_aprsis_init(char *host, int port, char *mycall)
 err_write:
 err_poll:
 	return -1;
+}
+
+static void aprs_is_error(void)
+{
+	close(fd_is);
+	fd_is = -1;
+	
+	dml_poll_fd_set(fprs_aprsis_init, fd_is);
+	dml_poll_in_set(fprs_aprsis_init, false);
+
+	printf("Lost connection to APRS-IS\n");
+
+	/* Fist attempt to reconnect: */
+	aprsis_open();
+}
+
+static int aprs_is_cb(void *arg)
+{
+	char buffer[256];
+	ssize_t r;
+	
+	r = read(fd_is, buffer, 256);
+	if (r > 0) {
+		if (write(2, buffer, r) != r)
+			return -1;
+	} else {
+		if (r == 0) {
+			aprs_is_error();
+		}
+		return -1;
+	}
+	
+	return 0;
+}
+
+int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
+{
+	if (fd_is < 0) {
+		aprsis_open();
+		if (fd_is < 0)
+			return -1;
+	}
+	
+	char aprs[256] = { 0 };
+	size_t aprs_size = 255;
+	
+	if (fprs2aprs(aprs, &aprs_size, frame, from, call)) {
+		printf("Could not convert to APRIS frame\n");
+		return -1;
+	}
+
+	printf("%s", aprs);
+	if (write(fd_is, aprs, strlen(aprs)) <= 0) {
+		aprs_is_error();
+		return -1;
+	}
+
+	return 0;
+}
+
+int fprs_aprsis_init(char *host, int port, char *mycall)
+{
+	free(is_host);
+	free(call);
+	is_host = strdup(host);
+	is_port = port;
+	call = strdup(mycall);
+
+	int i;
+		
+	for (i = 0; i < strlen(call); i++) {
+		call[i] = toupper(call[i]);
+	}
+
+	return aprsis_open();
 }
