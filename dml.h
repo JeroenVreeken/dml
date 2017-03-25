@@ -48,4 +48,20 @@ static inline void dml_timestamp2ts(struct timespec *ts, uint64_t timestamp)
 	ts->tv_sec = timestamp >> 16;
 }
 
+static inline uint64_t dml_timestamp_add(uint64_t timestamp, struct timespec *ts)
+{
+	struct timespec org;
+	
+	dml_timestamp2ts(&org, timestamp);
+	
+	org.tv_sec += ts->tv_sec;
+	org.tv_nsec += ts->tv_nsec;
+	if (org.tv_nsec >= 1000000000) {
+		org.tv_sec++;
+		org.tv_nsec -= 1000000000;
+	}
+
+	return dml_ts2timestamp(&org);
+}
+
 #endif /* _INCLUDE_DML_H_ */

@@ -388,11 +388,13 @@ struct parrot_data {
 };
 
 struct parrot_data *parrot_queue = NULL;
-uint64_t parrot_timestamp;
+struct timespec parrot_ts;
 
 
 int parrot_dequeue(void *data)
 {
+	uint64_t parrot_timestamp;
+	
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
 
@@ -400,33 +402,34 @@ int parrot_dequeue(void *data)
 		    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
 
 		struct timespec ts;
-		uint64_t timestamp;
 		clock_gettime(CLOCK_REALTIME, &ts);
-		timestamp = dml_ts2timestamp(&ts);
 
-		if (!parrot_timestamp) {
-			parrot_timestamp = timestamp;
+		if (!parrot_ts.tv_sec) {
+			parrot_ts = ts;
 		}
-		long diff = timestamp - parrot_timestamp;
+		long diff = (ts.tv_sec - parrot_ts.tv_sec) * 1000;
+		diff += (ts.tv_nsec - parrot_ts.tv_nsec) / 1000000;
 		if (diff < 0)
 			diff = 0;
+			
 		long waitms = entry->duration;
 		waitms -= diff;
 		if (waitms < 1) {
 			waitms = 1;
-			parrot_timestamp = timestamp;
 		}
-		
+
 		dml_poll_timeout(&parrot_queue,
 		    &(struct timespec){ 0, waitms * 1000000});
 		
+		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 printf("e %016lx %ld %ld\n", parrot_timestamp, diff, waitms);
 		dml_packet_send_data(dml_con, packet_id, 
 		    entry->data, entry->size, parrot_timestamp, dk);
 		
-		parrot_timestamp += entry->duration;
-		if ((parrot_timestamp & 0xffff) >= 1000) {
-			parrot_timestamp = (parrot_timestamp & ~0xffff) + (1 << 16);
+		parrot_ts.tv_nsec += entry->duration * 1000000;
+		if (parrot_ts.tv_nsec >= 1000000000) {
+			parrot_ts.tv_sec++;
+			parrot_ts.tv_nsec -= 1000000000;
 		}
 		
 		parrot_queue = parrot_queue->next;
@@ -439,30 +442,26 @@ printf("e %016lx %ld %ld\n", parrot_timestamp, diff, waitms);
 		data[6] = 0;
 		data[7] = 0;
 
+		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 printf("= %016lx\n", parrot_timestamp);
 		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
-		parrot_timestamp = 0;
+		parrot_ts.tv_sec = 0;
 	}
 	
 	return 0;
 }
 
-void parrot_queue_add(void *data, size_t size)
+void parrot_queue_add(void *data, size_t size, int duration)
 {
 	struct parrot_data *entry, **listp;
-	uint8_t *datab = data;
 	int i;
-	int mode = datab[6];
-	
-	if (size <= 8)
-		return;
 	
 	entry = malloc(sizeof(struct parrot_data));
 	entry->data = malloc(size);
 	
 	memcpy(entry->data, data, size);
 	entry->size = size;
-	entry->duration = trx_dv_duration(size - 8, mode);
+	entry->duration = duration;
 	entry->next = NULL;
 	
 	for (listp = &parrot_queue, i = 0; *listp; listp = &(*listp)->next, i++)
@@ -483,13 +482,17 @@ static bool tx_state = false;
 
 void recv_data(void *data, size_t size, uint64_t timestamp)
 {
+	int duration;
+	
 	if (size < 8)
 		return;
 	
 	uint8_t *datab = data;
 	
-//	int mode = datab[6];
+	int mode = datab[6];
 	bool state = datab[7] & 0x1;
+	
+	duration = trx_dv_duration(size - 8, mode);
 	
 //	printf("mode %d state %d\n", mode, state);
 	
@@ -506,7 +509,7 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 	if (!parrot)
 		send_data(data, size, timestamp);
 	else {
-		parrot_queue_add(data, size);
+		parrot_queue_add(data, size, duration);
 	}
 }
 
