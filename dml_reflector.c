@@ -422,7 +422,7 @@ int parrot_dequeue(void *data)
 		    &(struct timespec){ 0, waitms * 1000000});
 		
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
-printf("e %016lx %ld %ld\n", parrot_timestamp, diff, waitms);
+printf("e %016lx %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
 		dml_packet_send_data(dml_con, packet_id, 
 		    entry->data, entry->size, parrot_timestamp, dk);
 		
