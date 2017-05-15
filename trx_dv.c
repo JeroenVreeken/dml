@@ -19,6 +19,7 @@
 #include <eth_ar/eth_ar.h>
 #include "dml_poll.h"
 #include "alaw.h"
+#include "ulaw.h"
 
 #include <arpa/inet.h>
 #include <linux/if_packet.h>
@@ -50,7 +51,7 @@ static int trx_dv_in_cb(void *arg)
 {
 	uint8_t dv_frame[6 + 6 + 2 + 1500];
 	ssize_t ret;
-	
+
 	ret = recv(dv_sock, dv_frame, sizeof(dv_frame), 0);
 	if (ret >= 14) {
 		uint16_t type = (dv_frame[12] << 8) | dv_frame[13];
@@ -93,12 +94,18 @@ static int trx_dv_in_cb(void *arg)
 				mode = CODEC2_MODE_700C;
 				datasize = 4;
 				break;
+#ifdef CODEC2_MODE_1300C
 			case ETH_P_CODEC2_1300C:
 				mode = CODEC2_MODE_1300C;
 				datasize = 7;
 				break;
+#endif
 			case ETH_P_ALAW:
 				mode = 'A';
+				datasize = ret - 14;
+				break;
+			case ETH_P_ULAW:
+				mode = 'U';
 				datasize = ret - 14;
 				break;
 			case ETH_P_AR_CONTROL:
@@ -148,10 +155,17 @@ int trx_dv_transcode(uint8_t from[6], uint8_t to[6], int from_mode, uint8_t *fro
 	
 	short speech[samples];
 	
-	if (from_mode != 'A') {
-		codec2_decode(trans_dec, speech, from_dv);
-	} else {
-		alaw_decode(speech, from_dv, samples);
+	switch (from_mode)
+	{
+		case 'A':
+			alaw_decode(speech, from_dv, samples);
+			break;
+		case 'U':
+			ulaw_decode(speech, from_dv, samples);
+			break;
+		default:
+			codec2_decode(trans_dec, speech, from_dv);
+			break;
 	}
 	
 	while (samples) {
@@ -213,11 +227,16 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 		case CODEC2_MODE_700C:
 			type = htons(ETH_P_CODEC2_700C);
 			break;
+#ifdef CODEC2_MODE_1300C
 		case CODEC2_MODE_1300C:
 			type = htons(ETH_P_CODEC2_1300C);
 			break;
+#endif
 		case 'A':
 			type = htons(ETH_P_ALAW);
+			break;
+		case 'U':
+			type = htons(ETH_P_ULAW);
 			break;
 		default:
 			return -1;
@@ -291,8 +310,10 @@ int trx_dv_duration(size_t size, int mode)
 			return (size * 40) / 4;
 		case CODEC2_MODE_700C:
 			return (size * 40) / 4;
+#ifdef CODEC2_MODE_1300C
 		case CODEC2_MODE_1300C:
 			return (size * 40) / 7;
+#endif
 		case 'A':
 			return size / 8;
 		default:
@@ -404,8 +425,10 @@ int trx_dv_init(char *dev,
 			limit_mode = CODEC2_MODE_700B;
 		} else if (!strcmp(mode, "700C")) {
 			limit_mode = CODEC2_MODE_700C;
+#ifdef CODEC2_MODE_1300C
 		} else if (!strcmp(mode, "1300C")) {
 			limit_mode = CODEC2_MODE_1300C;
+#endif
 		} else {
 			return -1;
 		}

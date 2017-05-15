@@ -62,6 +62,7 @@ dml_httpd works!
 <script src="fprs.js"></script>
 <script src="aprs_symbol.js"></script>
 <script src="alaw.js"></script>
+<script src="ulaw.js"></script>
 <script src="resample.js"></script>
 <script src="libcodec2.js"></script>
 <script src="codec2.js"></script>
@@ -69,6 +70,7 @@ dml_httpd works!
 
 
 CODEC2.MODE[65] = 'A-law';
+CODEC2.MODE[85] = 'u-law';
 
 
 function char2hex(c)
@@ -479,6 +481,7 @@ function dmlc2()
 	var timeout_var = false;
 	
 	dmlc2_this.alaw_data = new alaw();
+	dmlc2_this.ulaw_data = new ulaw();
 	dmlc2_this.c2 = new codec2();
 	
 	this.data = function dmlc2_data(newdata) {
@@ -495,6 +498,8 @@ function dmlc2()
 				var samples
 				if (newmode == 'A-law') {
 					samples = dmlc2_this.alaw_data.decode(c2_buf);
+				} else if (newmode == 'u-law') {
+					samples = dmlc2_this.ulaw_data.decode(c2_buf);
 				} else {
 					dmlc2_this.c2.create(bytemode);
 					samples = dmlc2_this.c2.decode(c2_buf);

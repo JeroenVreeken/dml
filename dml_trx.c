@@ -55,6 +55,7 @@
 
 static bool fullduplex = false;
 static bool repeater = false;
+static bool allow_commands = true;
 
 static struct dml_stream *stream_dv;
 static struct dml_stream *stream_fprs;
@@ -910,7 +911,8 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 		if (command[command_len] == '#') {
 			if (command[0] == '*') {
 				command[command_len] = 0;
-				command_cb_handle(command+1);
+				if (allow_commands)
+					command_cb_handle(command+1);
 			}
 			command_len = 0;
 		} else {
@@ -1014,6 +1016,7 @@ int main(int argc, char **argv)
 
 	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
 	repeater = atoi(dml_config_value("repeater", NULL, "0"));
+	allow_commands = atoi(dml_config_value("allow_commands", NULL, "0"));
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {

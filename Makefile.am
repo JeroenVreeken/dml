@@ -20,7 +20,8 @@ DML_SRCS = \
 
 TRX_SRCS = \
 	trx_dv.c \
-	alaw.c
+	alaw.c \
+	ulaw.c
 
 
 FPRS_DB_SRCS = \

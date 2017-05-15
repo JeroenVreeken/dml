@@ -375,7 +375,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	
 	prev_timestamp = timestamp;
 
-printf("+ %016lx\n", timestamp);
+printf("+ %016"PRIx64"\n", timestamp);
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
@@ -422,7 +422,7 @@ int parrot_dequeue(void *data)
 		    &(struct timespec){ 0, waitms * 1000000});
 		
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
-printf("e %016lx %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
+printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
 		dml_packet_send_data(dml_con, packet_id, 
 		    entry->data, entry->size, parrot_timestamp, dk);
 		
@@ -443,7 +443,7 @@ printf("e %016lx %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration)
 		data[7] = 0;
 
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
-printf("= %016lx\n", parrot_timestamp);
+printf("= %016"PRIx64"\n", parrot_timestamp);
 		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
 		parrot_ts.tv_sec = 0;
 	}
@@ -494,7 +494,7 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 	
 	duration = trx_dv_duration(size - 8, mode);
 	
-//	printf("mode %d state %d\n", mode, state);
+	printf("mode %d state %d duration: %d\n", mode, state, duration);
 	
 	if (state != tx_state) {
 		char call[ETH_AR_CALL_SIZE];
