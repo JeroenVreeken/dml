@@ -762,9 +762,11 @@ static uint8_t *silence;
 static void send_beep800(void)
 {
 	trx_dv_send(mac_dev, mac_bcast, 'A', beep800, beepsize);
+	trx_dv_send(mac_dev, mac_bcast, 'A', beep800, beepsize);
 }
 static void send_beep1600(void)
 {
+	trx_dv_send(mac_dev, mac_bcast, 'A', beep1600, beepsize);
 	trx_dv_send(mac_dev, mac_bcast, 'A', beep1600, beepsize);
 }
 static void send_silence(void)
@@ -788,10 +790,18 @@ static int rx_watchdog(void *arg)
 
 	if (do_beep800) {
 		send_silence();
+		send_silence();
+		send_silence();
+		send_silence();
+		send_silence();
 		send_beep800();
 		do_beep800 = false;
 	}
 	if (do_beep1600) {
+		send_silence();
+		send_silence();
+		send_silence();
+		send_silence();
 		send_silence();
 		send_beep1600();
 		do_beep1600 = false;
