@@ -315,6 +315,7 @@ int trx_dv_duration(size_t size, int mode)
 			return (size * 40) / 7;
 #endif
 		case 'A':
+		case 'U':
 			return size / 8;
 		default:
 			return -1;
@@ -376,9 +377,13 @@ static int trx_dv_watchdog(void *arg)
 	
 	if (!bound && dv_bound) {
 		printf("Lost interface\n");
+		dml_poll_fd_set(trx_dv_init, -1);
+		dml_poll_in_set(trx_dv_init, false);
 	}
 	if (bound && !dv_bound) {
 		printf("Bound to interface\n");
+		dml_poll_fd_set(trx_dv_init, dv_sock);
+		dml_poll_in_set(trx_dv_init, true);
 	}
 	dv_bound = bound;
 	
