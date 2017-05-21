@@ -449,22 +449,24 @@ int trx_dv_init(char *dev,
 
 	dv_sock = sock;
 
-	if (trx_dv_bind_if())
-		goto err_bind;
-
-	dv_bound = true;
-
-
 	if (dml_poll_add(trx_dv_init, trx_dv_in_cb, NULL, trx_dv_watchdog))
 		goto err_poll;
-	dml_poll_fd_set(trx_dv_init, sock);
-	dml_poll_in_set(trx_dv_init, true);
+
+	if (trx_dv_bind_if()) {
+		printf("Failed to connect to interface, trying again later\n");
+		dv_bound = false;
+		dml_poll_fd_set(trx_dv_init, -1);
+		dml_poll_in_set(trx_dv_init, false);
+	} else {
+		dv_bound = true;
+		dml_poll_fd_set(trx_dv_init, sock);
+		dml_poll_in_set(trx_dv_init, true);
+	}
 	dml_poll_timeout(trx_dv_init, &(struct timespec){ TRX_DV_WATCHDOG, 0});
 
 	return 0;
 
 err_poll:
-err_bind:
 	close(sock);
 err_socket:
 	return -1;
