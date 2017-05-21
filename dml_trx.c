@@ -86,6 +86,8 @@ static double my_fprs_longitude = 0.0;
 static double my_fprs_latitude = 0.0;
 static char *my_fprs_text = "";
 static bool aprsis = false;
+static char *aprsis_host;
+static int aprsis_port;
 
 static char my_call[ETH_AR_CALL_SIZE];
 
@@ -990,6 +992,10 @@ void mac_dev_cb(uint8_t mac[6])
 	printf("Interface address %02x:%02x:%02x:%02x:%02x:%02x %s-%d\n",
 	    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
 	    multicast ? "MULTICAST" : my_call, ssid);
+
+	if (aprsis_host) {
+		fprs_aprsis_init(aprsis_host, aprsis_port, my_call);
+	}
 }
 
 int main(int argc, char **argv)
@@ -1007,8 +1013,6 @@ int main(int argc, char **argv)
 	char *alias;
 	static uint8_t id[DML_ID_SIZE];
 	uint32_t bps = 6400;
-	char *aprsis_host;
-	int aprsis_port;
 
 	if (argc > 1)
 		file = argv[1];
@@ -1028,6 +1032,13 @@ int main(int argc, char **argv)
 	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
 	repeater = atoi(dml_config_value("repeater", NULL, "0"));
 	allow_commands = atoi(dml_config_value("allow_commands", NULL, "0"));
+
+	my_fprs_longitude = atof(dml_config_value("longitude", NULL, "0.0"));
+	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
+	my_fprs_text = dml_config_value("fprs_text", NULL, "");
+
+	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
+	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {
@@ -1060,18 +1071,8 @@ int main(int argc, char **argv)
 	}
 	
 	
-	my_fprs_longitude = atof(dml_config_value("longitude", NULL, "0.0"));
-	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
-	my_fprs_text = dml_config_value("fprs_text", NULL, "");
-
-	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
-	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
 	
 	if (aprsis_host) {
-		if (fprs_aprsis_init(aprsis_host, aprsis_port, my_call)) {
-			printf("Could not openn APRSIS connection\n");
-			return -1;
-		}
 		aprsis = true;
 	}
 	

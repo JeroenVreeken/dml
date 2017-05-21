@@ -230,6 +230,13 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 
 int fprs_aprsis_init(char *host, int port, char *mycall)
 {
+	if (fd_is >= 0) {
+		close(fd_is);
+		fd_is = -1;
+	
+		dml_poll_fd_set(fprs_aprsis_init, fd_is);
+		dml_poll_in_set(fprs_aprsis_init, false);
+	}
 	free(is_host);
 	free(call);
 	is_host = strdup(host);
