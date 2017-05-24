@@ -157,6 +157,10 @@ static int fprs_update_status(char *stream, char *assoc)
 	/* Send FPRS frame with callsign in FreeDV header */
 	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
 
+	if (aprsis) {
+		fprs_aprsis_frame(fprs_frame, mac_dev);
+	}
+
 	/* Add callsign to packet for others */
 	fprs_frame_add_callsign(fprs_frame, mac_dev);
 
