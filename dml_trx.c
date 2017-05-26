@@ -91,6 +91,9 @@ static int aprsis_port;
 
 static char my_call[ETH_AR_CALL_SIZE];
 
+static bool do_beep800, do_beep1600;
+
+
 static uint16_t alloc_data_id(void)
 {
 	uint16_t id;
@@ -539,7 +542,6 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 						do_reject = true;
 					}
 					do_connect = false;
-					break;
 				}
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
 				if (!priv || !priv->match_mime) {
@@ -551,8 +553,10 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					if (key) {
 						printf("Request accepted, connecting\n");
 						connect(ds_rev);
+						do_beep800 = true;
 					} else {
 						printf("No valid crypto key for this stream (yet)\n");
+						do_reject = true;
 					}
 				}
 				if (do_reject) {
@@ -569,6 +573,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					cur_con = NULL;
 					fprs_update_status(
 					    dml_stream_name_get(stream_dv), "");
+					do_beep1600 = true;
 				}
 				if (ds_rev == cur_db) {
 					printf("DB requests disconnect\n");
@@ -757,7 +762,6 @@ static void recv_data(void *data, size_t size)
 
 static int beepsize;
 static uint8_t *beep800, *beep1600;
-static bool do_beep800, do_beep1600;
 static int silencesize;
 static uint8_t *silence;
 

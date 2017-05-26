@@ -237,6 +237,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 			if (action & DML_PACKET_REQ_REVERSE_CONNECT) {
 				bool do_connect = true;
+				bool do_reject = false;
 
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
 		
@@ -245,7 +246,17 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					if (priv->match_mime && key) {
 						connect(ds_rev);
 						send_beep();
+					} else {
+						do_reject = true;
 					}
+				} else {
+					do_reject = true;
+				}
+				if (do_reject) {
+					dml_packet_send_req_reverse(dml_con,
+					    id_rev, 
+					    id_me,
+					    DML_PACKET_REQ_REVERSE_DISC);
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
