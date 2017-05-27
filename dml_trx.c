@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016, 2017
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@ enum sound_msg {
 };
 
 static enum sound_msg do_msg = SOUND_MSG_IDLE;
+static char *command_prefix = "";
 
 static void queue_sound_msg(enum sound_msg msg)
 {
@@ -873,7 +874,16 @@ static void command_cb_handle(char *command)
 	is_73 = !strcmp(command, "73");
 	do_disconnect |= is_73;
 	
+	/* try to find by alias directly */
 	ds = dml_stream_by_alias(command);
+	if (!ds) {
+		/* Second attempt: try to find with added prefix */
+		char *command_pref;
+		
+		asprintf(&command_pref, "%s%s", command_prefix, command);
+		ds = dml_stream_by_alias(command_pref);
+		free(command_pref);
+	}
 	if (ds)
 		priv = dml_stream_priv_get(ds);
 	else if (!is_73)
@@ -1066,6 +1076,8 @@ int main(int argc, char **argv)
 
 	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
 	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
+
+	command_prefix = dml_config_value("command_prefix", NULL, "");
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {

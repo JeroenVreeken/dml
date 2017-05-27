@@ -102,7 +102,6 @@ struct dml_stream *dml_stream_by_alias(char *alias)
 	for (stream = streams; stream; stream = stream->next) {
 		if (!stream->alias)
 			continue;
-		printf("%s %s\n", stream->alias, alias);
 		if (!strcmp(stream->alias, alias))
 			break;
 	}
