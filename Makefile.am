@@ -41,7 +41,7 @@ dml_reflector_SOURCES = $(DML_SRCS) $(TRX_SRCS) dml_reflector.c
 dml_reflector_LDFLAGS = -lcodec2 -leth_ar -lm -lcrypto
 
 
-dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c
+dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c soundlib.c
 dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar -lcrypto
 
 
