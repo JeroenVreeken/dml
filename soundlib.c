@@ -287,6 +287,12 @@ uint8_t *soundlib_spell(char *text, size_t *size)
 		*size = 0;
 	return NULL;
 }
+uint8_t *soundlib_synthesize(char *text, size_t *size)
+{
+	if (size)
+		*size = 0;
+	return NULL;
+}
 #endif
 
 int soundlib_init(int init_rate)
