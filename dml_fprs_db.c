@@ -379,7 +379,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
+					fprintf(stderr, "Received %zd from %s\n",
+					    payload_len, dml_stream_name_get(ds));
 					recv_data(payload_data, payload_len, timestamp, ds);
 				}
 			}

@@ -20,6 +20,7 @@
 #include "alaw.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #ifdef HAVE_FLITE
 #include <flite/flite.h>
@@ -31,43 +32,44 @@ static cst_voice *flite_voice;
 
 static char *spell(char c)
 {
+	c = tolower(c);
 	switch (c) {
-		case 'a': return "Alfa";
-		case 'b': return "Bravo";
-		case 'c': return "Charlie";
-		case 'd': return "Delta";
-		case 'e': return "Echo";
-		case 'f': return "Foxtrot";
-		case 'g': return "Golf";
-		case 'h': return "Hotel";
-		case 'i': return "India";
-		case 'j': return "Juliett";
-		case 'k': return "Kilo";
-		case 'l': return "Lima";
-		case 'm': return "Mike";
-		case 'n': return "November";
-		case 'o': return "Oscar";
-		case 'p': return "Papa";
-		case 'q': return "Quebec";
-		case 'r': return "Romeo";
-		case 's': return "Sierra";
-		case 't': return "Tango";
-		case 'u': return "Uniform";
-		case 'v': return "Victor";
-		case 'w': return "Whiskey";
-		case 'x': return "X-ray";
-		case 'y': return "Yankee";
-		case 'z': return "Zulu";
-		case '0': return "Zero";
-		case '1': return "One";
-		case '2': return "Two";
-		case '3': return "Three";
-		case '4': return "Four";
-		case '5': return "Five";
-		case '6': return "Six";
-		case '7': return "Seven";
-		case '8': return "Eight";
-		case '9': return "Nine";
+		case 'a': return "ALFAH";//"Alfa";
+		case 'b': return "BRAHVOH";//"Bravo";
+		case 'c': return "CHARLEE";//"Charlie";
+		case 'd': return "DELLTAH";//"Delta";
+		case 'e': return "ECKOH";//"Echo";
+		case 'f': return "FOKSTROT";//"Foxtrot";
+		case 'g': return "GOLF";//"Golf";
+		case 'h': return "HOHTELL";//"Hotel";
+		case 'i': return "IN DEE AH";//"India";
+		case 'j': return "JEW LEE ETT";//"Juliett";
+		case 'k': return "KEY LOH";//"Kilo";
+		case 'l': return "LEE MAH";//"Lima";
+		case 'm': return "MIKE";//"Mike";
+		case 'n': return "NO VEM BER";//"November";
+		case 'o': return "OSS CAR";//"Oscar";
+		case 'p': return "PAHPAH";//"Papa";
+		case 'q': return "KEH BECK";//"Quebec";
+		case 'r': return "ROMeOH";//"Romeo";
+		case 's': return "SEE AIR RAH";//"Sierra";
+		case 't': return "TANGO";//"Tango";
+		case 'u': return "YOU NEE FORM";//"Uniform";
+		case 'v': return "VIKTOR";//"Victor";
+		case 'w': return "WISS KEY";//"Whiskey";
+		case 'x': return "ECKS RAY";//"X-ray";
+		case 'y': return "YANG KEY";//"Yankee";
+		case 'z': return "ZOO LOO";//"Zulu";
+		case '0': return "0";
+		case '1': return "1";
+		case '2': return "2";
+		case '3': return "3";
+		case '4': return "4";
+		case '5': return "5";
+		case '6': return "6";
+		case '7': return "7";
+		case '8': return "8";
+		case '9': return "9";
 		case '-': return "Dash";
 		case '.': return "Point";
 		case '/': return "Slash";
@@ -209,6 +211,7 @@ uint8_t *soundlib_get(int nr, size_t *size)
 }
 
 #ifdef HAVE_FLITE
+#define SOUNDLIB_GAIN 1.4;
 static uint8_t *soundlib_add_buffer(uint8_t *old, size_t *size, short *in_samples, size_t in_nr, int in_rate)
 {
 	SRC_DATA src;
@@ -225,6 +228,10 @@ static uint8_t *soundlib_add_buffer(uint8_t *old, size_t *size, short *in_sample
 	src_short_to_float_array(in_samples, data_in, in_nr);
 	
 	src_simple(&src, SRC_LINEAR, 1);
+	
+	int i;
+	for (i = 0; i < out_nr; i++)
+		data_out[i] *= SOUNDLIB_GAIN;
 	
 	src_float_to_short_array(data_out, short_out, out_nr);
 
@@ -268,6 +275,7 @@ uint8_t *soundlib_spell(char *text, size_t *size)
 	
 	for (i = 0; i < strlen(text); i++) {
 		char *letter = spell(text[i]);
+		printf("spell: %s\n", letter);
 		cst_wave *wave = flite_text_to_wave(letter, flite_voice);
 		
 		sound = soundlib_add_buffer(sound, &pos,

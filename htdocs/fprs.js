@@ -155,7 +155,7 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				}
 				break;
 			case FPRS.ELEMENT.DESTINATION:
-				str+= "DESTINATION";
+				str+= "DESTINATION: ";
 				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
 				break;
 			case FPRS.ELEMENT.TIMESTAMP:

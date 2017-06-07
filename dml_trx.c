@@ -42,8 +42,8 @@
 
 
 #define DML_TRX_DATA_KEEPALIVE 10
-#define DML_TRX_FPRS_TIMER (10 * 60)
-//#define DML_TRX_FPRS_TIMER (1 * 60)
+//#define DML_TRX_FPRS_TIMER (10 * 60)
+#define DML_TRX_FPRS_TIMER (1 * 60)
 #define DML_TRX_FPRS_TIMER_INIT (10)
 #define DML_TRX_FPRS_DB_TIMER 10
 
@@ -1156,7 +1156,7 @@ int message_cb(uint8_t to[6], uint8_t from[6],
 
 	queue_sound_synthesize("Message from:");
 	queue_sound_spell(from_call);
-	queue_sound_spell(msg_asc);
+	queue_sound_synthesize(msg_asc);
 
 	return 0;
 }
