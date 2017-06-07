@@ -20,7 +20,7 @@
 #define _INCLUDE_FPRS_APRSIS_H_
 
 
-int fprs_aprsis_init(char *host, int port, char *call);
+int fprs_aprsis_init(char *host, int port, char *mycall, bool req_msg, void (*msg_cb)(struct fprs_frame *));
 int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from);
 
 

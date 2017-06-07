@@ -26,6 +26,8 @@ int soundlib_add_silence(int nr, double length);
 int soundlib_add_file(int nr, char *name);
 
 uint8_t *soundlib_get(int nr, size_t *size);
+uint8_t *soundlib_synthesize(char *text, size_t *size);
+uint8_t *soundlib_spell(char *text, size_t *size);
 
 int soundlib_init(int init_rate);
 

@@ -38,6 +38,9 @@ var FPRS = {
 		TIMESTAMP: 20,
 		DMLSTREAM: 21,
 		DMLASSOC: 22,
+		MESSAGE: 32,
+		MESSAGEID: 33,
+		MESSAGEACK: 34,
 	}
 };
 
@@ -153,6 +156,7 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				break;
 			case FPRS.ELEMENT.DESTINATION:
 				str+= "DESTINATION";
+				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
 				break;
 			case FPRS.ELEMENT.TIMESTAMP:
 				str+= "TIMESTAMP: ";
@@ -172,6 +176,18 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				break;
 			case FPRS.ELEMENT.DMLASSOC:
 				str+= "DMLASSOC: ";
+				str+= data2str(dataview);
+				break;
+			case FPRS.ELEMENT.MESSAGE:
+				str+= "MESSAGE: ";
+				str+= data2str(dataview);
+				break;
+			case FPRS.ELEMENT.MESSAGEID:
+				str+= "MESSAGEID: ";
+				str+= data2str(dataview);
+				break;
+			case FPRS.ELEMENT.MESSAGEACK:
+				str+= "MESSAGEACK: ";
 				str+= data2str(dataview);
 				break;
 		}

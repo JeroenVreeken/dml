@@ -41,6 +41,10 @@ struct fprs_request {
 
 static struct fprs_request *requests = NULL;
 
+static int (*cb_message)(uint8_t to[6], uint8_t from[6], void *data, size_t dsize, void *id, size_t isize, void *arg);
+static void *arg_message;
+
+
 static int fprs_request_add(struct fprs_db_id *id, enum fprs_type type, time_t t_req, unsigned int link)
 {
 	struct fprs_request *req, **entryp;
@@ -256,11 +260,41 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 		
 		dest_id.type = FPRS_DB_ID_CALLSIGN;
 		memcpy(dest_id.id.callsign, fprs_element_data(fprs_destination), 6);
-		
+
+		if (cb_message) {
+			struct fprs_element *fprs_message = 
+			    fprs_frame_element_by_type(fprs_frame, FPRS_MESSAGE);
+			struct fprs_element *fprs_messageid = 
+			    fprs_frame_element_by_type(fprs_frame, FPRS_MESSAGEID);
+			
+			if (fprs_message && fprs_callsign) {
+				void *mdata = fprs_element_data(fprs_message);
+				size_t msize = fprs_element_size(fprs_message);
+				void *idata = NULL;
+				size_t isize = 0;
+				
+				if (fprs_messageid) {
+					idata = fprs_element_data(fprs_messageid);
+					isize = fprs_element_size(fprs_messageid);
+				}
+				
+				/* Skip if claimed */
+				if (!cb_message(
+				    dest_id.id.callsign,
+				    fprs_element_data(fprs_callsign),
+				    mdata, msize, idata, isize, arg_message))
+					goto skip;
+			}
+		}
+
 		unsigned int dest_link = fprs_db_link_get(&dest_id);
 
 		if (!dest_link) {
-			dest_link = FPRS_PARSE_UPLINK;
+			/* Don't repeat if it already came from uplink */
+			if (link != FPRS_PARSE_UPLINK)
+				dest_link = FPRS_PARSE_UPLINK;
+			else
+				goto skip;
 		}
 		cb(data, size, dest_link, arg);
 		
@@ -371,3 +405,12 @@ err_frame:
 	return r;
 }
 
+int fprs_parse_hook_message(
+    int (*cb)(uint8_t to[6], uint8_t from[6], void *data, size_t dsize, void *id, size_t isize, void *arg),
+    void *arg)
+{
+	cb_message = cb;
+	arg_message = NULL;
+	
+	return 0;
+}

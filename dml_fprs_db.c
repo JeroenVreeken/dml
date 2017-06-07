@@ -26,6 +26,7 @@
 #include "dml_stream.h"
 #include "fprs_db.h"
 #include "fprs_parse.h"
+#include "fprs_aprsis.h"
 
 #include <eth_ar/eth_ar.h>
 
@@ -51,6 +52,12 @@ static struct dml_stream *stream_fprs_db;
 struct dml_connection *dml_con;
 
 struct dml_crypto_key *dk;
+
+static bool aprsis = false;
+static char *aprsis_host;
+static int aprsis_port;
+static char *aprsis_call;
+
 
 void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *from);
 
@@ -459,6 +466,13 @@ printf("send to uplink\n");
 		packet_id = dml_stream_data_id_get(stream_fprs);
 		if (packet_id)
 			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+
+		struct fprs_frame *fprs_frame = fprs_frame_create();
+		if (fprs_frame) {
+			fprs_frame_data_set(fprs_frame, data, size);
+			fprs_aprsis_frame(fprs_frame, NULL);
+			fprs_frame_destroy(fprs_frame);
+		}
 	}
 	if (link & FPRS_PARSE_DOWNLINK) {
 printf("send to downlink\n");
@@ -485,6 +499,22 @@ void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *f
 	    );
 }
 
+void message_cb(struct fprs_frame *frame)
+{
+	uint8_t data[fprs_frame_data_size(frame)];
+	size_t size;
+	struct timespec ts;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	fprs_frame_data_get(frame, data, &size);
+
+	fprs_parse_data(data, size, &ts,
+	    FPRS_PARSE_UPLINK,
+	    TIME_VALID_UPLINK,
+	    send_data,
+	    NULL
+	    );
+}
 
 static int fprs_timer(void *arg)
 {
@@ -562,6 +592,16 @@ int main(int argc, char **argv)
 
 	ca = dml_config_value("ca", NULL, ".");
 	
+	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
+	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
+	aprsis_call = dml_config_value("aprsis_call", NULL, NULL);
+
+	if (aprsis_host && aprsis_call) {
+		aprsis = true;
+		fprs_aprsis_init(aprsis_host, aprsis_port, aprsis_call, 
+		    true, message_cb);
+	}
+
 	if (dml_crypto_init(NULL, ca)) {
 		fprintf(stderr, "Failed to init crypto\n");
 		return -1;

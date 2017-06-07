@@ -34,4 +34,9 @@ int fprs_parse_request_flush(
     int (*cb)(void *data, size_t size, unsigned int link, void *arg),
     void *arg);
 
+/* cb must return zero in order to claim a message as handled. */
+int fprs_parse_hook_message(
+    int (*cb)(uint8_t to[6], uint8_t from[6], void *data, size_t dsize, void *id, size_t isize, void *arg),
+    void *arg);
+
 #endif /* _INCLUDE_FPRS_PARSE_H_ */

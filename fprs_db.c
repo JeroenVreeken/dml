@@ -47,7 +47,7 @@ static struct fprs_db_entry *db;
 static struct fprs_db_entry *fprs_db_find(struct fprs_db_id *id)
 {
 	struct fprs_db_entry *entry;
-	
+
 	for (entry = db; entry; entry = entry->next) {
 		if (id->type != entry->id.type)
 			continue;
@@ -165,6 +165,7 @@ int fprs_db_element_set(struct fprs_db_id *id,
 		(*dentry)->t = t;
 		(*dentry)->t_valid = t + t_valid;
 		(*dentry)->type = type;
+		(*dentry)->link = link;
 	}
 	
 	return 0;
@@ -240,5 +241,5 @@ unsigned int fprs_db_link_get(struct fprs_db_id *id)
 	for (dentry = entry->elements; dentry; dentry = dentry->next)
 		link |= dentry->link;
 
-	return link;	
+	return link;
 }

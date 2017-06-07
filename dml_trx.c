@@ -28,7 +28,6 @@
 #include "dml_stream.h"
 #include "fprs_db.h"
 #include "fprs_parse.h"
-#include "fprs_aprsis.h"
 
 #include "trx_dv.h"
 #include "soundlib.h"
@@ -83,14 +82,10 @@ static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static double my_fprs_longitude = 0.0;
 static double my_fprs_latitude = 0.0;
 static char *my_fprs_text = "";
-static bool aprsis = false;
-static char *aprsis_host;
-static int aprsis_port;
 
 static char my_call[ETH_AR_CALL_SIZE];
 
 enum sound_msg {
-	SOUND_MSG_IDLE,
 	SOUND_MSG_SILENCE,
 	SOUND_MSG_CONNECT,
 	SOUND_MSG_DISCONNECT,
@@ -99,13 +94,111 @@ enum sound_msg {
 	SOUND_MSG_NOTALLOWED,
 };
 
-static enum sound_msg do_msg = SOUND_MSG_IDLE;
+struct sound_msg_e {
+	struct sound_msg_e *next;
+	
+	uint8_t *data;
+	size_t size;
+	bool free_data;
+};
+
+static struct sound_msg_e *sound_msg_q = NULL;
 static char *command_prefix = "";
 
 static void queue_sound_msg(enum sound_msg msg)
 {
-	printf("queue msg: %d\n", msg);
-	do_msg = msg;
+	struct sound_msg_e *ent = calloc(sizeof(struct sound_msg_e), 1);
+	struct sound_msg_e **q = &sound_msg_q;
+
+	/* Add some silence before a spoken message */
+	if (msg != SOUND_MSG_SILENCE) {
+		queue_sound_msg(SOUND_MSG_SILENCE);
+		queue_sound_msg(SOUND_MSG_SILENCE);
+		queue_sound_msg(SOUND_MSG_SILENCE);
+		queue_sound_msg(SOUND_MSG_SILENCE);
+	}
+
+	if (!ent)
+		goto err_ent;
+		
+	uint8_t *data;
+	size_t size;
+	data = soundlib_get(msg, &size);
+
+	if (!data)
+		goto err_data;
+	
+	ent->free_data = false;
+	ent->size = size;
+	ent->data = data;
+	
+	while (*q)
+		q = &(*q)->next;
+	*q = ent;
+
+	return;
+err_data:
+	free(ent);
+err_ent:
+	return;
+}
+
+static void queue_sound_spell(char *text)
+{
+	size_t size;
+	uint8_t *data = soundlib_spell(text, &size);
+	struct sound_msg_e **q = &sound_msg_q;
+
+	if (!data)
+		return;
+	
+	struct sound_msg_e *ent = calloc(sizeof(struct sound_msg_e), 1);
+	
+	if (!ent)
+		goto err_ent;
+	
+	ent->data = data;
+	ent->size = size;
+	ent->free_data = true;
+	printf("Queue: %p %zd\n", data, size);
+	
+	while (*q)
+		q = &(*q)->next;
+	*q = ent;
+
+	return;
+err_ent:
+	free(data);
+	return;
+}
+
+static void queue_sound_synthesize(char *text)
+{
+	size_t size;
+	uint8_t *data = soundlib_synthesize(text, &size);
+	struct sound_msg_e **q = &sound_msg_q;
+
+	if (!data)
+		return;
+	
+	struct sound_msg_e *ent = calloc(sizeof(struct sound_msg_e), 1);
+	
+	if (!ent)
+		goto err_ent;
+	
+	ent->data = data;
+	ent->size = size;
+	ent->free_data = true;
+	printf("Queue: %p %zd\n", data, size);
+	
+	while (*q)
+		q = &(*q)->next;
+	*q = ent;
+
+	return;
+err_ent:
+	free(data);
+	return;
 }
 
 static uint16_t alloc_data_id(void)
@@ -174,10 +267,6 @@ static int fprs_update_status(char *stream, char *assoc)
 	/* Send FPRS frame with callsign in FreeDV header */
 	trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
 
-	if (aprsis) {
-		fprs_aprsis_frame(fprs_frame, mac_dev);
-	}
-
 	/* Add callsign to packet for others */
 	fprs_frame_add_callsign(fprs_frame, mac_dev);
 
@@ -205,6 +294,10 @@ static int fprs_update_mac(uint8_t mac[6])
 
 	/* Only if it is from someone else */
 	if (!memcmp(mac, mac_dev, 6))
+		return 0;
+	
+	/* Only if we know who send something */
+	if (!memcmp(mac, mac_bcast, 6))
 		return 0;
 
 	fprs_frame = fprs_frame_create();
@@ -260,10 +353,6 @@ static int fprs_timer(void *arg)
 		fprs_frame_data_get(fprs_frame, dml_data, &dml_size);
 		trx_dv_send_fprs(mac_dev, mac_bcast, dml_data, dml_size);
 		
-		if (aprsis) {
-			fprs_aprsis_frame(fprs_frame, mac_dev);
-		}
-
 		fprs_frame_add_callsign(fprs_frame, mac_dev);
 		
 		dml_size = sizeof(dml_data);
@@ -778,24 +867,6 @@ static void recv_data(void *data, size_t size)
 	}
 }
 
-static void send_msg(int nr)
-{
-	uint8_t *data;
-	size_t size;
-	printf("Send message %d\n", nr);
-	
-	data = soundlib_get(nr, &size);
-	while (size) {
-		size_t sendsize = 160;
-		if (size < sendsize)
-			sendsize = size;
-		
-		trx_dv_send(mac_dev, mac_bcast, 'A', data, sendsize);
-		data += sendsize;
-		size -= sendsize;
-	}
-}
-
 static int rx_watchdog(void *arg)
 {
 	printf("No activity, sending state off packet\n");
@@ -810,14 +881,29 @@ static int rx_watchdog(void *arg)
 
 	rx_state = false;
 
-	if (do_msg) {
-		send_msg(SOUND_MSG_SILENCE);
-		send_msg(SOUND_MSG_SILENCE);
-		send_msg(SOUND_MSG_SILENCE);
-		send_msg(SOUND_MSG_SILENCE);
-		send_msg(SOUND_MSG_SILENCE);
-		send_msg(do_msg);
-		do_msg = SOUND_MSG_IDLE;
+	while (sound_msg_q) {
+		uint8_t *data;
+		size_t size;
+		
+		struct sound_msg_e *e = sound_msg_q;
+
+		data = e->data;
+		size = e->size;
+		while (size) {
+			size_t sendsize = 160;
+			if (size < sendsize)
+				sendsize = size;
+		
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, sendsize);
+			data += sendsize;
+			size -= sendsize;
+		}
+		
+		if (e->free_data)
+			free(e->data);
+		
+		sound_msg_q = e->next;
+		free(e);
 	}
 
 	dml_poll_timeout(&rx_state, 
@@ -927,6 +1013,7 @@ static void command_cb_handle(char *command)
 		    dml_stream_id_get(stream_dv),
 		    DML_PACKET_REQ_REVERSE_CONNECT);
 		queue_sound_msg(SOUND_MSG_CONNECT);
+		queue_sound_spell(command);
 		
 		char *constr;
 		if (asprintf(&constr, "Connecting %s", command) >= 0) {
@@ -934,9 +1021,10 @@ static void command_cb_handle(char *command)
 			free(constr);
 		}
 	} else {
-		if (notfound)
+		if (notfound) {
 			queue_sound_msg(SOUND_MSG_NOTFOUND);
-		else if (nokey)
+			queue_sound_spell(command);
+		} else if (nokey)
 			queue_sound_msg(SOUND_MSG_NOTALLOWED);
 		else
 			queue_sound_msg(SOUND_MSG_DISCONNECT);
@@ -1001,9 +1089,6 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 		trx_dv_send_fprs(mac_dev, mac_bcast, f_data, f_size);
 	}
 	
-	if (aprsis) {
-		fprs_aprsis_frame(fprs_frame, from);
-	}
 	fprs_parse_data(f_data, f_size, &ts,
 	    FPRS_PARSE_DOWNLINK,
 	    TIME_VALID_DOWNLINK,
@@ -1029,10 +1114,51 @@ void mac_dev_cb(uint8_t mac[6])
 	printf("Interface address %02x:%02x:%02x:%02x:%02x:%02x %s-%d\n",
 	    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
 	    multicast ? "MULTICAST" : my_call, ssid);
+}
 
-	if (aprsis_host) {
-		fprs_aprsis_init(aprsis_host, aprsis_port, my_call);
+static char prev_msg[256] = {0};
+static char prev_id[256] = {0};
+static uint8_t prev_from[6] = {0};
+
+int message_cb(uint8_t to[6], uint8_t from[6], 
+    void *data, size_t dsize, void *id, size_t isize, void *arg)
+{
+	int ssid;
+	bool multicast;
+	char from_call[ETH_AR_CALL_SIZE];
+	char msg_asc[dsize + 1];
+	char id_asc[isize + 1];
+
+	if (memcmp(to, mac_dev, 6))
+		return -1;
+	
+	memcpy(msg_asc, data, dsize);
+	msg_asc[dsize] = 0;
+	if (id) {
+		memcpy(id_asc, id, isize);
+		id_asc[isize] = 0;
+	} else
+		id_asc[0] = 0;
+	
+	if (!memcmp(prev_from, from, 6)) {
+		if (!strcmp(prev_msg, msg_asc))
+			return 0;
+		if (id_asc[0] && !strcmp(id_asc, prev_id))
+			return 0;
 	}
+	
+	strncpy(prev_msg, msg_asc, 255);
+	strncpy(prev_id, id_asc, 255);
+	memcpy(prev_from, from, 6);
+	
+	eth_ar_mac2call(from_call, &ssid, &multicast, from);
+	printf("Message from %s: %s, ID: %s\n", from_call, msg_asc, id_asc);
+
+	queue_sound_synthesize("Message from:");
+	queue_sound_spell(from_call);
+	queue_sound_spell(msg_asc);
+
+	return 0;
 }
 
 int main(int argc, char **argv)
@@ -1074,9 +1200,6 @@ int main(int argc, char **argv)
 	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
 	my_fprs_text = dml_config_value("fprs_text", NULL, "");
 
-	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
-	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
-
 	command_prefix = dml_config_value("command_prefix", NULL, "");
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
@@ -1107,12 +1230,6 @@ int main(int argc, char **argv)
 	if (!(dk = dml_crypto_private_load(key))) {
 		printf("Could not load key\n");
 		return -1;
-	}
-	
-	
-	
-	if (aprsis_host) {
-		aprsis = true;
 	}
 	
 	if (dml_id_gen(id, DML_PACKET_DESCRIPTION_VERSION_0, bps, 
@@ -1156,7 +1273,13 @@ int main(int argc, char **argv)
 	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
 	dml_poll_add(&cur_db, NULL, NULL, fprs_db_check);
 
-	soundlib_init(8000);
+	fprs_parse_hook_message(message_cb, NULL);
+
+
+	if (soundlib_init(8000)) {
+		printf("Could not init soundlib\n");
+		return -1;
+	}
 	
 	soundlib_add_silence(SOUND_MSG_SILENCE, 0.16);
 	soundlib_add_beep(SOUND_MSG_CONNECT, 800, 0.08);

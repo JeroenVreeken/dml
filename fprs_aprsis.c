@@ -51,6 +51,9 @@ static int is_port;
 
 static int aprs_is_cb(void *arg);
 
+static bool filter_type_message = false;
+static void (*message_cb)(struct fprs_frame *) = NULL;
+
 static int tcp_connect(char *host, int port)
 {
 	struct addrinfo *result;
@@ -158,6 +161,12 @@ static int aprsis_open(void)
 	fprs2aprs_login(loginline, &loginline_len, call);
 	if (write(fd_is, loginline, strlen(loginline)) <= 0)
 		goto err_write;
+	
+	if (filter_type_message) {
+		char *filter = "#filter t/m\r\n";
+		if (write(fd_is, filter, strlen(filter)) <= 0)
+			goto err_write;
+	}
 
 	if (dml_poll_add(fprs_aprsis_init, aprs_is_cb, NULL, NULL))
 		goto err_poll;
@@ -186,13 +195,36 @@ static void aprs_is_error(void)
 
 static int aprs_is_cb(void *arg)
 {
-	char buffer[256];
+	static char buffer[1000];
+	static size_t pos;
 	ssize_t r;
 	
-	r = read(fd_is, buffer, 256);
+	r = read(fd_is, buffer + pos, 1000 - pos);
+	printf("------------------------------------- %zd ----- %zd\n", pos, r);
 	if (r > 0) {
-		if (write(2, buffer, r) != r)
-			return -1;
+		int i;
+		char *line = buffer;
+		for (i = 0; i < r + pos; i++) {
+			if (buffer[i] == '\r' ||
+			    buffer[i] == '\n') {
+				buffer[i] = 0;
+				if (strlen(line)) {
+					printf("%s\n", line);
+					struct fprs_frame *frame = aprs2fprs(buffer);
+					if (frame) {
+						if (message_cb) {
+							message_cb(frame);
+						}
+						fprs_frame_destroy(frame);
+					}
+				}
+				line = buffer + i + 1;
+			}
+		}
+		if (line != buffer + i) {
+			pos = i - (line - buffer);
+			memmove(buffer, line, i - pos);
+		}
 	} else {
 		if (r == 0) {
 			aprs_is_error();
@@ -215,7 +247,7 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 	size_t aprs_size = 255;
 	
 	if (fprs2aprs(aprs, &aprs_size, frame, from, call)) {
-		printf("Could not convert to APRIS frame\n");
+		printf("Could not convert to APRS-IS frame\n");
 		return -1;
 	}
 
@@ -228,7 +260,7 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 	return 0;
 }
 
-int fprs_aprsis_init(char *host, int port, char *mycall)
+int fprs_aprsis_init(char *host, int port, char *mycall, bool req_msg, void (*msg_cb)(struct fprs_frame *))
 {
 	if (fd_is >= 0) {
 		close(fd_is);
@@ -242,6 +274,8 @@ int fprs_aprsis_init(char *host, int port, char *mycall)
 	is_host = strdup(host);
 	is_port = port;
 	call = strdup(mycall);
+	filter_type_message = req_msg;
+	message_cb = msg_cb;
 
 	int i;
 		
