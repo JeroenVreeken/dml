@@ -29,6 +29,6 @@ uint8_t *soundlib_get(int nr, size_t *size);
 uint8_t *soundlib_synthesize(char *text, size_t *size);
 uint8_t *soundlib_spell(char *text, size_t *size);
 
-int soundlib_init(int init_rate);
+int soundlib_init(int init_rate, char *init_voice);
 
 #endif /*_INCLUDE_SOUNDLIB_H_ */

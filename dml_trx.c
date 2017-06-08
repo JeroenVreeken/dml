@@ -42,8 +42,8 @@
 
 
 #define DML_TRX_DATA_KEEPALIVE 10
-//#define DML_TRX_FPRS_TIMER (10 * 60)
-#define DML_TRX_FPRS_TIMER (1 * 60)
+#define DML_TRX_FPRS_TIMER (10 * 60)
+//#define DML_TRX_FPRS_TIMER (1 * 60)
 #define DML_TRX_FPRS_TIMER_INIT (10)
 #define DML_TRX_FPRS_DB_TIMER 10
 
@@ -1276,7 +1276,8 @@ int main(int argc, char **argv)
 	fprs_parse_hook_message(message_cb, NULL);
 
 
-	if (soundlib_init(8000)) {
+	char *soundlib_voice = dml_config_value("soundlib_voice", NULL, NULL);
+	if (soundlib_init(8000, soundlib_voice)) {
 		printf("Could not init soundlib\n");
 		return -1;
 	}

@@ -29,6 +29,7 @@
 cst_voice *register_cmu_us_slt(void);
 
 static cst_voice *flite_voice;
+static char *voice = NULL;
 
 static char *spell(char c)
 {
@@ -303,12 +304,25 @@ uint8_t *soundlib_synthesize(char *text, size_t *size)
 }
 #endif
 
-int soundlib_init(int init_rate)
+int soundlib_init(int init_rate, char *init_voice)
 {
 	rate = init_rate;
+	voice = init_voice;
 
 #ifdef HAVE_FLITE
-	flite_voice = register_cmu_us_slt();
+	flite_init();
+
+	void usenglish_init(cst_voice *v);
+	cst_lexicon *cmulex_init(void);
+
+	flite_add_lang("eng",usenglish_init,cmulex_init);
+	flite_add_lang("usenglish",usenglish_init,cmulex_init);
+	
+	if (!voice) {
+		flite_voice = register_cmu_us_slt();
+	} else {
+		flite_voice = flite_voice_load(voice);
+	}
 	if (!flite_voice) {
 		printf("Could not select voice\n");
 		return -1;

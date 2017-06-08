@@ -221,8 +221,8 @@ static int aprs_is_cb(void *arg)
 				line = buffer + i + 1;
 			}
 		}
+		pos = i - (line - buffer);
 		if (line != buffer + i) {
-			pos = i - (line - buffer);
 			memmove(buffer, line, i - pos);
 		}
 	} else {
