@@ -307,9 +307,9 @@ uint8_t *soundlib_synthesize(char *text, size_t *size)
 int soundlib_init(int init_rate, char *init_voice)
 {
 	rate = init_rate;
-	voice = init_voice;
 
 #ifdef HAVE_FLITE
+	voice = init_voice;
 	flite_init();
 
 	void usenglish_init(cst_voice *v);
