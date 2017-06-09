@@ -107,12 +107,14 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 		return str;
 	}
 
-	this.tostring = function fprs_element_tostring() {
+	this.tostring = function fprs_element_tostring(use_html = true) {
 		var str = "";
+		var bold_s = use_html ? "<b>" : "";
+		var bold_e = use_html ? "</b>" : "";
 
 		switch (type_el) {
 			case FPRS.ELEMENT.POSITION:
-				str+= "POSITION: ";
+				str+= bold_s + "POSITION: " + bold_e;
 	
 				var dec = this.position_dec();
 				
@@ -122,30 +124,30 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				
 				break;
 			case FPRS.ELEMENT.CALLSIGN:
-				str+= "CALLSIGN: ";
+				str+= bold_s + "CALLSIGN: " + bold_e;
 				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
 				break;
 			case FPRS.ELEMENT.SYMBOL:
-				str+= "SYMBOL: ";
+				str+= bold_s + "SYMBOL: " + bold_e;
 				
 				var dec = this.symbol_dec();
 				str += dec;
 				break;
 			case FPRS.ELEMENT.ALTITUDE:
-				str+= "ALTITUDE";
+				str+= bold_s + "ALTITUDE" + bold_e;
 				break;
 			case FPRS.ELEMENT.VECTOR:
-				str+= "VECTOR";
+				str+= bold_s + "VECTOR" + bold_e;
 				break;
 			case FPRS.ELEMENT.OBJECTNAME:
-				str+= "OBJECTNAME";
+				str+= bold_s + "OBJECTNAME" + bold_e;
 				break;
 			case FPRS.ELEMENT.COMMENT:
-				str+= "COMMENT: ";
+				str+= bold_s + "COMMENT: " + bold_e;
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.REQUEST:
-				str+= "REQUEST: ";
+				str+= bold_s + "REQUEST: " + bold_e;
 				var i;
 				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
 				str+= ":"
@@ -155,11 +157,11 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				}
 				break;
 			case FPRS.ELEMENT.DESTINATION:
-				str+= "DESTINATION: ";
+				str+= bold_s + "DESTINATION: " + bold_e;
 				str+= eth_ar.call(dataview.buffer, dataview.byteOffset);
 				break;
 			case FPRS.ELEMENT.TIMESTAMP:
-				str+= "TIMESTAMP: ";
+				str+= bold_s + "TIMESTAMP: " + bold_e;
 				var t = 0;
 				var i;
 				for (i = 0; i < dataview.byteLength; i++) {
@@ -171,23 +173,23 @@ function fprs_element(eltype, elsize, eldataview, eloff)
 				
 				break;
 			case FPRS.ELEMENT.DMLSTREAM:
-				str+= "DMLSTREAM: ";
+				str+= bold_s + "DMLSTREAM: " + bold_e;
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.DMLASSOC:
-				str+= "DMLASSOC: ";
+				str+= bold_s + "DMLASSOC: " + bold_e;
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.MESSAGE:
-				str+= "MESSAGE: ";
+				str+= bold_s + "MESSAGE: " + bold_e;
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.MESSAGEID:
-				str+= "MESSAGEID: ";
+				str+= bold_s + "MESSAGEID: " + bold_e;
 				str+= data2str(dataview);
 				break;
 			case FPRS.ELEMENT.MESSAGEACK:
-				str+= "MESSAGEACK: ";
+				str+= bold_s + "MESSAGEACK: " + bold_e;
 				str+= data2str(dataview);
 				break;
 		}

@@ -49,6 +49,10 @@ var DML = {
 	TIMESTAMP: {
 		SIZE: 8,
 	},
+	HELLO_FLAG: {
+		LEAF: 1,
+		UPDATES: 2,
+	}
 };
 
 function dml()
@@ -195,6 +199,21 @@ function dml()
 		dataview = new DataView(data);
 		dataview.setUint16(id.byteLength, packet_id, false);
 		dml_this.send(DML.PACKET.CONNECT, data);
+	}
+
+	this.hello_flag2str = function dml_hello_flag2str(flag) {
+		var str = "";
+		if (flag & DML.HELLO_FLAG.LEAF) {
+			if (str.length)
+				str += ", ";
+			str += "LEAF";
+		}
+		if (flag & DML.HELLO_FLAG.UPDATES) {
+			if (str.length)
+				str += ", ";
+			str += "UPDATES";
+		}
+		return str;
 	}
 }
 

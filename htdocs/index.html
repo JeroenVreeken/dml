@@ -32,7 +32,7 @@
 </script>
 
 <p>
-dml_httpd works!
+Decentralized Media Linking
 </p>
 <div id="hello">No HELLO from server received.</div>
 
@@ -206,7 +206,7 @@ function update_routes()
 		if (can_play_mse) {
 			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_dml) {
-			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect & monitor state</button>";
+			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_fprs) {
 			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect & monitor FPRS frames</button>";
 		} else {
@@ -548,7 +548,9 @@ var curcon;
 connection = new dml();
 
 connection.packet_hello_cb = function(flags, ident) {
-	document.getElementById("hello").innerHTML = "Server identity: " + ident + "<br>Server flags: " + flags;
+	document.getElementById("hello").innerHTML = 
+	     "Server identity: " + ident + "<br>" +
+	     "Server flags: " + connection.hello_flag2str(flags);
 }
 
 connection.packet_route_cb = function(hops, id) {
