@@ -202,17 +202,22 @@ function update_routes()
 		str += "\tid:\t" + shastr + "<br>";
 		str += "\thops:\t" + routes[i].hops + "<br>";
 		str += "</div>";
+		
+		idcolor="yellow";
 
 		if (can_play_mse) {
+			idcolor="lightblue";
 			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_dml) {
+			idcolor="lightgreen";
 			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect & Play</button>";
 		} else if (can_play_fprs) {
+			idcolor="orange";
 			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect & monitor FPRS frames</button>";
 		} else {
 			button_str = "Mime type not supported by browser\n";
 		}
-		id_str = "<div width='100%' style='background-color:lightblue;'>";
+		id_str = "<div width='100%' style='background-color:" + idcolor + ";'>";
 		id_str += "<button onclick=\"div_toggle('desc_" + shastr + "')\">i</button>";
 		id_str += ui_id + " " + button_str;
 		id_str += str;
