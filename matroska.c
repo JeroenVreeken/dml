@@ -203,7 +203,8 @@ int matroska_parse(struct matroska *mat, void *buffer, size_t size)
 						mat->level--;
 					}
 				} else if (matroska_element_dive(mat)) {
-					mat->level++;
+					if (mat->level < MATROSKA_LEVEL_MAX)
+						mat->level++;					mat->level++;
 				} else {
 					size_t needed = em->size - em->pos;
 					size_t avail = size - pos;
