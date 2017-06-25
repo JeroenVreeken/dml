@@ -454,6 +454,7 @@ printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->dur
 		data[7] = 0;
 
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
+		parrot_timestamp++;
 printf("= %016"PRIx64"\n", parrot_timestamp);
 		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
 		parrot_ts.tv_sec = 0;

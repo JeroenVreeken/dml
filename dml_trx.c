@@ -40,7 +40,7 @@
 #include <string.h>
 #include <time.h>
 
-
+#define RXSTATE_CHECK_TIMER_NS 100000000
 #define DML_TRX_DATA_KEEPALIVE 10
 #define DML_TRX_FPRS_TIMER (10 * 60)
 //#define DML_TRX_FPRS_TIMER (1 * 60)
@@ -85,6 +85,12 @@ static char *my_fprs_text = "";
 
 static char my_call[ETH_AR_CALL_SIZE];
 
+static char *message_connect;
+static char *message_disconnect;
+static char *message_remote_disconnect;
+static char *message_notfound;
+static char *message_notallowed;
+
 enum sound_msg {
 	SOUND_MSG_SILENCE,
 	SOUND_MSG_CONNECT,
@@ -109,14 +115,6 @@ static void queue_sound_msg(enum sound_msg msg)
 {
 	struct sound_msg_e *ent = calloc(sizeof(struct sound_msg_e), 1);
 	struct sound_msg_e **q = &sound_msg_q;
-
-	/* Add some silence before a spoken message */
-	if (msg != SOUND_MSG_SILENCE) {
-		queue_sound_msg(SOUND_MSG_SILENCE);
-		queue_sound_msg(SOUND_MSG_SILENCE);
-		queue_sound_msg(SOUND_MSG_SILENCE);
-		queue_sound_msg(SOUND_MSG_SILENCE);
-	}
 
 	if (!ent)
 		goto err_ent;
@@ -660,7 +658,10 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					if (key) {
 						printf("Request accepted, connecting\n");
 						connect(ds_rev);
-						queue_sound_msg(SOUND_MSG_CONNECT);
+						if (message_connect)
+							queue_sound_synthesize(message_connect);
+						else
+							queue_sound_msg(SOUND_MSG_CONNECT);
 					} else {
 						printf("No valid crypto key for this stream (yet)\n");
 						do_reject = true;
@@ -680,7 +681,10 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					cur_con = NULL;
 					fprs_update_status(
 					    dml_stream_name_get(stream_dv), "");
-					queue_sound_msg(SOUND_MSG_REMOTE_DISC);
+					if (message_remote_disconnect)
+						queue_sound_synthesize(message_remote_disconnect);
+					else
+						queue_sound_msg(SOUND_MSG_REMOTE_DISC);
 				}
 				if (ds_rev == cur_db) {
 					printf("DB requests disconnect\n");
@@ -885,6 +889,14 @@ static int rx_watchdog(void *arg)
 		uint8_t *data;
 		size_t size;
 		
+		data = soundlib_get(SOUND_MSG_SILENCE, &size);
+		if (data) {
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
+		}
+
 		struct sound_msg_e *e = sound_msg_q;
 
 		data = e->data;
@@ -937,8 +949,8 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 	fprs_update_mac(from);
 
 	dml_poll_timeout(&rx_state, rx_state ?
-	    &(struct timespec){0, 100000000} :
-	    &(struct timespec){0, 0} );
+	    &(struct timespec){0, RXSTATE_CHECK_TIMER_NS} :
+	    &(struct timespec){DML_TRX_DATA_KEEPALIVE, 0} );
 
 	return 0;
 }
@@ -947,7 +959,7 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 
 static void command_cb_handle(char *command)
 {	
-	struct dml_stream *ds;
+	struct dml_stream *ds = NULL;
 	struct dml_stream_priv *priv = NULL;
 	bool is_73;
 	bool do_disconnect = false;
@@ -961,7 +973,8 @@ static void command_cb_handle(char *command)
 	do_disconnect |= is_73;
 	
 	/* try to find by alias directly */
-	ds = dml_stream_by_alias(command);
+	if (strlen(command))
+		ds = dml_stream_by_alias(command);
 	if (!ds) {
 		/* Second attempt: try to find with added prefix */
 		char *command_pref;
@@ -1006,13 +1019,17 @@ static void command_cb_handle(char *command)
 		    DML_PACKET_REQ_REVERSE_DISC);
 		cur_con = NULL;
 		fprs_update_status(dml_stream_name_get(stream_dv), "");
+
 	}		
 	if (do_connect) {
 		connect(ds);
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(ds), 
 		    dml_stream_id_get(stream_dv),
 		    DML_PACKET_REQ_REVERSE_CONNECT);
-		queue_sound_msg(SOUND_MSG_CONNECT);
+		if (message_connect)
+			queue_sound_synthesize(message_connect);
+		else
+			queue_sound_msg(SOUND_MSG_CONNECT);
 		queue_sound_spell(command);
 		
 		char *constr;
@@ -1022,12 +1039,23 @@ static void command_cb_handle(char *command)
 		}
 	} else {
 		if (notfound) {
-			queue_sound_msg(SOUND_MSG_NOTFOUND);
+			if (message_notfound)
+				queue_sound_synthesize(message_notfound);
+			else
+				queue_sound_msg(SOUND_MSG_NOTFOUND);
 			queue_sound_spell(command);
-		} else if (nokey)
-			queue_sound_msg(SOUND_MSG_NOTALLOWED);
-		else
-			queue_sound_msg(SOUND_MSG_DISCONNECT);
+		} else if (nokey) {
+			if (message_notallowed)
+				queue_sound_synthesize(message_notallowed);
+			else
+				queue_sound_msg(SOUND_MSG_NOTALLOWED);
+			queue_sound_spell(command);
+		} else if (do_disconnect) {
+			if (message_disconnect)
+				queue_sound_synthesize(message_disconnect);
+			else
+				queue_sound_msg(SOUND_MSG_DISCONNECT);
+		}
 		trx_dv_send_control(mac_dev, mac_bcast, "NACK");
 	}	
 }
@@ -1308,6 +1336,12 @@ int main(int argc, char **argv)
 	char *soundlib_notallowed = dml_config_value("soundlib_notallowed", NULL, NULL);
 	if (soundlib_notallowed)
 		soundlib_add_file(SOUND_MSG_NOTALLOWED, soundlib_notallowed);
+
+	message_connect = dml_config_value("message_connect", NULL, NULL);
+	message_disconnect = dml_config_value("message_disconnect", NULL, NULL);
+	message_remote_disconnect = dml_config_value("message_remote_disconnect", NULL, NULL);
+	message_notfound = dml_config_value("message_notfound", NULL, NULL);
+	message_notallowed = dml_config_value("message_notallowed", NULL, NULL);
 
 	dml_poll_timeout(&rx_state, 
 	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
