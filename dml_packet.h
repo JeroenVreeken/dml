@@ -114,9 +114,9 @@ int dml_packet_parse_req_disc(uint8_t *data, uint16_t len,
     uint8_t id[DML_ID_SIZE]);
 
 int dml_packet_send_req_reverse(struct dml_connection *dc,
-    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t action);
+    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t action, uint16_t status);
 int dml_packet_parse_req_reverse(uint8_t *data, uint16_t len,
-    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t *action);
+    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t *action, uint16_t *status);
 
 
 int dml_packet_send_data(struct dml_connection *dc,

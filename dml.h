@@ -33,6 +33,11 @@
 #define DML_ALIAS_FPRS_DB "DB"
 #define DML_ALIAS_FPRS_BACKBONE "BACKBONE"
 
+#define DML_STATUS_OK		200
+#define DML_STATUS_BAD		400
+#define DML_STATUS_UNAUTHORIZED	401
+#define DML_STATUS_UNAVAILABLE	503
+
 static inline uint64_t dml_ts2timestamp(struct timespec *ts)
 {
 	uint64_t timestamp;

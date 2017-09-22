@@ -98,6 +98,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		
 						dml_stream_data_id_set(ds, DML_PACKET_DATA);
 						dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
+						fprintf(stderr, "Send connect\n");
 					} else {
 						fprintf(stderr, "Failed to verify header signature (%zd bytes)\n", header_size);
 					}
@@ -148,7 +149,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
+					fprintf(stderr, "Received %zd ok\n", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
 				}
 			}

@@ -29,9 +29,16 @@
 #include <openssl/pem.h>
 
 
+size_t skip = 0;
+
 static int data_cb(void *arg, void *data, size_t datasize)
 {
-	if (write(1, data, datasize) != datasize)
+	if (datasize <= skip) {
+		return 0;
+	}
+	size_t writesize = datasize - skip;
+	
+	if (write(1, data + skip, writesize) != writesize)
 		return -1;
 	
 	return 0;
@@ -50,6 +57,11 @@ int main(int argc, char **argv)
 		file = argv[2];
 	if (argc < 2) {
 		fprintf(stderr, "No id given\n");
+		return -1;
+	}
+	if (argc > 3) {
+		skip = atoi(argv[3]);
+		fprintf(stderr, "Skip %zd bytes per packet\n", skip);
 	}
 	req_id_str = argv[1];
 

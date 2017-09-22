@@ -295,8 +295,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t id_me[DML_ID_SIZE];
 			uint8_t id_rev[DML_ID_SIZE];
 			uint8_t action;
+			uint16_t status;
 			
-			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action))
+			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
 				break;
 			printf("Recevied reverse request %d\n", action);
 
@@ -323,8 +324,12 @@ void rx_packet(struct dml_connection *dc, void *arg,
 							priv->time_valid = TIME_VALID_DOWNLINK;
 						}
 					} else {
-						printf("Ignore request: match_mime: %d, key: %p\n",
-						    priv->match_mime, key);
+						printf("Request rejected\n");
+						dml_packet_send_req_reverse(dml_con,
+						    id_rev, 
+						    id_me,
+						    DML_PACKET_REQ_REVERSE_DISC, 
+						    DML_STATUS_UNAUTHORIZED);
 					}
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {

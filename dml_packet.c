@@ -362,19 +362,21 @@ int dml_packet_parse_req_disc(uint8_t *data, uint16_t len,
 }
 
 int dml_packet_send_req_reverse(struct dml_connection *dc,
-    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t action)
+    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t action, uint16_t status)
 {
-	uint8_t payload[DML_ID_SIZE + DML_ID_SIZE + 1];
+	uint8_t payload[DML_ID_SIZE + DML_ID_SIZE + 1 + 2];
 	
 	memcpy(payload, id, DML_ID_SIZE);
 	memcpy(payload + DML_ID_SIZE, rev_id, DML_ID_SIZE);
 	payload[DML_ID_SIZE + DML_ID_SIZE] = action;
+	payload[DML_ID_SIZE + DML_ID_SIZE + 1] = (status >> 8) & 0xff;
+	payload[DML_ID_SIZE + DML_ID_SIZE + 2] = (status >> 0) & 0xff;
 
 	return dml_connection_send(dc, payload, DML_PACKET_REQ_REVERSE, DML_ID_SIZE + DML_ID_SIZE + 1);
 }
 
 int dml_packet_parse_req_reverse(uint8_t *data, uint16_t len,
-    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t *action)
+    uint8_t id[DML_ID_SIZE], uint8_t rev_id[DML_ID_SIZE], uint8_t *action, uint16_t *status)
 {
 	if (len < DML_ID_SIZE + DML_ID_SIZE + 1)
 		return -1;
@@ -382,6 +384,14 @@ int dml_packet_parse_req_reverse(uint8_t *data, uint16_t len,
 	memcpy(id, data, DML_ID_SIZE);
 	memcpy(rev_id, data + DML_ID_SIZE, DML_ID_SIZE);
 	*action = data[DML_ID_SIZE + DML_ID_SIZE];
+	if (*status) {
+		if (len >= (DML_ID_SIZE + DML_ID_SIZE + 1 + 2)) {
+			*status =
+			    (data[DML_ID_SIZE + DML_ID_SIZE + 1] << 8) |
+			    (data[DML_ID_SIZE + DML_ID_SIZE + 2] << 0);
+		} else
+			*status = 0;
+	}
 	
 	return 0;
 }

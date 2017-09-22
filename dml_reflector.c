@@ -227,8 +227,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t id_me[DML_ID_SIZE];
 			uint8_t id_rev[DML_ID_SIZE];
 			uint8_t action;
+			uint16_t status;
 			
-			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action))
+			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
 				break;
 			printf("Recevied reverse request %d\n", action);
 
@@ -256,7 +257,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					dml_packet_send_req_reverse(dml_con,
 					    id_rev, 
 					    id_me,
-					    DML_PACKET_REQ_REVERSE_DISC);
+					    DML_PACKET_REQ_REVERSE_DISC, DML_STATUS_UNAUTHORIZED);
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);

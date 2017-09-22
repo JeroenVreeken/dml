@@ -745,15 +745,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t id[DML_ID_SIZE];
 			uint8_t rev_id[DML_ID_SIZE];
 			uint8_t action;
+			uint16_t status;
 			
-			if (dml_packet_parse_req_reverse(data, len, id, rev_id, &action))
+			if (dml_packet_parse_req_reverse(data, len, id, rev_id, &action, &status))
 				break;
 			
 			struct dml_connection *dc_r = dml_route_connection_get(id);
 			if (!dc_r)
 				break;
 			
-			dml_packet_send_req_reverse(dc_r, id, rev_id, action);
+			dml_packet_send_req_reverse(dc_r, id, rev_id, action, status);
 			
 			break;
 		}

@@ -88,6 +88,9 @@ static char my_call[ETH_AR_CALL_SIZE];
 static char *message_connect;
 static char *message_disconnect;
 static char *message_remote_disconnect;
+static char *message_remote_disconnect_400;
+static char *message_remote_disconnect_401;
+static char *message_remote_disconnect_503;
 static char *message_notfound;
 static char *message_notallowed;
 
@@ -371,7 +374,8 @@ static int fprs_timer(void *arg)
 		    dml_stream_data_id_get(cur_db));
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_db),
 		    dml_stream_id_get(stream_fprs),
-		    DML_PACKET_REQ_REVERSE_CONNECT);
+		    DML_PACKET_REQ_REVERSE_CONNECT,
+		    DML_STATUS_OK);
 	}
 
 	dml_poll_timeout(&fprs_timer, 
@@ -411,7 +415,8 @@ static int fprs_db_check(void *arg)
 			dml_packet_send_connect(dml_con, dml_stream_id_get(cur_db), data_id);
 			dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_db), 
 			    dml_stream_id_get(stream_fprs),
-			    DML_PACKET_REQ_REVERSE_CONNECT);
+			    DML_PACKET_REQ_REVERSE_CONNECT,
+			    DML_STATUS_OK);
 		}
 	} else {
 		fprs_parse_request_flush(send_data_fprs, NULL);
@@ -631,10 +636,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t id_me[DML_ID_SIZE];
 			uint8_t id_rev[DML_ID_SIZE];
 			uint8_t action;
+			uint16_t status;
 			
-			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action))
+			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
 				break;
-			printf("Received reverse request %d\n", action);
+			printf("Received reverse request: %d status: %d\n", action, status);
 
 			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
 			if (!ds_rev)
@@ -642,16 +648,19 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			if (action & DML_PACKET_REQ_REVERSE_CONNECT) {
 				bool do_reject = false;
 				bool do_connect = true;
+				status = DML_STATUS_OK;
 				if (cur_con) {
 					if (cur_con != ds_rev) {
 						do_reject = true;
+						status = DML_STATUS_UNAVAILABLE;
 					}
 					do_connect = false;
 				}
 				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
 				if (!priv || !priv->match_mime) {
-					do_reject = true;
 					do_connect = false;
+					do_reject = true;
+					status = DML_STATUS_BAD;
 				}
 				if (do_connect) {
 					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
@@ -665,6 +674,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					} else {
 						printf("No valid crypto key for this stream (yet)\n");
 						do_reject = true;
+						status = DML_STATUS_UNAUTHORIZED;
 					}
 				}
 				if (do_reject) {
@@ -672,7 +682,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					dml_packet_send_req_reverse(dml_con,
 					    id_rev, 
 					    id_me,
-					    DML_PACKET_REQ_REVERSE_DISC);
+					    DML_PACKET_REQ_REVERSE_DISC, 
+					    status);
 				}
 			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
 				if (ds_rev == cur_con) {
@@ -681,8 +692,24 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					cur_con = NULL;
 					fprs_update_status(
 					    dml_stream_name_get(stream_dv), "");
-					if (message_remote_disconnect)
-						queue_sound_synthesize(message_remote_disconnect);
+
+					char *synth_msg;
+					switch (status) {
+						case DML_STATUS_BAD:
+							synth_msg = message_remote_disconnect_400;
+							break;
+						case DML_STATUS_UNAUTHORIZED:
+							synth_msg = message_remote_disconnect_401;
+							break;
+						case DML_STATUS_UNAVAILABLE:
+							synth_msg = message_remote_disconnect_503;
+							break;
+						case DML_STATUS_OK:
+						default:
+							synth_msg = message_remote_disconnect;
+					}
+					if (synth_msg)
+						queue_sound_synthesize(synth_msg);
 					else
 						queue_sound_msg(SOUND_MSG_REMOTE_DISC);
 				}
@@ -1016,7 +1043,8 @@ static void command_cb_handle(char *command)
 		dml_packet_send_req_disc(dml_con, dml_stream_id_get(cur_con));
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(cur_con), 
 		    dml_stream_id_get(stream_dv),
-		    DML_PACKET_REQ_REVERSE_DISC);
+		    DML_PACKET_REQ_REVERSE_DISC,
+		    DML_STATUS_OK);
 		cur_con = NULL;
 		fprs_update_status(dml_stream_name_get(stream_dv), "");
 
@@ -1025,7 +1053,8 @@ static void command_cb_handle(char *command)
 		connect(ds);
 		dml_packet_send_req_reverse(dml_con, dml_stream_id_get(ds), 
 		    dml_stream_id_get(stream_dv),
-		    DML_PACKET_REQ_REVERSE_CONNECT);
+		    DML_PACKET_REQ_REVERSE_CONNECT,
+		    DML_STATUS_OK);
 		if (message_connect)
 			queue_sound_synthesize(message_connect);
 		else
@@ -1340,6 +1369,9 @@ int main(int argc, char **argv)
 	message_connect = dml_config_value("message_connect", NULL, NULL);
 	message_disconnect = dml_config_value("message_disconnect", NULL, NULL);
 	message_remote_disconnect = dml_config_value("message_remote_disconnect", NULL, NULL);
+	message_remote_disconnect_400 = dml_config_value("message_remote_disconnect_400", NULL, NULL);
+	message_remote_disconnect_401 = dml_config_value("message_remote_disconnect_401", NULL, NULL);
+	message_remote_disconnect_503 = dml_config_value("message_remote_disconnect_503", NULL, NULL);
 	message_notfound = dml_config_value("message_notfound", NULL, NULL);
 	message_notallowed = dml_config_value("message_notallowed", NULL, NULL);
 
