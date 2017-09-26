@@ -212,7 +212,7 @@ uint8_t *soundlib_get(int nr, size_t *size)
 }
 
 #ifdef HAVE_FLITE
-#define SOUNDLIB_GAIN 1.4;
+#define SOUNDLIB_GAIN 2.0;
 static uint8_t *soundlib_add_buffer(uint8_t *old, size_t *size, short *in_samples, size_t in_nr, int in_rate)
 {
 	SRC_DATA src;
