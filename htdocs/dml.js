@@ -58,9 +58,8 @@ var DML = {
 function dml()
 {
 	url = "ws://" + location.host;
-	ws = new WebSocket(url);
-
 	var dml_this = this;
+
 	
 	var packet_hello_cb = function(flags, ident) {}
 	var packet_route_cb = function(hops, id) {}
@@ -69,8 +68,10 @@ function dml()
 	var packet_data_cb = function(data, timestamp, signature) {}
 	var packet_certificate_cb = function(certificate_id, certificate_payload) {}
 
-	ws.onmessage = function(msg) {
-//		console.log("ws.onmessage: " + msg.data.byteLength);
+	dml_this.ws = new WebSocket(url);
+
+	dml_this.func_onmessage = function(msg) {
+//		console.log("dml_this.ws.onmessage: " + msg.data.byteLength);
 	
 		header = new DataView(msg.data, 0, 4);
 		id = header.getUint16(0, false);
@@ -153,18 +154,31 @@ function dml()
 		}
 	}
 
-	ws.onopen = function(event) {
-		console.log("ws.onopen()");
-		ws.binaryType = "arraybuffer";
+	dml_this.func_onopen = function(event) {
+		console.log("dml_this.ws.onopen()");
+		dml_this.ws.binaryType = "arraybuffer";
 	}
 
-	ws.onclose = function(event) {
-		console.log("ws.onclose(): " + event.code + ", " + event.reason);
+	dml_this.func_onclose = function(event) {
+		console.log("dml_this.ws.onclose(): " + event.code + ", " + event.reason);
+		setTimeout(function(){
+			dml_this.ws = null;
+			dml_this.ws = new WebSocket(url);
+			dml_this.set_ws_handlers();
+		}, 3000);
 	}
 
-	ws.onerror = function(event) {
-		console.log("ws.onerror(): " + event.data);
+	dml_this.func_onerror = function(event) {
+		console.log("dml_this.ws.onerror(): " + event.data);
 	}
+	
+	dml_this.set_ws_handlers = function() {
+		dml_this.ws.onmessage = dml_this.func_onmessage;
+		dml_this.ws.onopen = dml_this.func_onopen;
+		dml_this.ws.onclose = dml_this.func_onclose;
+		dml_this.ws.onerror = dml_this.func_onerror;
+	}
+	dml_this.set_ws_handlers();
 	
 	this.send = function dml_connection_send(id, payload_arraybuffer) {
 		data = new ArrayBuffer(payload_arraybuffer.byteLength + 4);
@@ -178,7 +192,7 @@ function dml()
 		for (i = 0; i < payload_arraybuffer.byteLength; i++) {
 			dataview.setUint8(4 + i, payloadview.getUint8(i));
 		}
-		ws.send(data);
+		dml_this.ws.send(data);
 	}
 	
 	this.send_req_description = function dml_packet_send_req_description(id) {

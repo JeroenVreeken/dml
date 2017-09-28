@@ -145,10 +145,36 @@ function ab_copy(dst_ab, dst_off, src_ab, src_off, len)
 
 var routes = new Array();
 
+function routes_sort(a, b)
+{
+	if (a.description.name < b.description.name) {
+		return -1;
+	}
+	if (a.description.name > b.description.name) {
+		return 1;
+	}
+	if (a.description.mime < b.description.mime) {
+		return -1;
+	}
+	if (a.description.mime > b.description.mime) {
+		return 1;
+	}
+	if (a.description.alias < b.description.alias) {
+		return -1;
+	}
+	if (a.description.alias > b.description.alias) {
+		return 1;
+	}
+	console.log(a.description.name + " == " + b.description.name);
+	return 0;
+}
+
 function update_routes()
 {
 	var i;
 	routes_str = "";
+	
+	routes.sort(routes_sort);
 	
 	for (i = 0; i < routes.length; i++) {
 		var can_play_mse = false;
