@@ -1097,9 +1097,12 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 	for (; size; size--, ctrl++) {
 		if (!command_len && ctrl[0] != '*')
 			continue;
-		/* Filter out bouncing star */
-		if (command_len == 1 && ctrl[0] == '*')
+		/* Star means start of a new command */
+		if (ctrl[0] == '*') {
+			command[0] = '*';
+			command_len = 1;
 			continue;
+		}
 		command[command_len] = ctrl[0];
 		command[command_len+1] = 0;
 		
