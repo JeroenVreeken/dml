@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS=-I m4
 CFLAGS+= -Wall -Werror -O3
 
 
-bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_trx dml_httpd dml_fprs_db
+bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_stream_client_codec2 dml_trx dml_httpd dml_fprs_db
 
 DML_SRCS = \
 	dml_client.c \
@@ -18,10 +18,14 @@ DML_SRCS = \
 	dml_stream.c \
 	dml_stream_client_simple.c
 
+ALAW_SRCS = alaw.c
+
+ULAW_SRCS = ulaw.c
+
 TRX_SRCS = \
 	trx_dv.c \
-	alaw.c \
-	ulaw.c
+	$(ULAW_SRCS) \
+	$(ALAW_SRCS)
 
 
 FPRS_DB_SRCS = \
@@ -51,6 +55,9 @@ dml_streamer_LDFLAGS = -lcrypto
 
 dml_stream_client_SOURCES = $(DML_SRCS) dml_stream_client.c
 dml_stream_client_LDFLAGS = -lcrypto
+
+dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ULAW_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
+dml_stream_client_codec2_LDFLAGS = -lcrypto
 
 
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c

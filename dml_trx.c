@@ -75,6 +75,9 @@ static void recv_data_fprs(void *data, size_t size, uint64_t timestamp);
 static bool rx_state = false;
 static bool tx_state = false;
 
+static char command[100];
+static int command_len = 0;
+
 static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -911,6 +914,8 @@ static int rx_watchdog(void *arg)
 	send_data(data, 8, stream_dv);
 
 	rx_state = false;
+	/* Flush command buffer */
+	command_len = 0;
 
 	while (sound_msg_q) {
 		uint8_t *data;
@@ -1091,8 +1096,6 @@ static void command_cb_handle(char *command)
 
 static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size)
 {
-	static char command[100];
-	static int command_len = 0;
 
 	for (; size; size--, ctrl++) {
 		if (!command_len && ctrl[0] != '*')
