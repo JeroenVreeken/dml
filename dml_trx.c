@@ -999,14 +999,17 @@ static void command_cb_handle(char *command)
 	bool nokey = false;
 	bool notfound = false;
 
+	/* Skip empty commands */
+	if (!strlen(command))
+		return;
+
 	printf("command: %s\n", command);
 	
 	is_73 = !strcmp(command, "73");
 	do_disconnect |= is_73;
 	
 	/* try to find by alias directly */
-	if (strlen(command))
-		ds = dml_stream_by_alias(command);
+	ds = dml_stream_by_alias(command);
 	if (!ds) {
 		/* Second attempt: try to find with added prefix */
 		char *command_pref;
