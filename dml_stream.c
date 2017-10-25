@@ -25,6 +25,7 @@ struct dml_stream {
 	struct dml_stream *next;
 	
 	uint8_t id[DML_ID_SIZE];
+	bool mine;
 
 	uint8_t version;
 	uint32_t bps;
@@ -32,6 +33,9 @@ struct dml_stream {
 	char *name;
 	char *alias;
 	char *description;
+	
+	uint8_t *header;
+	size_t header_size;
 	
 	struct dml_crypto_key *crypto;
 	
@@ -300,5 +304,31 @@ struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds)
 int dml_stream_priv_set(struct dml_stream *ds, struct dml_stream_priv *priv)
 {
 	ds->priv = priv;
+	return 0;
+}
+
+bool dml_stream_mine_get(struct dml_stream *ds)
+{
+	return ds->mine;
+}
+
+int dml_stream_mine_set(struct dml_stream *ds, bool mine)
+{
+	return ds->mine = mine;
+}
+
+int dml_stream_header_get(struct dml_stream *ds, uint8_t **header, size_t *size)
+{
+	*header = ds->header;
+	*size = ds->header_size;
+	
+	return 0;
+}
+
+int dml_stream_header_set(struct dml_stream *ds, uint8_t *header, size_t size)
+{
+	ds->header = header;
+	ds->header_size = size;
+	
 	return 0;
 }

@@ -10,6 +10,7 @@ DML_SRCS = \
 	dml_config.c \
 	dml_connection.c \
 	dml_crypto.c \
+	dml_host.c \
 	dml_id.c \
 	dml_packet.c \
 	dml_poll.c \

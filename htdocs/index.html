@@ -147,6 +147,12 @@ var routes = new Array();
 
 function routes_sort(a, b)
 {
+	/* No use comparing if nothing is known, just make it go to the bottom */
+	if (!a.description)
+		return 1;
+	if (!b.description)
+		return -1;
+
 	if (a.description.name < b.description.name) {
 		return -1;
 	}

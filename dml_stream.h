@@ -46,6 +46,10 @@ uint64_t dml_stream_timestamp_get(struct dml_stream *ds);
 int dml_stream_timestamp_set(struct dml_stream *ds, uint64_t timestamp);
 uint32_t dml_stream_bps_get(struct dml_stream *ds);
 int dml_stream_bps_set(struct dml_stream *ds, uint32_t bps);
+bool dml_stream_mine_get(struct dml_stream *ds);
+int dml_stream_mine_set(struct dml_stream *ds, bool mine);
+int dml_stream_header_get(struct dml_stream *ds, uint8_t **header, size_t *size);
+int dml_stream_header_set(struct dml_stream *ds, uint8_t *header, size_t size);
 
 struct dml_stream_priv;
 struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds);

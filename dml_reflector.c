@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2017
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "dml_packet.h"
 #include "dml.h"
 #include "dml_id.h"
+#include "dml_host.h"
 #include "dml_crypto.h"
 #include "dml_config.h"
 #include "dml_stream.h"
@@ -48,317 +49,49 @@ char *alias;
 char *description;
 uint32_t bps = 6400;
 bool parrot = false;
+static struct dml_stream *stream_dv;
 
-uint16_t packet_id = 0;
-struct dml_connection *dml_con;
-
-uint8_t *header = &(uint8_t){ 0 };
-size_t header_size = 0;
+struct dml_host *host;
 
 struct dml_crypto_key *dk;
 
-void recv_data(void *data, size_t size, uint64_t timestamp);
 void send_beep(void);
 static int watchdog(void *arg);
 
-static uint16_t alloc_data_id(void)
+
+static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
-	uint16_t id;
-	
-	for (id = DML_PACKET_DATA; id >= DML_PACKET_DATA; id++)
-		if (!dml_stream_by_data_id(id))
-			return id;
-	return 0;
-}
+	bool do_connect = true;
+	bool do_reject = false;
 
-struct dml_stream_priv {
-	bool match_mime;
-	bool connected;
-};
-
-struct dml_stream_priv *stream_priv_new(void)
-{
-	return calloc(1, sizeof(struct dml_stream_priv));
-}
-
-void stream_priv_free(struct dml_stream_priv *priv)
-{
-	free(priv);
-}
-
-static int connect(struct dml_stream *ds)
-{
-	uint16_t data_id = alloc_data_id();
-	if (!data_id)
-		return -1;
-
-	printf("Connect to %p\n", ds);
-	dml_stream_data_id_set(ds, data_id);
-	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
-
-	struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-	
-	priv->connected = true;
-	
-	return 0;
-}
-
-void rx_packet(struct dml_connection *dc, void *arg, 
-    uint16_t id, uint16_t len, uint8_t *data)
-{
-//	printf("got id: %d\n", id);
-	
-	switch(id) {
-		case DML_PACKET_ROUTE: {
-			uint8_t hops;
-			uint8_t rid[DML_ID_SIZE];
-			struct dml_stream *ds;
-			
-			if (dml_packet_parse_route(data, len, rid, &hops))
-				break;
-			
-			if (hops == 255) {
-				ds = dml_stream_by_id(rid);
-				if (ds) {
-					stream_priv_free(dml_stream_priv_get(ds));
-					dml_stream_remove(ds);
-				}
-			} else {
-				ds = dml_stream_by_id_alloc(rid);
-				if (!ds)
-					break;
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv) {
-					priv = stream_priv_new();
-					dml_stream_priv_set(ds, priv);
-				}
-				char *mime = dml_stream_mime_get(ds);
-				if (!mime)
-					dml_packet_send_req_description(dc, rid);
-				else if (priv->match_mime) {
-					struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
-					if (!ck)
-						dml_packet_send_req_certificate(dc, rid);
-				}
+	if (do_connect) {
+		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
+		if (dml_host_mime_filter(host, ds_rev) && key) {
+			if(!dml_host_connect(host, ds_rev)) {
+				send_beep();
 			}
-			
-			break;
+		} else {
+			do_reject = true;
 		}
-		case DML_PACKET_DESCRIPTION: {
-			struct dml_stream *ds;
-			if (!(ds = dml_stream_update_description(data, len)))
-				break;
-			char *dmime = dml_stream_mime_get(ds);
-			uint8_t *rid = dml_stream_id_get(ds);
-			if (!strcmp(mime, dmime)) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv) {
-					priv = stream_priv_new();
-					dml_stream_priv_set(ds, priv);
-				}				
-				priv->match_mime = true;
-				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
-				if (!ck)
-					dml_packet_send_req_certificate(dc, rid);
-			}
-			break;
-		}
-		case DML_PACKET_CERTIFICATE: {
-			uint8_t cid[DML_ID_SIZE];
-			void *cert;
-			size_t size;
-			struct dml_stream *ds;
-			
-			if (dml_packet_parse_certificate(data, len, cid, &cert, &size))
-				break;
-			if ((ds = dml_stream_by_id(cid))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (priv && priv->match_mime) {
-					dml_crypto_cert_add_verify(cert, size, cid);
-				}
-			}
-			free(cert);
-			
-			break;
-		}
-		case DML_PACKET_HEADER: {
-			/* our current codec2 use doesn't need a header */
-			
-			break;
-		}
-		case DML_PACKET_REQ_DESCRIPTION: {
-			/* No need to unpack the request,
-			   we only have one stream...*/
-			dml_packet_send_description(dc, ref_id,
-			    DML_PACKET_DESCRIPTION_VERSION_0, bps, mime, 
-			    name, alias, description);
-			break;
-		}
-		case DML_PACKET_CONNECT: {
-			uint8_t cid[DML_ID_SIZE];
-			
-			dml_packet_parse_connect(data, len, cid, &packet_id);
-			break;
-		}
-		case DML_PACKET_REQ_DISC: {
-			packet_id = 0;
-			dml_packet_send_disc(dc, ref_id, DML_PACKET_DISC_REQUESTED);
-			break;
-		}
-		case DML_PACKET_REQ_CERTIFICATE: {
-			void *cert;
-			size_t cert_size;
-			
-			if (dml_crypto_cert_get(&cert, &cert_size))
-				break;
-			
-			dml_packet_send_certificate(dc, ref_id, cert, cert_size);
-			break;
-		}
-		case DML_PACKET_REQ_HEADER: {
-			uint8_t header_sig[DML_SIG_SIZE];
-			
-			dml_crypto_sign(header_sig, header, header_size, dk);
-			
-			dml_packet_send_header(dc, ref_id, header_sig, header, header_size);
-			break;
-		}
-		case DML_PACKET_REQ_REVERSE: {
-			uint8_t id_me[DML_ID_SIZE];
-			uint8_t id_rev[DML_ID_SIZE];
-			uint8_t action;
-			uint16_t status;
-			
-			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
-				break;
-			printf("Recevied reverse request %d\n", action);
-
-			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
-			if (!ds_rev)
-				break;
-			if (action & DML_PACKET_REQ_REVERSE_CONNECT) {
-				bool do_connect = true;
-				bool do_reject = false;
-
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
-		
-				if (do_connect && priv) {
-					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
-					if (priv->match_mime && key) {
-						connect(ds_rev);
-						send_beep();
-					} else {
-						do_reject = true;
-					}
-				} else {
-					do_reject = true;
-				}
-				if (do_reject) {
-					dml_packet_send_req_reverse(dml_con,
-					    id_rev, 
-					    id_me,
-					    DML_PACKET_REQ_REVERSE_DISC, DML_STATUS_UNAUTHORIZED);
-				}
-			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
-				
-				if (priv && priv->connected) {
-					printf("Disconnect\n");
-					dml_packet_send_req_disc(dml_con, id_rev);
-					priv->connected = false;
-				}
-			}
-			
-			break;
-		}
-		default: {
-			if (id < DML_PACKET_DATA)
-				break;
-			if (len < DML_SIG_SIZE + sizeof(uint64_t))
-				break;
-			
-			uint64_t timestamp;
-			size_t payload_len;
-			void *payload_data;
-			struct dml_crypto_key *dk;
-			struct dml_stream *ds;
-			
-			ds = dml_stream_by_data_id(id);
-			if (!ds) {
-				fprintf(stderr, "Could not find dml stream\n");
-				break;
-			}
-			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-			
-			if (!priv || !priv->connected) {
-				fprintf(stderr, "Spurious data from %p\n", ds);
-				break;
-			}
-			
-			dk = dml_stream_crypto_get(ds);
-			
-			if (dml_packet_parse_data(data, len,
-			    &payload_data, &payload_len, &timestamp, dk)) {
-				fprintf(stderr, "Decoding failed\n");
-			} else {
-				if (timestamp <= dml_stream_timestamp_get(ds)) {
-					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
-					    timestamp, dml_stream_timestamp_get(ds));
-				} else {
-					dml_stream_timestamp_set(ds, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
-					recv_data(payload_data, payload_len, timestamp);
-				}
-			}
-			break;
-		}
+	} else {
+		do_reject = true;
 	}
-	
-	return;
-}
-
-int client_reconnect(void *clientv)
-{
-	struct dml_client *client = clientv;
-
-	if (dml_client_connect(client)) {
-		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(client, &(struct timespec){ 2, 0 });
+	if (do_reject) {
+		dml_packet_send_req_reverse(dml_host_connection_get(host),
+		    dml_stream_id_get(ds_rev), 
+		    dml_stream_id_get(ds),
+		    DML_PACKET_REQ_REVERSE_DISC, DML_STATUS_UNAUTHORIZED);
 	}
-	
-	return 0;
 }
 
-int client_connection_close(struct dml_connection *dc, void *arg)
+static void stream_req_reverse_disconnect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
-	dml_con = NULL;
-	packet_id = 0;
-
-	dml_poll_add(arg, NULL, NULL, client_reconnect);
-	dml_poll_timeout(arg, &(struct timespec){ 1, 0 });
-	
-	if (dc)
-		return dml_connection_destroy(dc);
-	else
-		return 0;
+	if (dml_stream_data_id_get(ds_rev)) {
+		printf("Disconnect\n");
+		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
+	}
 }
 
-void client_connect(struct dml_client *client, void *arg)
-{
-	struct dml_connection *dc;
-	int fd;
-	
-	printf("Connected to DML server\n");
-	
-	fd = dml_client_fd_get(client);
-	
-	dc = dml_connection_create(fd, client, rx_packet, client_connection_close);
-	dml_con = dc;
-	dml_packet_send_hello(dc, 
-	    DML_PACKET_HELLO_LEAF | DML_PACKET_HELLO_UPDATES,
-	    "dml_reflector " DML_VERSION);
-	dml_packet_send_route(dc, ref_id, 0);
-}
 
 uint64_t prev_timestamp = 0;
 
@@ -366,6 +99,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 {
 	struct timespec ts;
 	uint64_t tmax;
+	uint16_t packet_id = dml_stream_data_id_get(stream_dv);
 		
 	dml_poll_timeout(&watchdog, 
 	    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
@@ -388,7 +122,7 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	prev_timestamp = timestamp;
 
 printf("+ %016"PRIx64"\n", timestamp);
-	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+	dml_packet_send_data(dml_host_connection_get(host), packet_id, data, size, timestamp, dk);
 }
 
 struct parrot_data {
@@ -406,6 +140,7 @@ struct timespec parrot_ts;
 int parrot_dequeue(void *data)
 {
 	uint64_t parrot_timestamp;
+	uint16_t packet_id = dml_stream_data_id_get(stream_dv);
 	
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
@@ -435,7 +170,7 @@ int parrot_dequeue(void *data)
 		
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
-		dml_packet_send_data(dml_con, packet_id, 
+		dml_packet_send_data(dml_host_connection_get(host), packet_id, 
 		    entry->data, entry->size, parrot_timestamp, dk);
 		
 		parrot_ts.tv_nsec += entry->duration * 1000000;
@@ -457,7 +192,7 @@ printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->dur
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 		parrot_timestamp++;
 printf("= %016"PRIx64"\n", parrot_timestamp);
-		dml_packet_send_data(dml_con, packet_id, data, 8, parrot_timestamp, dk);
+		dml_packet_send_data(dml_host_connection_get(host), packet_id, data, 8, parrot_timestamp, dk);
 		parrot_ts.tv_sec = 0;
 	}
 	
@@ -493,11 +228,11 @@ void parrot_queue_add(void *data, size_t size, int duration)
 
 static bool tx_state = false;
 
-void recv_data(void *data, size_t size, uint64_t timestamp)
+static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg)
 {
 	int duration;
 	
-	if (size < 8)
+	if (data_size < 8)
 		return;
 	
 	uint8_t *datab = data;
@@ -505,7 +240,7 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 	int mode = datab[6];
 	bool state = datab[7] & 0x1;
 	
-	duration = trx_dv_duration(size - 8, mode);
+	duration = trx_dv_duration(data_size - 8, mode);
 	
 	printf("mode %d state %d duration: %d\n", mode, state, duration);
 	
@@ -520,9 +255,9 @@ void recv_data(void *data, size_t size, uint64_t timestamp)
 	}
 	
 	if (!parrot)
-		send_data(data, size, timestamp);
+		send_data(data, data_size, timestamp);
 	else {
-		parrot_queue_add(data, size, duration);
+		parrot_queue_add(data, data_size, duration);
 	}
 }
 
@@ -576,7 +311,6 @@ printf("%ld ", ts.tv_sec);
 
 int main(int argc, char **argv)
 {
-	struct dml_client *dc;
 	char *file = "dml_reflector.conf";
 	char *certificate;
 	char *key;
@@ -621,12 +355,24 @@ int main(int argc, char **argv)
 	    mime, name, alias, description))
 		return -1;
     	
-	dc = dml_client_create(server, 0, client_connect, NULL);		
-
-	if (dml_client_connect(dc)) {
-		printf("Could not connect to server\n");
+	stream_dv = dml_stream_by_id_alloc(ref_id);
+	dml_stream_mine_set(stream_dv, true);
+	dml_stream_crypto_set(stream_dv, dk);
+    	dml_stream_name_set(stream_dv, name);
+	dml_stream_alias_set(stream_dv, alias);
+	dml_stream_mime_set(stream_dv, DML_MIME_DV_C2);
+	dml_stream_description_set(stream_dv, description);
+	dml_stream_bps_set(stream_dv, bps);
+	
+	host = dml_host_create(server);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
+	dml_host_mime_filter_set(host, 1, (char*[]){ DML_MIME_DV_C2 });
+	dml_host_stream_data_cb_set(host, stream_data_cb, NULL);
+	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
+	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
 
 	beep = alaw_beep(400, 8000, 0.08);
 	if (!beep) {
