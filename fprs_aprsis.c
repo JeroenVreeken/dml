@@ -200,7 +200,7 @@ static int aprs_is_cb(void *arg)
 	ssize_t r;
 	
 	r = read(fd_is, buffer + pos, 1000 - pos);
-	printf("------------------------------------- %zd ----- %zd\n", pos, r);
+//	printf("------------------------------------- %zd ----- %zd\n", pos, r);
 	if (r > 0) {
 		int i;
 		char *line = buffer;
@@ -209,7 +209,7 @@ static int aprs_is_cb(void *arg)
 			    buffer[i] == '\n') {
 				buffer[i] = 0;
 				if (strlen(line)) {
-					printf("%s\n", line);
+//					printf("%s\n", line);
 					struct fprs_frame *frame = aprs2fprs(buffer);
 					if (frame) {
 						if (message_cb) {

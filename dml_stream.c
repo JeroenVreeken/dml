@@ -134,7 +134,7 @@ void dml_stream_remove(struct dml_stream *ds)
 	}
 }
 
-struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len)
+struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len, bool *new_stream)
 {
 	uint8_t id[DML_ID_SIZE];
 	uint8_t v_id[DML_ID_SIZE];
@@ -161,6 +161,9 @@ struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len)
 	if (!stream)
 		goto err_stream;
 
+	if (new_stream) {
+		*new_stream = !stream->mime;
+	}
 	free(stream->name);
 	free(stream->alias);
 	free(stream->description);

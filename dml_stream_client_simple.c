@@ -51,7 +51,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 //	fprintf(stderr, "got id: %d\n", id);
 	switch(id) {
 		case DML_PACKET_DESCRIPTION: {
-			if (!dml_stream_update_description(data, len))
+			if (!dml_stream_update_description(data, len, NULL))
 				break;
 			
 			fprintf(stderr, "Request certificate\n");

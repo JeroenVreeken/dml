@@ -22,7 +22,7 @@
 
 #include <inttypes.h>
 
-struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len);
+struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len, bool *new_stream);
 
 struct dml_stream *dml_stream_by_id(uint8_t id[DML_ID_SIZE]);
 struct dml_stream *dml_stream_by_id_alloc(uint8_t id[DML_ID_SIZE]);

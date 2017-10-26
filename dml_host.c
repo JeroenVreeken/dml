@@ -127,22 +127,18 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		case DML_PACKET_DESCRIPTION: {
 			bool new_stream = false;
 			struct dml_stream *ds;
-			if (!(ds = dml_stream_update_description(data, len)))
+			if (!(ds = dml_stream_update_description(data, len, &new_stream)))
 				break;
-			char *mime = dml_stream_mime_get(ds);
-			if (!mime)
-				new_stream = true;
 			uint8_t *rid = dml_stream_id_get(ds);
 
 			if (dml_host_mime_filter(host, ds)) {
 				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
 				if (!ck)
 					dml_packet_send_req_certificate(dc, rid);
+		
+				if (new_stream && host->stream_added_cb)
+					host->stream_added_cb(host, ds, host->stream_added_cb_arg);	
 			}
-			
-			if (new_stream && host->stream_added_cb)
-				host->stream_added_cb(host, ds, host->stream_added_cb_arg);
-
 			
 			break;
 		}

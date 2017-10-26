@@ -59,6 +59,7 @@ static char *aprsis_host;
 static int aprsis_port;
 static char *aprsis_call;
 
+static int aprs_msg_nr = 0;
 
 struct dml_stream_priv {
 	unsigned int link;
@@ -77,6 +78,7 @@ void stream_priv_free(struct dml_stream_priv *priv)
 
 static void stream_added_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
 {
+	printf("New FPRS stream: %s\n", dml_stream_name_get(ds));
 	dml_stream_priv_set(ds, stream_priv_new());
 }
 
@@ -186,6 +188,8 @@ void message_cb(struct fprs_frame *frame)
 	    send_data,
 	    NULL
 	    );
+
+	aprs_msg_nr++;
 }
 
 static int fprs_timer(void *arg)
@@ -193,7 +197,8 @@ static int fprs_timer(void *arg)
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 
-	debug("fprs_timer elapsed\n");
+	debug("fprs_timer elapsed (received %d messages from APRS)\n", aprs_msg_nr);
+	aprs_msg_nr = 0;
 	
 	fprs_db_flush(ts.tv_sec);
 
