@@ -293,6 +293,8 @@ int main(int argc, char **argv)
 	stream_fprs = dml_stream_by_id_alloc(id);
 	priv_fprs = stream_priv_new();
 	dml_stream_priv_set(stream_fprs, priv_fprs);
+	dml_stream_mine_set(stream_fprs, true);
+	dml_stream_crypto_set(stream_fprs, dk);
     	dml_stream_name_set(stream_fprs, name);
 	dml_stream_alias_set(stream_fprs, DML_ALIAS_FPRS_BACKBONE);
 	dml_stream_mime_set(stream_fprs, DML_MIME_FPRS);
@@ -307,6 +309,8 @@ int main(int argc, char **argv)
 	stream_fprs_db = dml_stream_by_id_alloc(id);
 	priv_fprs_db = stream_priv_new();
 	dml_stream_priv_set(stream_fprs_db, priv_fprs_db);
+	dml_stream_mine_set(stream_fprs_db, true);
+	dml_stream_crypto_set(stream_fprs_db, dk);
     	dml_stream_name_set(stream_fprs_db, name);
 	dml_stream_alias_set(stream_fprs_db, DML_ALIAS_FPRS_DB);
 	dml_stream_mime_set(stream_fprs_db, DML_MIME_FPRS);
