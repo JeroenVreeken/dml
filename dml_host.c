@@ -320,7 +320,7 @@ int dml_host_connect(struct dml_host *host, struct dml_stream *ds)
 {
 	uint16_t data_id = dml_stream_data_id_get(ds);
 	if (!data_id) {
-		uint16_t data_id = alloc_data_id();
+		data_id = alloc_data_id();
 		if (!data_id)
 			return -1;
 	}
