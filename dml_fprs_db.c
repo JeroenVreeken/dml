@@ -17,6 +17,7 @@
  */
 #include "dml_client.h"
 #include "dml_connection.h"
+#include "dml_host.h"
 #include "dml_poll.h"
 #include "dml_packet.h"
 #include "dml.h"
@@ -49,7 +50,7 @@
 static struct dml_stream *stream_fprs;
 static struct dml_stream *stream_fprs_db;
 
-struct dml_connection *dml_con;
+struct dml_host *host;
 
 struct dml_crypto_key *dk;
 
@@ -59,27 +60,9 @@ static int aprsis_port;
 static char *aprsis_call;
 
 
-void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *from);
-
-static uint16_t alloc_data_id(void)
-{
-	uint16_t id;
-	
-	for (id = DML_PACKET_DATA; id >= DML_PACKET_DATA; id++)
-		if (!dml_stream_by_data_id(id))
-			return id;
-	return 0;
-}
-
 struct dml_stream_priv {
-	bool mine;
-	bool match_mime;
-	bool connected;
 	unsigned int link;
 	time_t time_valid;
-	
-	uint8_t *header;
-	size_t header_size;
 };
 
 struct dml_stream_priv *stream_priv_new(void)
@@ -92,368 +75,51 @@ void stream_priv_free(struct dml_stream_priv *priv)
 	free(priv);
 }
 
-static int connect(struct dml_stream *ds)
+static void stream_added_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
 {
-	uint16_t data_id = dml_stream_data_id_get(ds);
-	if (!data_id)
-		data_id = alloc_data_id();
-	if (!data_id)
-		return -1;
-
-	printf("Connect to %s\n", dml_stream_name_get(ds));
-	dml_stream_data_id_set(ds, data_id);
-	dml_packet_send_connect(dml_con, dml_stream_id_get(ds), data_id);
-
-	struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-	
-	priv->connected = true;
-	
-	return 0;
+	dml_stream_priv_set(ds, stream_priv_new());
 }
 
-void rx_packet(struct dml_connection *dc, void *arg, 
-    uint16_t id, uint16_t len, uint8_t *data)
+static void stream_removed_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
 {
-//	printf("got id: %d\n", id);
-	
-	switch(id) {
-		case DML_PACKET_ROUTE: {
-			uint8_t hops;
-			uint8_t rid[DML_ID_SIZE];
-			struct dml_stream *ds;
-			
-			if (dml_packet_parse_route(data, len, rid, &hops))
-				break;
-			
-			if (hops == 255) {
-				ds = dml_stream_by_id(rid);
-				if (ds) {
-					struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-					if (priv && priv->mine)
-						break;
-					stream_priv_free(dml_stream_priv_get(ds));
-					dml_stream_remove(ds);
-				}
-			} else {
-				ds = dml_stream_by_id_alloc(rid);
-				if (!ds)
-					break;
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv) {
-					priv = stream_priv_new();
-					dml_stream_priv_set(ds, priv);
-				}
-				char *mime = dml_stream_mime_get(ds);
-				if (!mime)
-					dml_packet_send_req_description(dc, rid);
-				else if (priv->match_mime) {
-					struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
-					if (!ck)
-						dml_packet_send_req_certificate(dc, rid);
-				}
-			}
-			
-			break;
-		}
-		case DML_PACKET_DESCRIPTION: {
-			struct dml_stream *ds;
-			if (!(ds = dml_stream_update_description(data, len)))
-				break;
-			char *dmime = dml_stream_mime_get(ds);
-			uint8_t *rid = dml_stream_id_get(ds);
-			if (!strcmp(DML_MIME_FPRS, dmime)) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv) {
-					priv = stream_priv_new();
-					dml_stream_priv_set(ds, priv);
-				}				
-				priv->match_mime = true;
-				struct dml_crypto_key *ck = dml_stream_crypto_get(ds);
-				if (!ck)
-					dml_packet_send_req_certificate(dc, rid);
-			}
-			break;
-		}
-		case DML_PACKET_CERTIFICATE: {
-			uint8_t cid[DML_ID_SIZE];
-			void *cert;
-			size_t size;
-			struct dml_stream *ds;
-			
-			if (dml_packet_parse_certificate(data, len, cid, &cert, &size))
-				break;
-			if ((ds = dml_stream_by_id(cid))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (priv && priv->match_mime) {
-					dml_crypto_cert_add_verify(cert, size, cid);
-				}
-			}
-			free(cert);
-			
-			break;
-		}
-		case DML_PACKET_HEADER: {
-			/* our fprs use doesn't need a header */
-			
-			break;
-		}
-		case DML_PACKET_REQ_DESCRIPTION: {
-			uint8_t rid[DML_ID_SIZE];
-			
-			if (dml_packet_parse_req_description(data, len, rid))
-				break;
-			
-			struct dml_stream *ds;
-			if ((ds = dml_stream_by_id(rid))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv)
-					break;
-				
-				dml_packet_send_description(dc, rid,
-				    DML_PACKET_DESCRIPTION_VERSION_0, 
-				    dml_stream_bps_get(ds), 
-				    dml_stream_mime_get(ds), 
-				    dml_stream_name_get(ds), 
-				    dml_stream_alias_get(ds), 
-				    dml_stream_description_get(ds));
-			}
-			break;
-		}
-		case DML_PACKET_CONNECT: {
-			uint16_t connect_packet_id;
-			uint8_t connect_id[DML_ID_SIZE];
-			
-			dml_packet_parse_connect(data, len, connect_id, &connect_packet_id);
-			printf("Received connect, packet_id: %d\n", connect_packet_id);
+	stream_priv_free(dml_stream_priv_get(ds));
+}
 
-			struct dml_stream *ds;
-			if ((ds = dml_stream_by_id(connect_id))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv)
-					break;
-				if (!priv->mine)
-					break;
-				dml_stream_data_id_set(ds, connect_packet_id);
-			}	
-			
-			break;
-		}
-		case DML_PACKET_REQ_DISC: {
-			uint8_t rid[DML_ID_SIZE];
-			
-			if (dml_packet_parse_req_disc(data, len, rid))
-				break;
-			
-			struct dml_stream *ds;
-			if ((ds = dml_stream_by_id(rid))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv)
-					break;
-				if (!priv->mine)
-					break;
-				dml_stream_data_id_set(ds, 0);
-				dml_packet_send_disc(dc, rid, DML_PACKET_DISC_REQUESTED);
-				debug("Received disconnect from %s\n", dml_stream_name_get(ds));
-			}
-			break;
-		}
-		case DML_PACKET_REQ_CERTIFICATE: {
-			void *cert;
-			size_t cert_size;
-			uint8_t rid[DML_ID_SIZE];
-			
-			if (dml_packet_parse_req_certificate(data, len, rid))
-				break;
-			
-			if (dml_crypto_cert_get(&cert, &cert_size))
-				break;
-			
-			dml_packet_send_certificate(dc, rid, cert, cert_size);
-			break;
-		}
-		case DML_PACKET_REQ_HEADER: {
-			uint8_t rid[DML_ID_SIZE];
-			
-			if (dml_packet_parse_req_header(data, len, rid))
-				break;
-			
-			struct dml_stream *ds;
-			if ((ds = dml_stream_by_id(rid))) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-				if (!priv)
-					break;
-			
-				uint8_t header_sig[DML_SIG_SIZE];
-			
-				dml_crypto_sign(header_sig, priv->header, priv->header_size, dk);
-			
-				dml_packet_send_header(dc, rid, header_sig, priv->header, priv->header_size);
-			}
-			break;
-		}
-		case DML_PACKET_REQ_REVERSE: {
-			uint8_t id_me[DML_ID_SIZE];
-			uint8_t id_rev[DML_ID_SIZE];
-			uint8_t action;
-			uint16_t status;
-			
-			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
-				break;
-			printf("Recevied reverse request %d\n", action);
+static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds_me, struct dml_stream *ds_rev, int status, void *arg)
+{
+	bool do_connect = true;
 
-			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
-			struct dml_stream *ds_me = dml_stream_by_id(id_me);
-			if (!ds_rev || !ds_me)
-				break;
-			if (action & DML_PACKET_REQ_REVERSE_CONNECT) {
-				bool do_connect = true;
-
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
+	struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
 		
-				if (do_connect && priv) {
-					struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
-					if (priv->match_mime && key) {
-						connect(ds_rev);
-						if (ds_me == stream_fprs) {
-							printf("Connect request to backbone\n");
-							priv->link = FPRS_PARSE_UPLINK;
-							priv->time_valid = TIME_VALID_UPLINK;
-						} else {
-							printf("Connect request to DB\n");
-							priv->link = FPRS_PARSE_DOWNLINK;
-							priv->time_valid = TIME_VALID_DOWNLINK;
-						}
-					} else {
-						printf("Request rejected\n");
-						dml_packet_send_req_reverse(dml_con,
-						    id_rev, 
-						    id_me,
-						    DML_PACKET_REQ_REVERSE_DISC, 
-						    DML_STATUS_UNAUTHORIZED);
-					}
-				}
-			} else if (action & DML_PACKET_REQ_REVERSE_DISC) {
-				struct dml_stream_priv *priv = dml_stream_priv_get(ds_rev);
-				
-				if (priv && priv->connected) {
-					printf("Disconnect from %s\n", dml_stream_name_get(ds_rev));
-					dml_packet_send_req_disc(dml_con, id_rev);
-					priv->connected = false;
-				}
-			}
-			
-			break;
-		}
-		default: {
-			if (id < DML_PACKET_DATA)
-				break;
-			if (len < DML_SIG_SIZE + sizeof(uint64_t))
-				break;
-			
-			uint64_t timestamp;
-			size_t payload_len;
-			void *payload_data;
-			struct dml_crypto_key *dk;
-			struct dml_stream *ds;
-			
-			ds = dml_stream_by_data_id(id);
-			if (!ds) {
-				fprintf(stderr, "Could not find dml stream for id %d\n", id);
-				break;
-			}
-			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-			
-			if (!priv || !priv->connected) {
-				fprintf(stderr, "Spurious data from %s\n", dml_stream_name_get(ds));
-				break;
-			}
-			
-			dk = dml_stream_crypto_get(ds);
-			if (!dk) {
-				fprintf(stderr, "Could not find key for stream %s id %d\n",
-				    dml_stream_name_get(ds), id);
-				break;
-			}
-
-			if (dml_packet_parse_data(data, len,
-			    &payload_data, &payload_len, &timestamp, dk)) {
-				fprintf(stderr, "Decoding failed\n");
+	if (do_connect && priv) {
+		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
+		if (dml_host_mime_filter(host, ds_rev) && key) {
+			dml_host_connect(host, ds_rev);
+			if (ds_me == stream_fprs) {
+				printf("Connect request to backbone\n");
+				priv->link = FPRS_PARSE_UPLINK;
+				priv->time_valid = TIME_VALID_UPLINK;
 			} else {
-				if (timestamp <= dml_stream_timestamp_get(ds)) {
-					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
-					    timestamp, dml_stream_timestamp_get(ds));
-				} else {
-					dml_stream_timestamp_set(ds, timestamp);
-					fprintf(stderr, "Received %zd from %s\n",
-					    payload_len, dml_stream_name_get(ds));
-					recv_data(payload_data, payload_len, timestamp, ds);
-				}
+				printf("Connect request to DB\n");
+				priv->link = FPRS_PARSE_DOWNLINK;
+				priv->time_valid = TIME_VALID_DOWNLINK;
 			}
-			break;
+		} else {
+			printf("Request rejected\n");
+			dml_packet_send_req_reverse(dml_host_connection_get(host),
+			    dml_stream_id_get(ds_rev), 
+			    dml_stream_id_get(ds_me),
+			    DML_PACKET_REQ_REVERSE_DISC, 
+			    DML_STATUS_UNAUTHORIZED);
 		}
 	}
-	
-	return;
 }
 
-int client_reconnect(void *clientv)
+static void stream_req_reverse_disconnect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
-	struct dml_client *client = clientv;
-
-	if (dml_client_connect(client)) {
-		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(client, &(struct timespec){ 2, 0 });
-	}
-	
-	return 0;
-}
-
-int client_connection_close(struct dml_connection *dc, void *arg)
-{
-	dml_con = NULL;
-
-	struct dml_stream *ds = NULL;
-	while ((ds = dml_stream_iterate(ds))) {
-		struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-		if (!priv)
-			continue;
-		if (!priv->mine)
-			continue;
-		dml_stream_data_id_set(ds, 0);
-	}
-
-	dml_poll_add(arg, NULL, NULL, client_reconnect);
-	dml_poll_timeout(arg, &(struct timespec){ 1, 0 });
-	
-	if (dc)
-		return dml_connection_destroy(dc);
-	else
-		return 0;
-}
-
-void client_connect(struct dml_client *client, void *arg)
-{
-	struct dml_connection *dc;
-	int fd;
-	
-	printf("Connected to DML server\n");
-	
-	fd = dml_client_fd_get(client);
-	
-	dc = dml_connection_create(fd, client, rx_packet, client_connection_close);
-	dml_con = dc;
-	dml_packet_send_hello(dc, 
-	    DML_PACKET_HELLO_LEAF | DML_PACKET_HELLO_UPDATES,
-	    "dml_fprs_db " DML_VERSION);
-
-	struct dml_stream *ds = NULL;
-	while ((ds = dml_stream_iterate(ds))) {
-		struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-		if (!priv)
-			continue;
-		if (!priv->mine)
-			continue;
-		dml_packet_send_route(dc, dml_stream_id_get(ds), 0);
+	if (dml_stream_data_id_get(ds_rev)) {
+		printf("Disconnect\n");
+		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
 	}
 }
 
@@ -471,7 +137,7 @@ static int send_data(void *data, size_t size, unsigned int link, void *arg)
 printf("send to uplink\n");
 		packet_id = dml_stream_data_id_get(stream_fprs);
 		if (packet_id)
-			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+			dml_packet_send_data(dml_host_connection_get(host), packet_id, data, size, timestamp, dk);
 
 		struct fprs_frame *fprs_frame = fprs_frame_create();
 		if (fprs_frame) {
@@ -484,13 +150,13 @@ printf("send to uplink\n");
 printf("send to downlink\n");
 		packet_id = dml_stream_data_id_get(stream_fprs_db);
 		if (packet_id)
-			dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
+			dml_packet_send_data(dml_host_connection_get(host), packet_id, data, size, timestamp, dk);
 	}
 	return 0;
 }
 
 
-void recv_data(void *data, size_t size, uint64_t timestamp, struct dml_stream *from)
+static void stream_data_cb(struct dml_host *host, struct dml_stream *from, uint64_t timestamp, void *data, size_t size, void *arg)
 {
 	struct timespec ts;
 	struct dml_stream_priv *priv = dml_stream_priv_get(from);
@@ -531,19 +197,16 @@ static int fprs_timer(void *arg)
 	
 	fprs_db_flush(ts.tv_sec);
 
-	if (dml_con) {
+	if (dml_host_connection_get(host)) {
 		struct dml_stream *ds = NULL;
 		while ((ds = dml_stream_iterate(ds))) {
-			struct dml_stream_priv *priv = dml_stream_priv_get(ds);
-			if (!priv)
-				continue;
-			if (priv->mine)
+			if (dml_stream_mine_get(ds))
 				continue;
 			char *alias = dml_stream_alias_get(ds);
 			if (!alias)
 				continue;
 			if (!strcmp(alias, DML_ALIAS_FPRS_BACKBONE)) {
-				connect(ds);
+				dml_host_connect(host, ds);
 			}
 
 		}
@@ -570,7 +233,6 @@ static int fprs_req_timer(void *arg)
 
 int main(int argc, char **argv)
 {
-	struct dml_client *dc;
 	char *file = "dml_fprs_db.conf";
 	char *certificate;
 	char *key;
@@ -630,7 +292,6 @@ int main(int argc, char **argv)
 	
 	stream_fprs = dml_stream_by_id_alloc(id);
 	priv_fprs = stream_priv_new();
-	priv_fprs->mine = true;
 	dml_stream_priv_set(stream_fprs, priv_fprs);
     	dml_stream_name_set(stream_fprs, name);
 	dml_stream_alias_set(stream_fprs, DML_ALIAS_FPRS_BACKBONE);
@@ -645,7 +306,6 @@ int main(int argc, char **argv)
 	
 	stream_fprs_db = dml_stream_by_id_alloc(id);
 	priv_fprs_db = stream_priv_new();
-	priv_fprs_db->mine = true;
 	dml_stream_priv_set(stream_fprs_db, priv_fprs_db);
     	dml_stream_name_set(stream_fprs_db, name);
 	dml_stream_alias_set(stream_fprs_db, DML_ALIAS_FPRS_DB);
@@ -653,12 +313,17 @@ int main(int argc, char **argv)
 	dml_stream_description_set(stream_fprs_db, description);
 	dml_stream_bps_set(stream_fprs_db, bps);
 
-	dc = dml_client_create(server, 0, client_connect, NULL);
-
-	if (dml_client_connect(dc)) {
-		printf("Could not connect to server\n");
+	host = dml_host_create(server);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
+	dml_host_mime_filter_set(host, 1, (char*[]){ DML_MIME_FPRS });
+	dml_host_stream_added_cb_set(host, stream_added_cb, NULL);
+	dml_host_stream_removed_cb_set(host, stream_removed_cb, NULL);
+	dml_host_stream_data_cb_set(host, stream_data_cb, NULL);
+	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
+	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
 
 	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
 	dml_poll_add(&fprs_req_timer, NULL, NULL, fprs_req_timer);

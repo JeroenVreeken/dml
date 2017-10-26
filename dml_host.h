@@ -28,7 +28,9 @@ struct dml_connection *dml_host_connection_get(struct dml_host *host);
 
 int dml_host_connection_closed_cb_set(struct dml_host *host, 
     void(*cb)(struct dml_host *host, void *arg), void *arg);
-int dml_host_stream_removed_cb_set(struct dml_host *host, 
+int dml_host_stream_added_cb_set(struct dml_host *host,
+    void(*cb)(struct dml_host *host, struct dml_stream *ds, void *arg), void *arg);
+int dml_host_stream_removed_cb_set(struct dml_host *host,
     void(*cb)(struct dml_host *host, struct dml_stream *ds, void *arg), void *arg);
 int dml_host_stream_data_cb_set(struct dml_host *host, 
 	void (*stream_data_cb)(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg), void *arg);

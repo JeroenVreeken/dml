@@ -36,6 +36,9 @@ struct dml_host {
 	void (*connection_closed_cb)(struct dml_host *host, void *arg);
 	void *connection_closed_cb_arg;
 
+	void (*stream_added_cb)(struct dml_host *host, struct dml_stream *ds, void *arg);
+	void *stream_added_cb_arg;
+	
 	void (*stream_removed_cb)(struct dml_host *host, struct dml_stream *ds, void *arg);
 	void *stream_removed_cb_arg;
 	
@@ -122,9 +125,13 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			break;
 		}
 		case DML_PACKET_DESCRIPTION: {
+			bool new_stream = false;
 			struct dml_stream *ds;
 			if (!(ds = dml_stream_update_description(data, len)))
 				break;
+			char *mime = dml_stream_mime_get(ds);
+			if (!mime)
+				new_stream = true;
 			uint8_t *rid = dml_stream_id_get(ds);
 
 			if (dml_host_mime_filter(host, ds)) {
@@ -132,6 +139,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				if (!ck)
 					dml_packet_send_req_certificate(dc, rid);
 			}
+			
+			if (new_stream && host->stream_added_cb)
+				host->stream_added_cb(host, ds, host->stream_added_cb_arg);
+
+			
 			break;
 		}
 
@@ -392,6 +404,15 @@ int dml_host_mime_filter_set(struct dml_host *host, int nr, char **mimetypes)
 {
 	host->mime_filter = mimetypes;
 	host->mime_filter_nr = nr;
+	
+	return 0;
+}
+
+int dml_host_stream_added_cb_set(struct dml_host *host, 
+    void(*cb)(struct dml_host *host, struct dml_stream *ds, void *arg), void *arg)
+{
+	host->stream_added_cb = cb;
+	host->stream_added_cb_arg = arg;
 	
 	return 0;
 }
