@@ -16,13 +16,13 @@
 
  */
 
-#include "dml_host.h"
+#include <dml/dml_host.h>
 
-#include "dml_client.h"
-#include "dml_connection.h"
-#include "dml_crypto.h"
-#include "dml_packet.h"
-#include "dml_poll.h"
+#include <dml/dml_client.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_crypto.h>
+#include <dml/dml_packet.h>
+#include <dml/dml_poll.h>
 
 #include <string.h>
 
@@ -42,6 +42,9 @@ struct dml_host {
 	void (*stream_removed_cb)(struct dml_host *host, struct dml_stream *ds, void *arg);
 	void *stream_removed_cb_arg;
 	
+	void (*stream_header_cb)(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg);
+	void *stream_header_cb_arg;
+
 	void (*stream_data_cb)(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg);
 	void *stream_data_cb_arg;
 
@@ -201,7 +204,29 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			break;
 		}
 		case DML_PACKET_HEADER: {
-			/* our current codec2 use doesn't need a header */
+			uint8_t hid[DML_ID_SIZE];
+			uint8_t sig[DML_SIG_SIZE];
+			void *header;
+			size_t header_size;
+			struct dml_stream *ds;
+			struct dml_crypto_key *dk;
+
+			if (dml_packet_parse_header(data, len, hid, sig, &header, &header_size))
+				break;
+			
+			if ((ds = dml_stream_by_id(hid))) {
+				if ((dk = dml_stream_crypto_get(ds))) {
+					bool verified = dml_crypto_verify(header, header_size, sig, dk);
+			
+					if (verified) {
+						if (host->stream_header_cb)
+							host->stream_header_cb(host, ds, header, header_size, host->stream_header_cb_arg);
+					} else {
+						fprintf(stderr, "Failed to verify header signature (%zd bytes)\n", header_size);
+					}
+				}
+			}
+			free(header);
 			
 			break;
 		}
@@ -422,6 +447,15 @@ int dml_host_stream_removed_cb_set(struct dml_host *host,
 {
 	host->stream_removed_cb = cb;
 	host->stream_removed_cb_arg = arg;
+	
+	return 0;
+}
+
+int dml_host_stream_header_cb_set(struct dml_host *host, 
+	void (*cb)(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg), void *arg)
+{
+	host->stream_header_cb = cb;
+	host->stream_header_cb_arg = arg;
 	
 	return 0;
 }

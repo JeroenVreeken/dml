@@ -17,16 +17,16 @@
  */
 #define _GNU_SOURCE
 
-#include "dml_client.h"
-#include "dml_connection.h"
-#include "dml_poll.h"
-#include "dml_packet.h"
-#include "dml.h"
-#include "dml_host.h"
-#include "dml_id.h"
-#include "dml_crypto.h"
+#include <dml/dml_client.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_poll.h>
+#include <dml/dml_packet.h>
+#include <dml/dml.h>
+#include <dml/dml_host.h>
+#include <dml/dml_id.h>
+#include <dml/dml_crypto.h>
 #include "dml_config.h"
-#include "dml_stream.h"
+#include <dml/dml_stream.h>
 #include "fprs_db.h"
 #include "fprs_parse.h"
 
@@ -111,6 +111,7 @@ enum sound_msg {
 	SOUND_MSG_REMOTE_DISC,
 	SOUND_MSG_NOTFOUND,
 	SOUND_MSG_NOTALLOWED,
+	SOUND_MSG_HEADER,
 };
 
 struct sound_msg_e {
@@ -433,6 +434,21 @@ static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_
 	}
 }
 
+static void stream_header_cb(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg)
+{
+	if (ds != cur_con && ds != cur_db) {
+		fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
+		return;
+	}
+	if (!header_size)
+		return;
+			
+	if (ds == cur_con) {
+		fprintf(stderr, "Received %zd ok\n", header_size);
+		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size);
+	}
+}
+
 static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
 	bool do_reject = false;
@@ -455,6 +471,7 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 		if (key) {
 			printf("Request accepted, connecting\n");
+			dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
 			dml_host_connect(host, ds_rev);
 			cur_con = ds_rev;
 			fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
@@ -726,6 +743,7 @@ static void command_cb_handle(char *command)
 
 	}		
 	if (do_connect) {
+		dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds));
 		dml_host_connect(host, ds);
 		cur_con = ds;
 		fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
@@ -1036,6 +1054,7 @@ int main(int argc, char **argv)
 	dml_host_connection_closed_cb_set(host, connection_closed_cb, NULL);
 	dml_host_mime_filter_set(host, 2, (char*[]){ DML_MIME_DV_C2 , DML_MIME_FPRS });
 	dml_host_stream_removed_cb_set(host, stream_removed_cb, NULL);
+	dml_host_stream_header_cb_set(host, stream_header_cb, NULL);
 	dml_host_stream_data_cb_set(host, stream_data_cb, NULL);
 	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
 	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
@@ -1079,6 +1098,16 @@ int main(int argc, char **argv)
 	char *soundlib_notallowed = dml_config_value("soundlib_notallowed", NULL, NULL);
 	if (soundlib_notallowed)
 		soundlib_add_file(SOUND_MSG_NOTALLOWED, soundlib_notallowed);
+
+	char *soundlib_header = dml_config_value("soundlib_header", NULL, NULL);
+	if (soundlib_header) {
+		soundlib_add_file(SOUND_MSG_HEADER, soundlib_header);
+		size_t header_size;
+		uint8_t *header = soundlib_get(SOUND_MSG_HEADER, &header_size);
+		if (header) {
+			dml_stream_header_set(stream_dv, header, header_size);
+		}
+	}
 
 	message_connect = dml_config_value("message_connect", NULL, NULL);
 	message_disconnect = dml_config_value("message_disconnect", NULL, NULL);

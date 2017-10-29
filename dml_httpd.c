@@ -32,11 +32,11 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-#include "dml_client.h"
+#include <dml/dml_client.h>
 #include "dml_config.h"
-#include "dml_connection.h"
-#include "dml_packet.h"
-#include "dml_poll.h"
+#include <dml/dml_connection.h>
+#include <dml/dml_packet.h>
+#include <dml/dml_poll.h>
 
 magic_t magic;
 

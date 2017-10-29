@@ -17,7 +17,7 @@
  */
 #include "trx_dv.h"
 #include <eth_ar/eth_ar.h>
-#include "dml_poll.h"
+#include <dml/dml_poll.h>
 #include "alaw.h"
 #include "ulaw.h"
 
@@ -192,8 +192,8 @@ int trx_dv_transcode(uint8_t from[6], uint8_t to[6], int from_mode, uint8_t *fro
 
 int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size)
 {
-	uint8_t dv_frame[6 + 6 + 2 + size];
 	uint16_t type;
+	ssize_t max_size = 0;
 	
 	if (limit_mode >= 0 && mode != limit_mode) {
 		return trx_dv_transcode(from, to, mode, dv, size);
@@ -202,53 +202,75 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 	switch (mode) {
 		case CODEC2_MODE_3200:
 			type = htons(ETH_P_CODEC2_3200);
+			max_size = 8;
 			break;
 		case CODEC2_MODE_2400:
 			type = htons(ETH_P_CODEC2_2400);
+			max_size = 6;
 			break;
 		case CODEC2_MODE_1600:
 			type = htons(ETH_P_CODEC2_1600);
+			max_size = 8;
 			break;
 		case CODEC2_MODE_1400:
 			type = htons(ETH_P_CODEC2_1400);
+			max_size = 7;
 			break;
 		case CODEC2_MODE_1300:
 			type = htons(ETH_P_CODEC2_1300);
+			max_size = 7;
 			break;
 		case CODEC2_MODE_1200:
 			type = htons(ETH_P_CODEC2_1200);
+			max_size = 6;
 			break;
 		case CODEC2_MODE_700:
 			type = htons(ETH_P_CODEC2_700);
+			max_size = 4;
 			break;
 		case CODEC2_MODE_700B:
 			type = htons(ETH_P_CODEC2_700B);
+			max_size = 4;
 			break;
 		case CODEC2_MODE_700C:
 			type = htons(ETH_P_CODEC2_700C);
+			max_size = 4;
 			break;
 #ifdef CODEC2_MODE_1300C
 		case CODEC2_MODE_1300C:
 			type = htons(ETH_P_CODEC2_1300C);
+			max_size = 7;
 			break;
 #endif
 		case 'A':
 			type = htons(ETH_P_ALAW);
+			max_size = 320;
 			break;
 		case 'U':
 			type = htons(ETH_P_ULAW);
+			max_size = 320;
 			break;
 		default:
 			return -1;
 	}
 	
-	memcpy(dv_frame + 0, to, 6);
-	memcpy(dv_frame + 6, from, 6);
-	memcpy(dv_frame + 12, &type, 2);
-	memcpy(dv_frame + 14, dv, size);
+	while (size) {
+		uint8_t dv_frame[6 + 6 + 2 + max_size];
+		size_t out_size = size;
+		if (out_size > max_size)
+			out_size = max_size;
+		memcpy(dv_frame + 0, to, 6);
+		memcpy(dv_frame + 6, from, 6);
+		memcpy(dv_frame + 12, &type, 2);
+		memcpy(dv_frame + 14, dv, out_size);
 	
-	ssize_t ret = send(dv_sock, dv_frame, 14 + size, 0);
-	if (ret == 14 + size)
+		ssize_t ret = send(dv_sock, dv_frame, 14 + out_size, 0);
+		if (ret == 14 + out_size) {
+			size -= out_size;
+			dv += out_size;
+		}
+	}
+	if (size == 0)
 		return 0;
 	
 	return -1;

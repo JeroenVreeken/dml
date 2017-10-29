@@ -15,12 +15,12 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_client.h"
-#include "dml_connection.h"
-#include "dml_poll.h"
-#include "dml_packet.h"
-#include "dml.h"
-#include "dml_id.h"
+#include <dml/dml_client.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_poll.h>
+#include <dml/dml_packet.h>
+#include <dml/dml.h>
+#include <dml/dml_id.h>
 
 #include <stdlib.h>
 #include <stdio.h>

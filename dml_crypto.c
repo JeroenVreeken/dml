@@ -15,8 +15,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_crypto.h"
-#include "dml_stream.h"
+#include <dml/dml_crypto.h>
+#include <dml/dml_stream.h>
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>

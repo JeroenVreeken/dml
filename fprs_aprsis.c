@@ -41,7 +41,7 @@
 #include <linux/sockios.h>
 #endif
 
-#include "dml_poll.h"
+#include <dml/dml_poll.h>
 #include "fprs_aprsis.h"
 
 static int fd_is = -1;
