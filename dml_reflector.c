@@ -321,6 +321,7 @@ int main(int argc, char **argv)
 	char *key;
 	char *server;
 	char *ca;
+	uint8_t *header;
 
 	if (argc > 1)
 		file = argv[1];
@@ -389,9 +390,15 @@ int main(int argc, char **argv)
 	if (soundlib_header) {
 		soundlib_add_file(SOUND_MSG_HEADER, soundlib_header);
 		size_t header_size;
-		uint8_t *header = soundlib_get(SOUND_MSG_HEADER, &header_size);
-		if (header) {
-			dml_stream_header_set(stream_dv, header, header_size);
+		uint8_t *sl_header = soundlib_get(SOUND_MSG_HEADER, &header_size);
+		if (sl_header) {
+			header = calloc(1, header_size);
+			memcpy(header + 8, sl_header, header_size);
+			
+			memset(header, 0xff, 6);
+			header[6] = 'A';
+			header[7] = 1;
+			dml_stream_header_set(stream_dv, header, header_size + 8);
 		}
 	}
 
