@@ -36,7 +36,7 @@ AS_IF([test "x$eth_ar_found_headers" != "xyes"],
         [AC_MSG_ERROR([Unable to find the eth_ar headers])])
 
 
-# Check for alsa library (flite depends on it bus does not link it itself...)
+# Check for alsa library (flite depends on it but does not link it itself...)
 
 dnl Search for alsa lib
 AC_SEARCH_LIBS([snd_pcm_open], [asound], [], [])
