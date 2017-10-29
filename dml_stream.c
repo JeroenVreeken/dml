@@ -15,9 +15,9 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_stream.h"
-#include "dml_packet.h"
-#include "dml_id.h"
+#include <dml/dml_stream.h>
+#include <dml/dml_packet.h>
+#include <dml/dml_id.h>
 
 #include <string.h>
 

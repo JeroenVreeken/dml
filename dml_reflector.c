@@ -15,20 +15,21 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_client.h"
-#include "dml_connection.h"
-#include "dml_poll.h"
-#include "dml_packet.h"
-#include "dml.h"
-#include "dml_id.h"
-#include "dml_host.h"
-#include "dml_crypto.h"
+#include <dml/dml_client.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_poll.h>
+#include <dml/dml_packet.h>
+#include <dml/dml.h>
+#include <dml/dml_id.h>
+#include <dml/dml_host.h>
+#include <dml/dml_crypto.h>
 #include "dml_config.h"
-#include "dml_stream.h"
+#include <dml/dml_stream.h>
 
 #include <eth_ar/eth_ar.h>
 #include "alaw.h"
 #include "trx_dv.h"
+#include "soundlib.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -57,6 +58,10 @@ struct dml_crypto_key *dk;
 
 void send_beep(void);
 static int watchdog(void *arg);
+
+enum sound_msg {
+	SOUND_MSG_HEADER,
+};
 
 
 static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
@@ -379,6 +384,16 @@ int main(int argc, char **argv)
 		printf("Could not generate beep\n");
 	}
 	beepsize = 8000 * 0.08;
+
+	char *soundlib_header = dml_config_value("soundlib_header", NULL, NULL);
+	if (soundlib_header) {
+		soundlib_add_file(SOUND_MSG_HEADER, soundlib_header);
+		size_t header_size;
+		uint8_t *header = soundlib_get(SOUND_MSG_HEADER, &header_size);
+		if (header) {
+			dml_stream_header_set(stream_dv, header, header_size);
+		}
+	}
 
 	if (parrot)
 		dml_poll_add(&parrot_queue, NULL, NULL, parrot_dequeue);

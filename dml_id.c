@@ -17,7 +17,7 @@
  */
 #define _GNU_SOURCE
 
-#include "dml_id.h"
+#include <dml/dml_id.h>
 
 #include <stdlib.h>
 #include <string.h>

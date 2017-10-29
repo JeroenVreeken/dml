@@ -17,16 +17,16 @@
  */
 #define _GNU_SOURCE
 
-#include "dml_client.h"
-#include "dml_connection.h"
-#include "dml_poll.h"
-#include "dml_packet.h"
-#include "dml.h"
-#include "dml_host.h"
-#include "dml_id.h"
-#include "dml_crypto.h"
+#include <dml/dml_client.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_poll.h>
+#include <dml/dml_packet.h>
+#include <dml/dml.h>
+#include <dml/dml_host.h>
+#include <dml/dml_id.h>
+#include <dml/dml_crypto.h>
 #include "dml_config.h"
-#include "dml_stream.h"
+#include <dml/dml_stream.h>
 #include "fprs_db.h"
 #include "fprs_parse.h"
 
@@ -40,6 +40,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define RXSTATE_CHECK_TIMER_NS 100000000
 #define DML_TRX_DATA_KEEPALIVE 10
@@ -79,6 +82,8 @@ static bool tx_state = false;
 
 static char command[100];
 static int command_len = 0;
+static char command_pipe[100];
+static int command_pipe_len = 0;
 
 static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
@@ -106,6 +111,7 @@ enum sound_msg {
 	SOUND_MSG_REMOTE_DISC,
 	SOUND_MSG_NOTFOUND,
 	SOUND_MSG_NOTALLOWED,
+	SOUND_MSG_HEADER,
 };
 
 struct sound_msg_e {
@@ -428,6 +434,21 @@ static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_
 	}
 }
 
+static void stream_header_cb(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg)
+{
+	if (ds != cur_con && ds != cur_db) {
+		fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
+		return;
+	}
+	if (!header_size)
+		return;
+			
+	if (ds == cur_con) {
+		fprintf(stderr, "Received %zd ok\n", header_size);
+		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size);
+	}
+}
+
 static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
 	bool do_reject = false;
@@ -450,6 +471,7 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 		if (key) {
 			printf("Request accepted, connecting\n");
+			dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
 			dml_host_connect(host, ds_rev);
 			cur_con = ds_rev;
 			fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
@@ -628,7 +650,6 @@ static int rx_watchdog(void *arg)
 	return 0;
 }
 
-
 static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
 {
 	uint8_t data[8 + size];
@@ -691,7 +712,7 @@ static void command_cb_handle(char *command)
 	}
 	if (!ds && !is_73)
 		notfound = true;
-	if (dml_stream_mine_get(ds))
+	if (ds && dml_stream_mine_get(ds))
 		ds = NULL;
 
 
@@ -722,6 +743,7 @@ static void command_cb_handle(char *command)
 
 	}		
 	if (do_connect) {
+		dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds));
 		dml_host_connect(host, ds);
 		cur_con = ds;
 		fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
@@ -795,6 +817,37 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 
 	return 0;
 }
+
+static int command_pipe_cb(void *arg)
+{
+	int fd = *(int*)arg;
+	static char c;
+
+	ssize_t r = read(fd, &c, 1);
+	
+	if (r == 1) {
+		if (c == '\r')
+			return 0;
+		if (c == '\n') {
+			if (command_pipe_len) {
+				command_pipe[command_pipe_len] = 0;
+				if (allow_commands)
+					command_cb_handle(command_pipe);
+				command_pipe_len = 0;
+				return 0;
+			}
+		}
+		
+		command_pipe[command_pipe_len] = c;
+		command_pipe_len++;
+		
+		if (command_pipe_len >= sizeof(command_pipe))
+			command_pipe_len = 0;
+	}
+	
+	return 0;
+}
+
 
 static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 {
@@ -905,9 +958,11 @@ int main(int argc, char **argv)
 	char *name;
 	char *description;
 	char *alias;
+	char *command_pipe_name;
 	static uint8_t id[DML_ID_SIZE];
 	uint32_t bps = 6400;
 	struct dml_crypto_key *dk;
+	int fd_command;
 
 	if (argc > 1)
 		file = argv[1];
@@ -927,6 +982,7 @@ int main(int argc, char **argv)
 	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
 	repeater = atoi(dml_config_value("repeater", NULL, "0"));
 	allow_commands = atoi(dml_config_value("allow_commands", NULL, "0"));
+	command_pipe_name = dml_config_value("command_pipe_name", NULL, NULL);
 
 	my_fprs_longitude = atof(dml_config_value("longitude", NULL, "0.0"));
 	my_fprs_latitude = atof(dml_config_value("latitude", NULL, "0.0"));
@@ -998,6 +1054,7 @@ int main(int argc, char **argv)
 	dml_host_connection_closed_cb_set(host, connection_closed_cb, NULL);
 	dml_host_mime_filter_set(host, 2, (char*[]){ DML_MIME_DV_C2 , DML_MIME_FPRS });
 	dml_host_stream_removed_cb_set(host, stream_removed_cb, NULL);
+	dml_host_stream_header_cb_set(host, stream_header_cb, NULL);
 	dml_host_stream_data_cb_set(host, stream_data_cb, NULL);
 	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
 	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
@@ -1042,6 +1099,16 @@ int main(int argc, char **argv)
 	if (soundlib_notallowed)
 		soundlib_add_file(SOUND_MSG_NOTALLOWED, soundlib_notallowed);
 
+	char *soundlib_header = dml_config_value("soundlib_header", NULL, NULL);
+	if (soundlib_header) {
+		soundlib_add_file(SOUND_MSG_HEADER, soundlib_header);
+		size_t header_size;
+		uint8_t *header = soundlib_get(SOUND_MSG_HEADER, &header_size);
+		if (header) {
+			dml_stream_header_set(stream_dv, header, header_size);
+		}
+	}
+
 	message_connect = dml_config_value("message_connect", NULL, NULL);
 	message_disconnect = dml_config_value("message_disconnect", NULL, NULL);
 	message_remote_disconnect = dml_config_value("message_remote_disconnect", NULL, NULL);
@@ -1050,6 +1117,24 @@ int main(int argc, char **argv)
 	message_remote_disconnect_503 = dml_config_value("message_remote_disconnect_503", NULL, NULL);
 	message_notfound = dml_config_value("message_notfound", NULL, NULL);
 	message_notallowed = dml_config_value("message_notallowed", NULL, NULL);
+
+	if (command_pipe_name) {
+		printf("Create command pipe at %s\n", command_pipe_name);
+		remove(command_pipe_name);
+		if (mkfifo(command_pipe_name, S_IRUSR | S_IWUSR | S_IWGRP)) {
+			printf("Could not create command pipe\n");
+			return -1;
+		}
+		fd_command = open(command_pipe_name, O_RDONLY | O_NONBLOCK);
+		if (fd_command < 0) {
+			printf("Could not open command pipe\n");
+			return -1;
+		}
+	}
+	
+	dml_poll_add(&fd_command, command_pipe_cb, NULL, NULL);
+	dml_poll_fd_set(&fd_command, fd_command);
+	dml_poll_in_set(&fd_command, true);
 
 	dml_poll_timeout(&rx_state, 
 	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});

@@ -15,8 +15,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_server.h"
-#include "dml_poll.h"
+#include <dml/dml_server.h>
+#include <dml/dml_poll.h>
 
 #include <string.h>
 #include <malloc.h>

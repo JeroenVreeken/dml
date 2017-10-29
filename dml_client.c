@@ -15,8 +15,8 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include "dml_client.h"
-#include "dml_server.h"
+#include <dml/dml_client.h>
+#include <dml/dml_server.h>
 
 #define _GNU_SOURCE
 

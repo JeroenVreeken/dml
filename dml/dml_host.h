@@ -34,6 +34,8 @@ int dml_host_stream_removed_cb_set(struct dml_host *host,
     void(*cb)(struct dml_host *host, struct dml_stream *ds, void *arg), void *arg);
 int dml_host_stream_data_cb_set(struct dml_host *host, 
 	void (*stream_data_cb)(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg), void *arg);
+int dml_host_stream_header_cb_set(struct dml_host *host, 
+	void (*stream_header_cb)(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg), void *arg);
 int dml_host_stream_req_reverse_connect_cb_set(struct dml_host *host,
     void (*cb)(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg), void *arg);
 int dml_host_stream_req_reverse_disconnect_cb_set(struct dml_host *host,

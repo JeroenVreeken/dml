@@ -18,15 +18,15 @@
 
 #define _GNU_SOURCE
 
-#include "dml_server.h"
-#include "dml_connection.h"
-#include "dml_poll.h"
-#include "dml_packet.h"
-#include "dml_route.h"
-#include "dml.h"
+#include <dml/dml_server.h>
+#include <dml/dml_connection.h>
+#include <dml/dml_poll.h>
+#include <dml/dml_packet.h>
+#include <dml/dml_route.h>
+#include <dml/dml.h>
 #include "dml_config.h"
-#include "dml_client.h"
-#include "dml_id.h"
+#include <dml/dml_client.h>
+#include <dml/dml_id.h>
 
 #include <stdlib.h>
 #include <stdio.h>
