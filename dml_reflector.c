@@ -392,7 +392,7 @@ int main(int argc, char **argv)
 		size_t header_size;
 		uint8_t *sl_header = soundlib_get(SOUND_MSG_HEADER, &header_size);
 		if (sl_header) {
-			header = calloc(1, header_size);
+			header = calloc(1, header_size + 8);
 			memcpy(header + 8, sl_header, header_size);
 			
 			memset(header, 0xff, 6);
