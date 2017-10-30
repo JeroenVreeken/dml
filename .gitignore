@@ -6,6 +6,7 @@ dml_list
 dml_reflector
 dml_streamer
 dml_stream_client
+dml_stream_client_codec2
 dml_trx
 dml_fprs_db
 

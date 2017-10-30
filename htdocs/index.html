@@ -540,19 +540,19 @@ function dmlc2()
 					samples = dmlc2_this.ulaw_data.decode(c2_buf);
 				} else if (newmode == 'le16') {
 					var i;
-					var nr = c2_buf.byteLength / 2;
+					var nr = c2_buf.length / 2;
 					samples = new Array(nr);
-					var dv = new DataView(c2_buf);
+					var dv = new DataView(c2_buf.buffer);
 					for (i = 0; i < nr; i++) {
-						samples[i] = dv.getInt16(i, true)
+						samples[i] = dv.getInt16(c2_buf.byteOffset + i*2, true) / 32768.0;
 					}
 				} else if (newmode == 'be16') {
 					var i;
-					var nr = c2_buf.byteLength / 2;
+					var nr = c2_buf.length / 2;
 					samples = new Array(nr);
-					var dv = new DataView(c2_buf);
+					var dv = new DataView(c2_buf.buffer);
 					for (i = 0; i < nr; i++) {
-						samples[i] = dv.getInt16(i, false)
+						samples[i] = dv.getInt16(c2_buf.byteOffset + i*2, false) / 32768.0;
 					}
 				} else {
 					dmlc2_this.c2.create(bytemode);
