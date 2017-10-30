@@ -181,8 +181,8 @@ static int data_cb(void *arg, void *data, size_t datasize)
 				uint16_t s;
 			} d2s;
 			for (b = 0; b < nr; b++) {
-				d2s.d8[0] = data8[b*2+0];
-				d2s.d8[1] = data8[b*2+1];
+				d2s.d8[0] = data8[8+b*2+0];
+				d2s.d8[1] = data8[8+b*2+1];
 				samples[b] = le16toh(d2s.s);
 			}
 		}
@@ -193,8 +193,8 @@ static int data_cb(void *arg, void *data, size_t datasize)
 				uint16_t s;
 			} d2s;
 			for (b = 0; b < nr; b++) {
-				d2s.d8[0] = data8[b*2+0];
-				d2s.d8[1] = data8[b*2+1];
+				d2s.d8[0] = data8[8+b*2+0];
+				d2s.d8[1] = data8[8+b*2+1];
 				samples[b] = be16toh(d2s.s);
 			}
 		}
