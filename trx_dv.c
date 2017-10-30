@@ -192,6 +192,14 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 			type = htons(ETH_P_ULAW);
 			max_size = 320;
 			break;
+		case 's':
+			type = htons(ETH_P_LE16);
+			max_size = 640;
+			break;
+		case 'S':
+			type = htons(ETH_P_BE16);
+			max_size = 640;
+			break;
 		default:
 			return -1;
 	}
@@ -281,6 +289,9 @@ int trx_dv_duration(size_t size, int mode)
 		case 'A':
 		case 'U':
 			return size / 8;
+		case 's':
+		case 'S':
+			return size / 16;
 		default:
 			return -1;
 	}
