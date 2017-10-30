@@ -175,27 +175,27 @@ static int data_cb(void *arg, void *data, size_t datasize)
 			ulaw_decode(samples, data8 + 8, nr);
 			break;
 		case 's': {
-			int i;
+			int b;
 			union {
 				uint8_t d8[2];
 				uint16_t s;
 			} d2s;
-			for (i = 0; i < nr; i++) {
-				d2s.d8[0] = data8[i*2+0];
-				d2s.d8[1] = data8[i*2+1];
-				samples[i] = le16toh(d2s.s);
+			for (b = 0; b < nr; b++) {
+				d2s.d8[0] = data8[b*2+0];
+				d2s.d8[1] = data8[b*2+1];
+				samples[b] = le16toh(d2s.s);
 			}
 		}
 		case 'S': {
-			int i;
+			int b;
 			union {
 				uint8_t d8[2];
 				uint16_t s;
 			} d2s;
-			for (i = 0; i < nr; i++) {
-				d2s.d8[0] = data8[i*2+0];
-				d2s.d8[1] = data8[i*2+1];
-				samples[i] = be16toh(d2s.s);
+			for (b = 0; b < nr; b++) {
+				d2s.d8[0] = data8[b*2+0];
+				d2s.d8[1] = data8[b*2+1];
+				samples[b] = be16toh(d2s.s);
 			}
 		}
 		default:
