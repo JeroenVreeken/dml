@@ -71,7 +71,8 @@ Decentralized Media Linking
 
 CODEC2.MODE[65] = 'A-law';
 CODEC2.MODE[85] = 'u-law';
-
+CODEC2.MODE[83] = 'be16';
+CODEC2.MODE[115] = 'le16';
 
 function char2hex(c)
 {
@@ -537,6 +538,22 @@ function dmlc2()
 					samples = dmlc2_this.alaw_data.decode(c2_buf);
 				} else if (newmode == 'u-law') {
 					samples = dmlc2_this.ulaw_data.decode(c2_buf);
+				} else if (newmode == 'le16') {
+					var i;
+					var nr = c2_buf.byteLength / 2;
+					samples = new Array(nr);
+					var dv = new DataView(c2_buf);
+					for (i = 0; i < nr; i++) {
+						samples[i] = dv.getInt16(i, true)
+					}
+				} else if (newmode == 'be16') {
+					var i;
+					var nr = c2_buf.byteLength / 2;
+					samples = new Array(nr);
+					var dv = new DataView(c2_buf);
+					for (i = 0; i < nr; i++) {
+						samples[i] = dv.getInt16(i, false)
+					}
 				} else {
 					dmlc2_this.c2.create(bytemode);
 					samples = dmlc2_this.c2.decode(c2_buf);

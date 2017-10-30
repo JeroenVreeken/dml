@@ -40,8 +40,6 @@ static void (*dv_mac_cb)(uint8_t *mac) = NULL;
 
 #define TRX_DV_WATCHDOG 5
 
-static int limit_mode = -1;
-
 static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode) = NULL;
 static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size) = NULL;
 static int (*fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size) = NULL;
@@ -108,6 +106,14 @@ static int trx_dv_in_cb(void *arg)
 				mode = 'U';
 				datasize = ret - 14;
 				break;
+			case ETH_P_LE16:
+				mode = 's';
+				datasize = ret - 14;
+				break;
+			case ETH_P_BE16:
+				mode = 'S';
+				datasize = ret - 14;
+				break;
 			case ETH_P_AR_CONTROL:
 				return ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
 			case ETH_P_FPRS:
@@ -129,75 +135,11 @@ static int trx_dv_in_cb(void *arg)
 	return 0;
 }
 
-static struct CODEC2 *trans_enc;
-static struct CODEC2 *trans_dec;
-static short *trans_speech;
-static int trans_samples;
-static int trans_samples_frame;
-static int trans_mode;
-static int trans_frame_size;
-
-int trx_dv_transcode(uint8_t from[6], uint8_t to[6], int from_mode, uint8_t *from_dv, size_t from_size)
-{
-	int samples;
-	
-	if (from_mode != 'A') {
-		if (from_mode != trans_mode) {
-			if (trans_dec)
-				codec2_destroy(trans_dec);
-			trans_mode = from_mode;
-			trans_dec = codec2_create(trans_mode);
-		}
-		samples = codec2_samples_per_frame(trans_dec);
-	} else {
-		samples = from_size;
-	}
-	
-	short speech[samples];
-	
-	switch (from_mode)
-	{
-		case 'A':
-			alaw_decode(speech, from_dv, samples);
-			break;
-		case 'U':
-			ulaw_decode(speech, from_dv, samples);
-			break;
-		default:
-			codec2_decode(trans_dec, speech, from_dv);
-			break;
-	}
-	
-	while (samples) {
-		int copy = samples;
-		if (copy > trans_samples_frame - trans_samples)
-			copy = trans_samples_frame - trans_samples;
-		memcpy(trans_speech + trans_samples, speech, copy * 2);
-		samples -= copy;
-		trans_samples += copy;
-		
-		if (trans_samples == trans_samples_frame) {
-			uint8_t frame[trans_frame_size];
-			
-			codec2_encode(trans_enc, frame, trans_speech);
-			
-			trx_dv_send(from, to, limit_mode, frame, trans_frame_size);
-			
-			trans_samples = 0;
-		}
-	}
-
-	return 0;
-}
 
 int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size)
 {
 	uint16_t type;
 	ssize_t max_size = 0;
-	
-	if (limit_mode >= 0 && mode != limit_mode) {
-		return trx_dv_transcode(from, to, mode, dv, size);
-	}
 	
 	switch (mode) {
 		case CODEC2_MODE_3200:
@@ -418,7 +360,6 @@ int trx_dv_init(char *dev,
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
     int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,
-    char *mode,
     void (*new_mac_cb)(uint8_t *mac))
 {
 	int sock;
@@ -433,43 +374,6 @@ int trx_dv_init(char *dev,
 	fprs_cb = new_fprs_cb;
 	dv_mac_cb = new_mac_cb;
 	
-	if (mode) {
-		if (!strcmp(mode, "3200")) {
-			limit_mode = CODEC2_MODE_3200;
-		} else if (!strcmp(mode, "2400")) {
-			limit_mode = CODEC2_MODE_2400;
-		} else if (!strcmp(mode, "1600")) {
-			limit_mode = CODEC2_MODE_1600;
-		} else if (!strcmp(mode, "1400")) {
-			limit_mode = CODEC2_MODE_1400;
-		} else if (!strcmp(mode, "1300")) {
-			limit_mode = CODEC2_MODE_1300;
-		} else if (!strcmp(mode, "1200")) {
-			limit_mode = CODEC2_MODE_1200;
-		} else if (!strcmp(mode, "700")) {
-			limit_mode = CODEC2_MODE_700;
-		} else if (!strcmp(mode, "700B")) {
-			limit_mode = CODEC2_MODE_700B;
-		} else if (!strcmp(mode, "700C")) {
-			limit_mode = CODEC2_MODE_700C;
-#ifdef CODEC2_MODE_1300C
-		} else if (!strcmp(mode, "1300C")) {
-			limit_mode = CODEC2_MODE_1300C;
-#endif
-		} else {
-			return -1;
-		}
-		
-		trans_enc = codec2_create(limit_mode);
-		trans_samples_frame = codec2_samples_per_frame(trans_enc);
-		trans_speech = calloc(trans_samples_frame, sizeof(short));
-		trans_samples = 0;
-		trans_mode = -1;
-		trans_frame_size = codec2_bits_per_frame(trans_enc);
-		trans_frame_size += 7;
-		trans_frame_size /= 8;
-	}
-
 	sock = socket(AF_PACKET, SOCK_RAW, protocol);
 	if (sock < 0)
 		goto err_socket;

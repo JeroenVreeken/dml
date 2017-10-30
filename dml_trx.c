@@ -954,7 +954,6 @@ int main(int argc, char **argv)
 	char *server;
 	char *ca;
 	char *dv_dev;
-	char *dv_mode;
 	char *name;
 	char *description;
 	char *alias;
@@ -993,11 +992,7 @@ int main(int argc, char **argv)
 
 	dv_dev = dml_config_value("dv_device", NULL, NULL);
 	if (dv_dev) {
-		dv_mode = dml_config_value("dv_mode", NULL, NULL);
-		if (dv_mode) {
-			printf("DV limited to mode %s\n", dv_mode);
-		}
-		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, fprs_cb, NULL, dv_mode, mac_dev_cb))
+		if (trx_dv_init(dv_dev, dv_in_cb, command_cb, fprs_cb, NULL, mac_dev_cb))
 			fprintf(stderr, "Could not open DV device\n");
 	} else {
 		fprintf(stderr, "No DV device configured\n");

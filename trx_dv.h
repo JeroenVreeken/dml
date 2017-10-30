@@ -26,7 +26,6 @@ int trx_dv_init(char *dev,
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
     int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,
-    char *mode,
     void (*new_mac_cb)(uint8_t *mac));
 int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size);
 int trx_dv_send_control(uint8_t from[6], uint8_t to[6], char *control);
