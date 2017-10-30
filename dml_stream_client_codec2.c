@@ -185,6 +185,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 				d2s.d8[1] = data8[8+b*2+1];
 				samples[b] = le16toh(d2s.s);
 			}
+			break;
 		}
 		case 'S': {
 			int b;
@@ -197,6 +198,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 				d2s.d8[1] = data8[8+b*2+1];
 				samples[b] = be16toh(d2s.s);
 			}
+			break;
 		}
 		default:
 			if (dec) {
