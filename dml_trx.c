@@ -104,6 +104,8 @@ static char *message_remote_disconnect_503;
 static char *message_notfound;
 static char *message_notallowed;
 
+static uint8_t *header;
+
 enum sound_msg {
 	SOUND_MSG_SILENCE,
 	SOUND_MSG_CONNECT,
@@ -894,6 +896,9 @@ void mac_dev_cb(uint8_t mac[6])
 	bool multicast;
 
 	memcpy(mac_dev, mac, 6);
+	if (header) {
+		memcpy(header, mac, 6);
+	}
 		
 	eth_ar_mac2call(my_call, &ssid, &multicast, mac_dev);
 	printf("Interface address %02x:%02x:%02x:%02x:%02x:%02x %s-%d\n",
@@ -962,7 +967,6 @@ int main(int argc, char **argv)
 	uint32_t bps = 6400;
 	struct dml_crypto_key *dk;
 	int fd_command;
-	uint8_t *header;
 
 	if (argc > 1)
 		file = argv[1];
