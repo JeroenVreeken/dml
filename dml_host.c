@@ -339,6 +339,9 @@ static uint16_t alloc_data_id(void)
 
 int dml_host_connect(struct dml_host *host, struct dml_stream *ds)
 {
+	if (!host->connection)
+		return -1;
+	
 	uint16_t data_id = dml_stream_data_id_get(ds);
 	if (!data_id) {
 		data_id = alloc_data_id();
