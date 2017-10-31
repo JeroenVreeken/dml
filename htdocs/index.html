@@ -285,9 +285,8 @@ connected_timestamp = 0;
 
 function prep_connect(id)
 {
-	if (connected && ab_cmp(routes[id].id, connected_id)) {
+	if (curcon)
 		curcon.disconnect();
-	}
 	
 	connected = true;
 	connected_id = routes[id].id;
@@ -483,17 +482,30 @@ function dmlc2()
 		dmlc2_this.scriptnode = dmlc2_this.audio_ctx.createScriptProcessor(1024, 0, 1);
 		dmlc2_this.scriptnode.onaudioprocess = function (event) {
 //			console.log("event: " + event.outputBuffer.length);
-			var i, out, len;
+			var i, out, len, off;
 			len = event.outputBuffer.length;
 			out = event.outputBuffer.getChannelData(0);
-			for (i = 0; i < len; ++i) {
+			off = 0;
+			while (len) {
 				if (dmlc2_this.queue.length) {
-					out[i] = dmlc2_this.queue[0].shift();
+					var copylen = dmlc2_this.queue[0].length;
+					if (copylen > len)
+						copylen = len;
+					
+					for (i = 0; i < copylen; i++) {
+						out[off] = dmlc2_this.queue[0][i];
+						off++;
+					}
+					len -= copylen;
+					off += copylen;
+					dmlc2_this.queue[0].splice(0, copylen);
 					if (dmlc2_this.queue[0].length == 0) {
 						dmlc2_this.queue.shift();
 					}
 				} else {
-					out[i] = 0;
+					for (i = 0; i < len; i++)
+						out[off + i] = 0;
+					len = 0;
 				}
 			}
 		};
