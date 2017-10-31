@@ -442,12 +442,15 @@ static void stream_header_cb(struct dml_host *host, struct dml_stream *ds, void 
 		fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
 		return;
 	}
+	fprintf(stderr, "Received header (%zd bytes)\n", header_size);
 	if (!header_size)
 		return;
 			
 	if (ds == cur_con) {
-		fprintf(stderr, "Received %zd ok\n", header_size);
+		fprintf(stderr, "Play header\n");
 		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size);
+	} else {
+		fprintf(stderr, "Stream mismatch: %p %p\n", ds, cur_con);
 	}
 }
 
