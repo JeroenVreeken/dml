@@ -658,6 +658,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (dml_packet_parse_header(data, len, id, sig,
 			    &header_data, &header_len))
     				break;
+			printf("Got header\n");
 
 			struct connection *con;
 	
