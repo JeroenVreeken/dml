@@ -1108,7 +1108,7 @@ int main(int argc, char **argv)
 			header = calloc(1, header_size + 8);
 			memcpy(header + 8, sl_header, header_size);
 			
-			memset(header, 0xff, 6);
+			memcpy(header, mac_dev, 6);
 			header[6] = 'A';
 			header[7] = 1;
 			dml_stream_header_set(stream_dv, header, header_size + 8);
