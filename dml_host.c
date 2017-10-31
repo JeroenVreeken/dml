@@ -196,6 +196,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				dml_crypto_sign(header_sig, header, header_size, dk);
 			
 				dml_packet_send_header(dc, rid, header_sig, header, header_size);
+				printf("Header requested\n");
 			}
 			break;
 		}
