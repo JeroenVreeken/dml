@@ -542,6 +542,7 @@ function dmlc2()
 			var bytemode = dv.getUint8(6);
 			var newmode = CODEC2.MODE[bytemode];
 			var newcallsign = eth_ar.call(newdata);
+			var newtimeout = 1000;
 
 			if (newdata.byteLength > 8) {
 				c2_buf = new Uint8Array(newdata.slice(8));
@@ -570,6 +571,7 @@ function dmlc2()
 					dmlc2_this.c2.create(bytemode);
 					samples = dmlc2_this.c2.decode(c2_buf);
 				}
+				newtimeout += samples.length / 8;
 				samples = dmlc2_this.resample.convert(samples, 8000, dmlc2_this.rate);
 				
 				dmlc2_this.queue.push(samples)
@@ -583,7 +585,7 @@ function dmlc2()
 			dmlc2_this.update_ui(newstate, newmode, newcallsign);
 			
 			if (newstate) {
-				dmlc2_this.timeout_var = setTimeout(this.tx_timeout, 100);
+				dmlc2_this.timeout_var = setTimeout(this.tx_timeout, newtimeout);
 			}
 		}
 	}
