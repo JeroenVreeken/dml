@@ -32,6 +32,8 @@ enum connection_rx_state {
 	CONNECTION_PACKET,
 };
 
+#define DML_TX_BUF_SIZE ((DML_PACKET_HEADER_SIZE + DML_PACKET_SIZE_MAX)*4)
+
 struct dml_connection {
 	int fd;
 	enum connection_rx_state rx_state;
@@ -41,7 +43,7 @@ struct dml_connection {
 	size_t rx_pos;
 	size_t rx_len;
 	
-	uint8_t tx_buf[DML_PACKET_HEADER_SIZE + DML_PACKET_SIZE_MAX];
+	uint8_t tx_buf[DML_TX_BUF_SIZE];
 	size_t tx_pos;
 	size_t tx_len;
 	
@@ -155,6 +157,7 @@ int dml_connection_handle(struct dml_connection *dc)
 		if (dc->tx_pos >= dc->tx_len) {
 			dml_poll_out_set(dc, false);
 			dc->tx_len = 0;
+			dc->tx_pos = 0;
 		}
 	}
 	
@@ -165,8 +168,18 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 {
 	uint8_t *data = datav;
 	
-	if (dc->tx_len)
+	if (dc->tx_len) {
+		if (dc->tx_len + len + 4 < DML_TX_BUF_SIZE) {
+			dc->tx_buf[dc->tx_pos+0] = id >> 8;
+			dc->tx_buf[dc->tx_pos+1] = id & 0xff;
+			dc->tx_buf[dc->tx_pos+2] = len >> 8;
+			dc->tx_buf[dc->tx_pos+3] = len & 0xff;
+			memcpy(&dc->tx_buf[dc->tx_pos+4], data, len);
+			dc->tx_len += 4 + len;
+			return 0;
+		}
 		return -1;
+	}
 	
 	dc->tx_buf[0] = id >> 8;
 	dc->tx_buf[1] = id & 0xff;
