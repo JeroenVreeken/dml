@@ -170,11 +170,11 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 	
 	if (dc->tx_len) {
 		if (dc->tx_len + len + 4 < DML_TX_BUF_SIZE) {
-			dc->tx_buf[dc->tx_pos+0] = id >> 8;
-			dc->tx_buf[dc->tx_pos+1] = id & 0xff;
-			dc->tx_buf[dc->tx_pos+2] = len >> 8;
-			dc->tx_buf[dc->tx_pos+3] = len & 0xff;
-			memcpy(&dc->tx_buf[dc->tx_pos+4], data, len);
+			dc->tx_buf[dc->tx_len+0] = id >> 8;
+			dc->tx_buf[dc->tx_len+1] = id & 0xff;
+			dc->tx_buf[dc->tx_len+2] = len >> 8;
+			dc->tx_buf[dc->tx_len+3] = len & 0xff;
+			memcpy(&dc->tx_buf[dc->tx_len+4], data, len);
 			dc->tx_len += 4 + len;
 			return 0;
 		}
