@@ -642,7 +642,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			dml_packet_parse_req_header(data, len, id);
 			dc_r = dml_route_connection_get(id);
 			if (dc_r) {
-				printf("Request header\n");
+				char *idstr = dml_id_str(id);
+				printf("Request header for %s\n", idstr);
+				free(idstr);
 				dml_packet_send_req_header(dc_r, id);
 			}
 			list_add(&con->req_header, id);
@@ -658,7 +660,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (dml_packet_parse_header(data, len, id, sig,
 			    &header_data, &header_len))
     				break;
-			printf("Got header\n");
+			char *idstr = dml_id_str(id);
+			printf("Got header for %s\n", idstr);
+			free(idstr);
 
 			struct connection *con;
 	
