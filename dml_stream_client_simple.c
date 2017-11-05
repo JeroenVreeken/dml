@@ -32,6 +32,8 @@
 #include <string.h>
 #include <openssl/pem.h>
 
+#define DML_STREAM_CLIENT_SIMPLE_KEEPALIVE 120
+
 struct dml_stream_client_simple {
 	bool header_written;
 	struct dml_connection *dc;
@@ -42,6 +44,16 @@ struct dml_stream_client_simple {
 	void *arg;
 	int (*data_cb)(void *arg, void *data, size_t datasize);
 };
+
+static int keepalive_cb(void *arg)
+{
+	struct dml_stream_client_simple *dss = arg;
+	
+	fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
+	dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
+	
+	return 0;
+}
 
 static void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
@@ -151,6 +163,9 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					dml_stream_timestamp_set(ds, timestamp);
 //					fprintf(stderr, "Received %zd ok\n", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
+				
+					dml_poll_timeout(dss, 
+					    &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, 0});
 				}
 			}
 			break;
@@ -212,6 +227,8 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
 
 	if (dml_client_connect(dc))
 		goto err_connect;
+
+	dml_poll_add(dss, NULL, NULL, keepalive_cb);
 	
 	return dss;
 
