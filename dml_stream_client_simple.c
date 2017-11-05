@@ -52,6 +52,9 @@ static int keepalive_cb(void *arg)
 	fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
 	dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
 	
+	dml_poll_timeout(dss, 
+	    &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, 0});
+
 	return 0;
 }
 
