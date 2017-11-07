@@ -4,6 +4,20 @@
 	<title>dml_httpd</title>
 	<meta charset="UTF-8"> 
 </head>
+<style>
+div {
+	border: 0px; 
+	border-radius: 5px;
+	margin-top: 1px;
+	margin-bottom: 0px;
+	margin-left: 1px;
+	margin-right: 1px;
+	padding-left: 1px;
+	padding-right: 1px;
+	padding-top: 1px;
+	padding-top: 1px;
+}
+</style>
 <body style="background-color: white;">
 
 <script>
@@ -617,8 +631,8 @@ connection = new dml();
 
 connection.packet_hello_cb = function(flags, ident) {
 	document.getElementById("hello").innerHTML = 
-	     "Server identity: " + ident + "<br>" +
-	     "Server flags: " + connection.hello_flag2str(flags);
+	     "<i><small>Server identity: " + ident + " " +
+	     "Server flags: " + connection.hello_flag2str(flags) + "</i></small>";
 }
 
 connection.packet_route_cb = function(hops, id) {
