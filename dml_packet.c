@@ -372,7 +372,7 @@ int dml_packet_send_req_reverse(struct dml_connection *dc,
 	payload[DML_ID_SIZE + DML_ID_SIZE + 1] = (status >> 8) & 0xff;
 	payload[DML_ID_SIZE + DML_ID_SIZE + 2] = (status >> 0) & 0xff;
 
-	return dml_connection_send(dc, payload, DML_PACKET_REQ_REVERSE, DML_ID_SIZE + DML_ID_SIZE + 1);
+	return dml_connection_send(dc, payload, DML_PACKET_REQ_REVERSE, DML_ID_SIZE + DML_ID_SIZE + 1 + 2);
 }
 
 int dml_packet_parse_req_reverse(uint8_t *data, uint16_t len,
