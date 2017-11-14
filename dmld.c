@@ -760,6 +760,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (!dc_r)
 				break;
 			
+			printf("Sending req_reverse: action=%d, status=%d\n", action, status);
 			dml_packet_send_req_reverse(dc_r, id, rev_id, action, status);
 			
 			break;
