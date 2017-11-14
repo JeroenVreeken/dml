@@ -331,6 +331,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 	printf("Connection to DML server closed\n");
 	ws_client = ws_client_get_by_wsi(wsi);
 	ws_client->dml_closed = true;
+	ws_client->dc = NULL;
 	
 	lws_callback_on_writable(wsi);
 

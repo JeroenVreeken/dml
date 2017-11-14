@@ -69,9 +69,11 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 	bool do_connect = true;
 	bool do_reject = false;
 
+	printf("Received reverse connect request (status=%d)\n", status);
 	if (do_connect) {
 		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
 		if (dml_host_mime_filter(host, ds_rev) && key) {
+			printf("Respond with connect\n");
 			if(!dml_host_connect(host, ds_rev)) {
 				send_beep();
 			}
@@ -82,6 +84,7 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 		do_reject = true;
 	}
 	if (do_reject) {
+		printf("Reject request (status=%d)\n", DML_STATUS_UNAUTHORIZED);
 		dml_packet_send_req_reverse(dml_host_connection_get(host),
 		    dml_stream_id_get(ds_rev), 
 		    dml_stream_id_get(ds),
@@ -91,8 +94,9 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 
 static void stream_req_reverse_disconnect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
+	printf("Disconnect request (status=%d)\n", status);
 	if (dml_stream_data_id_get(ds_rev)) {
-		printf("Disconnect\n");
+		printf("Disconnect stream\n");
 		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
 	}
 }
