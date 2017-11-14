@@ -388,9 +388,9 @@ static int client_connection_close(struct dml_connection *dc, void *arg)
 	dml_poll_add(host, NULL, NULL, client_reconnect);
 	dml_poll_timeout(host, &(struct timespec){ 1, 0 });
 	
-	if (dc)
+	if (dc) {
 		return dml_connection_destroy(dc);
-	else
+	} else
 		return 0;
 }
 

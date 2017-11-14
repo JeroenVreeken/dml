@@ -223,6 +223,7 @@ static int send_data(void *data, size_t size, void *sender_arg)
 	uint64_t timestamp;
 	struct timespec ts;
 	uint16_t packet_id = dml_stream_data_id_get(sender);
+	struct dml_connection *con = dml_host_connection_get(host);
 	
 	if (!packet_id)
 		return -1;
@@ -230,7 +231,8 @@ static int send_data(void *data, size_t size, void *sender_arg)
 	clock_gettime(CLOCK_REALTIME, &ts);
 	timestamp = dml_ts2timestamp(&ts);
 	
-	dml_packet_send_data(dml_host_connection_get(host), packet_id, data, size, timestamp, dk);
+	if (con)
+		dml_packet_send_data(con, packet_id, data, size, timestamp, dk);
 	return 0;
 }
 
@@ -353,11 +355,12 @@ static int fprs_timer(void *arg)
 		fprs_frame_destroy(fprs_frame);
 	}
 
-	if (cur_db) {
-		dml_packet_send_connect(dml_host_connection_get(host), 
+	struct dml_connection *con = dml_host_connection_get(host);
+	if (cur_db && con) {
+		dml_packet_send_connect(con, 
 		    dml_stream_id_get(cur_db), 
 		    dml_stream_data_id_get(cur_db));
-		dml_packet_send_req_reverse(dml_host_connection_get(host), dml_stream_id_get(cur_db),
+		dml_packet_send_req_reverse(con, dml_stream_id_get(cur_db),
 		    dml_stream_id_get(stream_fprs),
 		    DML_PACKET_REQ_REVERSE_CONNECT,
 		    DML_STATUS_OK);
@@ -695,6 +698,7 @@ static void command_cb_handle(char *command)
 	bool do_connect = false;
 	bool nokey = false;
 	bool notfound = false;
+	struct dml_connection *con = dml_host_connection_get(host);
 
 	/* Skip empty commands */
 	if (!strlen(command))
@@ -738,21 +742,25 @@ static void command_cb_handle(char *command)
 	   cur_con ? dml_stream_name_get(cur_con) : "NONE");
 	
 	if (do_disconnect && cur_con) {
-		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(cur_con));
-		dml_packet_send_req_reverse(dml_host_connection_get(host), dml_stream_id_get(cur_con), 
-		    dml_stream_id_get(stream_dv),
-		    DML_PACKET_REQ_REVERSE_DISC,
-		    DML_STATUS_OK);
+		if (con) {
+			dml_packet_send_req_disc(con, dml_stream_id_get(cur_con));
+			dml_packet_send_req_reverse(con, dml_stream_id_get(cur_con), 
+			    dml_stream_id_get(stream_dv),
+			    DML_PACKET_REQ_REVERSE_DISC,
+			    DML_STATUS_OK);
+		}
 		cur_con = NULL;
 		fprs_update_status(dml_stream_name_get(stream_dv), "");
 
 	}		
 	if (do_connect) {
-		dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds));
-		dml_host_connect(host, ds);
+		if (con) {
+			dml_packet_send_req_header(con, dml_stream_id_get(ds));
+			dml_host_connect(host, ds);
+		}
 		cur_con = ds;
 		fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
-		dml_packet_send_req_reverse(dml_host_connection_get(host), dml_stream_id_get(ds), 
+		dml_packet_send_req_reverse(con, dml_stream_id_get(ds), 
 		    dml_stream_id_get(stream_dv),
 		    DML_PACKET_REQ_REVERSE_CONNECT,
 		    DML_STATUS_OK);

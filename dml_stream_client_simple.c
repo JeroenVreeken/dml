@@ -36,6 +36,7 @@
 
 struct dml_stream_client_simple {
 	bool header_written;
+	struct dml_client *client;
 	struct dml_connection *dc;
 
 	uint8_t req_id[DML_ID_SIZE];
@@ -48,6 +49,10 @@ struct dml_stream_client_simple {
 static int keepalive_cb(void *arg)
 {
 	struct dml_stream_client_simple *dss = arg;
+	
+	if (!dss->dc) {
+		return 0;
+	}
 	
 	fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
 	dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
@@ -178,9 +183,31 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 	return;
 }
 
+static int client_reconnect(void *arg)
+{
+	struct dml_stream_client_simple *dss = arg;
+
+	if (dml_client_connect(dss->client)) {
+		printf("Reconnect to DML server failed\n");
+		dml_poll_timeout(dss, &(struct timespec){ 2, 0 });
+	}
+	dml_poll_add(dss, NULL, NULL, keepalive_cb);
+	
+	return 0;
+}
+
 static int client_connection_close(struct dml_connection *dc, void *arg)
 {
-	return dml_connection_destroy(dc);
+	struct dml_stream_client_simple *dss = arg;
+
+	dml_poll_add(dss, NULL, NULL, client_reconnect);
+	dml_poll_timeout(dss, &(struct timespec){ 1, 0 });
+	
+	
+	if (dc)
+		dml_connection_destroy(dc);
+	dss->dc = NULL;
+	return 0;
 }
 
 static void client_connect(struct dml_client *client, void *arg)
@@ -213,7 +240,7 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
     bool verify)
 {
 	struct dml_stream_client_simple *dss;
-	struct dml_client *dc;
+	struct dml_client *client;
 	
 	dss = calloc(1, sizeof(struct dml_stream_client_simple));
 	if (!dss)
@@ -224,11 +251,12 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
 	dss->verify = verify;
 	dss->arg = arg;  
 	
-	dc = dml_client_create(server, 0, client_connect, dss);
-	if (!dc)
+	client = dml_client_create(server, 0, client_connect, dss);
+	if (!client)
 		goto err_create;
+	dss->client = client;
 
-	if (dml_client_connect(dc))
+	if (dml_client_connect(client))
 		goto err_connect;
 
 	dml_poll_add(dss, NULL, NULL, keepalive_cb);
@@ -236,7 +264,7 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
 	return dss;
 
 err_connect:
-	dml_client_destroy(dc);
+	dml_client_destroy(client);
 err_create:
 	free(dss);
 err_calloc:

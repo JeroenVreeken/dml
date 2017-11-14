@@ -411,8 +411,13 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 			uint16_t packet_id = (rcv[0] << 8) | rcv[1];
 			
 			if (data_len > 0) {
-				printf("Send packet (id %d, len %zd)\n", packet_id, data_len);
-				dml_connection_send(ws_client->dc, payload_data, packet_id, data_len);
+				struct dml_connection *dc = ws_client->dc;
+				if (dc) {
+					printf("Send packet (id %d, len %zd)\n", packet_id, data_len);
+					dml_connection_send(ws_client->dc, payload_data, packet_id, data_len);
+				} else {
+					r = -1;
+				}
 			}
 			
 			break;

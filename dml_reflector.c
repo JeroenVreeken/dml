@@ -127,7 +127,9 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	prev_timestamp = timestamp;
 
 printf("+ %016"PRIx64"\n", timestamp);
-	dml_packet_send_data(dml_host_connection_get(host), packet_id, data, size, timestamp, dk);
+	struct dml_connection *con = dml_host_connection_get(host);
+	if (con)
+		dml_packet_send_data(con, packet_id, data, size, timestamp, dk);
 }
 
 struct parrot_data {
@@ -146,6 +148,7 @@ int parrot_dequeue(void *data)
 {
 	uint64_t parrot_timestamp;
 	uint16_t packet_id = dml_stream_data_id_get(stream_dv);
+	struct dml_connection *con = dml_host_connection_get(host);
 	
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
@@ -175,8 +178,9 @@ int parrot_dequeue(void *data)
 		
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
-		dml_packet_send_data(dml_host_connection_get(host), packet_id, 
-		    entry->data, entry->size, parrot_timestamp, dk);
+		if (con)
+			dml_packet_send_data(con, packet_id, 
+			    entry->data, entry->size, parrot_timestamp, dk);
 		
 		parrot_ts.tv_nsec += entry->duration * 1000000;
 		if (parrot_ts.tv_nsec >= 1000000000) {
@@ -197,7 +201,8 @@ printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->dur
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 		parrot_timestamp++;
 printf("= %016"PRIx64"\n", parrot_timestamp);
-		dml_packet_send_data(dml_host_connection_get(host), packet_id, data, 8, parrot_timestamp, dk);
+		if (con)
+			dml_packet_send_data(con, packet_id, data, 8, parrot_timestamp, dk);
 		parrot_ts.tv_sec = 0;
 	}
 	
