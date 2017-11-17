@@ -170,7 +170,10 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				break;
 			if ((ds = dml_stream_by_id(cid))) {
 				if (dml_host_mime_filter(host, ds)) {
-					dml_crypto_cert_add_verify(cert, size, cid);
+					if (dml_crypto_cert_add_verify(cert, size, cid)) {
+						printf("Not accepting certificate for %s\n",
+						    dml_stream_name_get(ds));
+					}
 				}
 			}
 			free(cert);

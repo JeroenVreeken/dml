@@ -44,7 +44,6 @@
 #define DML_REFLECTOR_DATA_KEEPALIVE 10
 
 uint8_t ref_id[DML_ID_SIZE];
-char *mime = "audio/dml-codec2";
 char *name;
 char *alias;
 char *description;
@@ -367,7 +366,7 @@ int main(int argc, char **argv)
 	}
 	
 	if (dml_id_gen(ref_id, DML_PACKET_DESCRIPTION_VERSION_0, bps, 
-	    mime, name, alias, description))
+	    DML_MIME_DV_C2, name, alias, description))
 		return -1;
     	
 	stream_dv = dml_stream_by_id_alloc(ref_id);
