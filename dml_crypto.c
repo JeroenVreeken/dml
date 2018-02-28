@@ -276,10 +276,15 @@ bool dml_crypto_verify(void *data, size_t len, uint8_t sig[DML_SIG_SIZE], struct
 	SHA256_Final(digest, &sha256);
 
 	ECDSA_SIG *ecsig = ECDSA_SIG_new();
+#if (OPENSSL_VERSION_NUMBER < 0x10100000)
+	BN_bin2bn(sig, 32, ecsig->r);
+	BN_bin2bn(sig + 32, 32, ecsig->s);
+#else
 	BIGNUM *r, *s;
 	r = BN_bin2bn(sig, 32, NULL);
 	s = BN_bin2bn(sig + 32, 32, NULL);
 	ECDSA_SIG_set0(ecsig, r, s);
+#endif
 	
  	int ret = ECDSA_do_verify(digest, SHA256_DIGEST_LENGTH, ecsig, dk->ec_key);
 
@@ -305,12 +310,19 @@ int dml_crypto_sign(uint8_t sig[DML_SIG_SIZE], void *data, size_t len, struct dm
 	ECDSA_SIG *ecsig = ECDSA_do_sign(digest, SHA256_DIGEST_LENGTH, dk->ec_key);
 	
 	memset(sig, 0, 64);
+#if (OPENSSL_VERSION_NUMBER < 0x10100000)
+	int r_off = 32 - BN_num_bytes(ecsig->r);
+	int s_off = 32 - BN_num_bytes(ecsig->s);
+	BN_bn2bin(ecsig->r, sig + r_off);
+	BN_bn2bin(ecsig->s, sig + 32 + s_off);
+#else
 	const BIGNUM *r, *s;
 	ECDSA_SIG_get0(ecsig, &r, &s);
 	int r_off = 32 - BN_num_bytes(r);
 	int s_off = 32 - BN_num_bytes(s);
 	BN_bn2bin(r, sig + r_off);
 	BN_bn2bin(s, sig + 32 + s_off);
+#endif
 	ECDSA_SIG_free(ecsig);
 
 	return 0;
