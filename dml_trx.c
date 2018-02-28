@@ -58,7 +58,7 @@
 #define debug(...) printf(__VA_ARGS__)
 
 static bool fullduplex = false;
-static bool repeater = false;
+static bool digipeater = false;
 static bool allow_commands = true;
 
 static struct dml_stream *stream_dv;
@@ -586,7 +586,7 @@ static void recv_data(void *data, size_t size)
 	
 //	printf("mode %d state %d\n", mode, state);
 	
-	if (!rx_state || (fullduplex && !repeater)) {
+	if (!rx_state || fullduplex) {
 		if (state != tx_state) {
 			char call[ETH_AR_CALL_SIZE];
 			int ssid;
@@ -674,10 +674,6 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 	memcpy(data + 8, dv, size);
 
 	send_data(data, 8 + size, stream_dv);
-
-	if (repeater) {
-		trx_dv_send(from, mac_bcast, mode, dv, size);
-	}
 
 	fprs_update_mac(from);
 
@@ -882,7 +878,7 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	
-	if (repeater) {
+	if (digipeater) {
 		/* Digipeat the incomming FPRS packet */
 		trx_dv_send_fprs(mac_dev, mac_bcast, f_data, f_size);
 	}
@@ -995,7 +991,7 @@ int main(int argc, char **argv)
 	key = dml_config_value("key", NULL, "");
 
 	fullduplex = atoi(dml_config_value("fullduplex", NULL, "0"));
-	repeater = atoi(dml_config_value("repeater", NULL, "0"));
+	digipeater = atoi(dml_config_value("digipeater", NULL, "0"));
 	allow_commands = atoi(dml_config_value("allow_commands", NULL, "0"));
 	command_pipe_name = dml_config_value("command_pipe_name", NULL, NULL);
 

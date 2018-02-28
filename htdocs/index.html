@@ -572,6 +572,7 @@ function dmlc2()
 					var dv = new DataView(c2_buf.buffer);
 					for (i = 0; i < nr; i++) {
 						samples[i] = dv.getInt16(c2_buf.byteOffset + i*2, true) / 32768.0;
+//						samples[i] = Int16Array(c2_buf)[i] / 32768.0;
 					}
 				} else if (newmode == 'be16') {
 					var i;

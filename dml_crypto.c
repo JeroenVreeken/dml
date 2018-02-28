@@ -20,7 +20,10 @@
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/evp.h>
+#include <openssl/ecdsa.h>
 #include <string.h>
 
 X509_STORE *x509_store;
@@ -145,18 +148,18 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	EVP_PKEY *evp_key = X509_get_pubkey(cert);
 	if (!evp_key)
 		goto err_key;
-	if (EVP_PKEY_type(evp_key->type) != EVP_PKEY_EC)
-		goto err_key_type;
 	/* only 256 bits EC for now */
 	if (EVP_PKEY_bits(evp_key) != 256)
 		goto err_bits;
 	dk->ec_key = EVP_PKEY_get1_EC_KEY(evp_key);
+	if (!dk->ec_key)
+		goto err_key_type;
 	EVP_PKEY_free(evp_key);
 
 	return !(rc == 1);
 
-err_bits:
 err_key_type:
+err_bits:
 	EVP_PKEY_free(evp_key);
 err_key:
 err_name:
@@ -273,8 +276,10 @@ bool dml_crypto_verify(void *data, size_t len, uint8_t sig[DML_SIG_SIZE], struct
 	SHA256_Final(digest, &sha256);
 
 	ECDSA_SIG *ecsig = ECDSA_SIG_new();
-	BN_bin2bn(sig, 32, ecsig->r);
-	BN_bin2bn(sig + 32, 32, ecsig->s);
+	BIGNUM *r, *s;
+	r = BN_bin2bn(sig, 32, NULL);
+	s = BN_bin2bn(sig + 32, 32, NULL);
+	ECDSA_SIG_set0(ecsig, r, s);
 	
  	int ret = ECDSA_do_verify(digest, SHA256_DIGEST_LENGTH, ecsig, dk->ec_key);
 
@@ -300,10 +305,12 @@ int dml_crypto_sign(uint8_t sig[DML_SIG_SIZE], void *data, size_t len, struct dm
 	ECDSA_SIG *ecsig = ECDSA_do_sign(digest, SHA256_DIGEST_LENGTH, dk->ec_key);
 	
 	memset(sig, 0, 64);
-	int r_off = 32 - BN_num_bytes(ecsig->r);
-	int s_off = 32 - BN_num_bytes(ecsig->s);
-	BN_bn2bin(ecsig->r, sig + r_off);
-	BN_bn2bin(ecsig->s, sig + 32 + s_off);
+	const BIGNUM *r, *s;
+	ECDSA_SIG_get0(ecsig, &r, &s);
+	int r_off = 32 - BN_num_bytes(r);
+	int s_off = 32 - BN_num_bytes(s);
+	BN_bn2bin(r, sig + r_off);
+	BN_bn2bin(s, sig + 32 + s_off);
 	ECDSA_SIG_free(ecsig);
 
 	return 0;
