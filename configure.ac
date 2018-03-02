@@ -75,4 +75,21 @@ AS_IF([ test "x$flite_headers_found" == "xyes" && \
         [CFLAGS+=" -DHAVE_FLITE"])
 
 
+dnl Search for libmagic
+AC_SEARCH_LIBS([magic_open], [magic], [libmagic_found_lib=yes], [])
+
+AC_CHECK_HEADERS([magic.h],
+        [libmagic_found_headers=yes; break;])
+
+AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" = "xyes"],
+	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
+)
+
+AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
+
+
+
 AC_OUTPUT([Makefile])
+
+echo "Optional parts:"
+echo "    dml_httpd:" $enable_dml_httpd

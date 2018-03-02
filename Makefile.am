@@ -23,7 +23,7 @@ libdml_la_SOURCES = \
 libdml_la_CFLAGS=-fPIC
 libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 -lcrypto
 
-bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_stream_client_codec2 dml_trx dml_httpd dml_fprs_db
+bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_stream_client_codec2 dml_trx dml_fprs_db
 
 DML_SRCS = \
 	dml_config.c \
@@ -74,9 +74,17 @@ dml_stream_client_codec2_LDADD = libdml.la
 dml_stream_client_codec2_LDFLAGS = -lm
 
 
+
+if ENABLE_DML_HTTPD
+
+bin_PROGRAMS += dml_httpd
+
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c
 dml_httpd_LDADD = libdml.la
 dml_httpd_LDFLAGS = -lwebsockets -lmagic
+
+endif
+
 
 dml_fprs_db_SOURCES = $(DML_SRCS) $(FPRS_DB_SRCS) dml_fprs_db.c
 dml_fprs_db_LDADD = libdml.la
