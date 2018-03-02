@@ -59,7 +59,7 @@ dml_reflector_LDFLAGS = -lcodec2 -leth_ar -lm
 
 dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c soundlib.c
 dml_trx_LDADD = libdml.la
-dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar
+dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar -lm
 
 
 dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c
@@ -71,6 +71,7 @@ dml_stream_client_LDADD = libdml.la
 
 dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ULAW_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
 dml_stream_client_codec2_LDADD = libdml.la
+dml_stream_client_codec2_LDFLAGS = -lm
 
 
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c
