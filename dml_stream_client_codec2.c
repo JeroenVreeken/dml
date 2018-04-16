@@ -39,6 +39,7 @@
 
 static int fd_dump = -1;
 static int last_hour = -1;
+static char *dumpdir = "./";
 static char *dumpfile = "dml_stream_dump";
 static size_t f_datasize = 0;
 
@@ -105,15 +106,16 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		}
 		
 		char *dname;
-		asprintf(&dname, "%04d", tm_now.tm_year + 1900);
+		asprintf(&dname, "%s/%04d", dumpdir, tm_now.tm_year + 1900);
 		mkdir(dname, 0777);
 		free(dname);
-		asprintf(&dname, "%04d/%02d", tm_now.tm_year + 1900, tm_now.tm_mon + 1);
+		asprintf(&dname, "%s/%04d/%02d", dumpdir, tm_now.tm_year + 1900, tm_now.tm_mon + 1);
 		mkdir(dname, 0777);
 		free(dname);
 
 		char *fname;
-		asprintf(&fname, "%04d/%02d/%s.%04d%02d%02d%02d00.wav",
+		asprintf(&fname, "%s/%04d/%02d/%s.%04d%02d%02d%02d00.wav",
+		    dumpdir,
 		    tm_now.tm_year + 1900, tm_now.tm_mon + 1,
 		    dumpfile, 
 		    tm_now.tm_year + 1900,
@@ -250,6 +252,8 @@ int main(int argc, char **argv)
 		file = argv[2];
 	if (argc > 3)
 		dumpfile = argv[3];
+	if (argc > 4)
+		dumpdir = argv[4];
 	if (argc < 2) {
 		fprintf(stderr, "No id given\n");
 		return -1;
