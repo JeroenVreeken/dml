@@ -104,9 +104,17 @@ static int data_cb(void *arg, void *data, size_t datasize)
 			close(fd_dump);
 		}
 		
+		char *dname;
+		asprintf(&dname, "%04d", tm_now.tm_year + 1900);
+		mkdir(dname, 0777);
+		free(dname);
+		asprintf(&dname, "%04d/%02d", tm_now.tm_year + 1900, tm_now.tm_mon + 1);
+		mkdir(dname, 0777);
+		free(dname);
+
 		char *fname;
-		
-		asprintf(&fname, "%s.%04d%02d%02d%02d00.wav",
+		asprintf(&fname, "%04d/%02d/%s.%04d%02d%02d%02d00.wav",
+		    tm_now.tm_year + 1900, tm_now.tm_mon + 1,
 		    dumpfile, 
 		    tm_now.tm_year + 1900,
 		    tm_now.tm_mon + 1, tm_now.tm_mday,
