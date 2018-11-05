@@ -51,7 +51,7 @@ static int trx_dv_in_cb(void *arg)
 	ssize_t ret;
 
 	ret = recv(dv_sock, dv_frame, sizeof(dv_frame), 0);
-	if (ret >= 14) {
+	if (ret >= 16) {
 		uint16_t type = (dv_frame[12] << 8) | dv_frame[13];
 		int mode;
 		size_t datasize;
@@ -100,29 +100,29 @@ static int trx_dv_in_cb(void *arg)
 #endif
 			case ETH_P_ALAW:
 				mode = 'A';
-				datasize = ret - 14;
+				datasize = ret - 16;
 				break;
 			case ETH_P_ULAW:
 				mode = 'U';
-				datasize = ret - 14;
+				datasize = ret - 16;
 				break;
 			case ETH_P_LE16:
 				mode = 's';
-				datasize = ret - 14;
+				datasize = ret - 16;
 				break;
 			case ETH_P_BE16:
 				mode = 'S';
-				datasize = ret - 14;
+				datasize = ret - 16;
 				break;
 			case ETH_P_AR_CONTROL:
-				return ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 14, ret - 14);
+				return ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 16, ret - 16);
 			case ETH_P_FPRS:
 				return fprs_cb(in_cb_arg, dv_frame + 6, dv_frame + 14, ret - 14);
 			default:
 				return 0;
 		}
 		if (ret >= datasize + 14) {
-			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 14, datasize, mode);
+			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 16, datasize, mode);
 		}
 	} else {
 		printf("frame not the right size: %zd: \n", ret);
@@ -205,17 +205,19 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 	}
 	
 	while (size) {
-		uint8_t dv_frame[6 + 6 + 2 + max_size];
+		uint8_t dv_frame[6 + 6 + 2 + 1 + 1 + max_size];
 		size_t out_size = size;
 		if (out_size > max_size)
 			out_size = max_size;
 		memcpy(dv_frame + 0, to, 6);
 		memcpy(dv_frame + 6, from, 6);
 		memcpy(dv_frame + 12, &type, 2);
-		memcpy(dv_frame + 14, dv, out_size);
+		dv_frame[14] = 0;
+		dv_frame[15] = 1;
+		memcpy(dv_frame + 16, dv, out_size);
 	
-		ssize_t ret = send(dv_sock, dv_frame, 14 + out_size, 0);
-		if (ret == 14 + out_size) {
+		ssize_t ret = send(dv_sock, dv_frame, 16 + out_size, 0);
+		if (ret == 16 + out_size) {
 			size -= out_size;
 			dv += out_size;
 		}
@@ -231,13 +233,15 @@ int trx_dv_send_control(uint8_t from[6], uint8_t to[6], char *control)
 	size_t control_size = strlen(control);
 	uint16_t type = htons(ETH_P_AR_CONTROL);
 
-	uint8_t dv_frame[6 + 6 + 2 + control_size];
+	uint8_t dv_frame[6 + 6 + 2 + 1 + 1 + control_size];
 	memcpy(dv_frame + 0, to, 6);
 	memcpy(dv_frame + 6, from, 6);
 	memcpy(dv_frame + 12, &type, 2);
-	memcpy(dv_frame + 14, control, control_size);
+	dv_frame[14] = 0;
+	dv_frame[15] = 1;
+	memcpy(dv_frame + 16, control, control_size);
 
-	ssize_t ret = send(dv_sock, dv_frame, 14 + control_size, 0);
+	ssize_t ret = send(dv_sock, dv_frame, 16 + control_size, 0);
 	if (ret == 14 + control_size)
 		return 0;
 	

@@ -22,9 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct ogg {
+static struct fileparse {
     ssize_t (*data_cb)(void *data, size_t size);
-    int (*trigger_cb)(enum ogg_trigger trig);
+    int (*trigger_cb)(enum fileparse_trigger trig);
 } ogg;
 
 
@@ -120,7 +120,7 @@ int ogg_in(ssize_t r)
 							printf("First vorbis data\n");
 							vorbis_header = 0;
 							if (!theora_header)
-								ogg.trigger_cb(OGG_TRIGGER_HEADER_COMPLETE);
+								ogg.trigger_cb(FILEPARSE_TRIGGER_HEADER_COMPLETE);
 						} else {
 							printf("Vorbis header\n");
 							ogg.data_cb(ogg_page, ogg_pos);
@@ -132,7 +132,7 @@ int ogg_in(ssize_t r)
 							printf("First theora data\n");
 							theora_header = 0;
 							if (!vorbis_header)
-								ogg.trigger_cb(OGG_TRIGGER_HEADER_COMPLETE);
+								ogg.trigger_cb(FILEPARSE_TRIGGER_HEADER_COMPLETE);
 						} else {
 							printf("Theora header\n");
 							ogg.data_cb(ogg_page, ogg_pos);
@@ -145,7 +145,7 @@ int ogg_in(ssize_t r)
 						if (size > 1024)
 							size = 1024;
 						ogg.data_cb(ogg_page + i, size);
-						ogg.trigger_cb(OGG_TRIGGER_PACKET_COMPLETE);
+						ogg.trigger_cb(FILEPARSE_TRIGGER_PACKET_COMPLETE);
 					}
 					
 					memmove(ogg_page, ogg_page + ogg_total_segments, ogg_pos - ogg_total_segments);
@@ -161,7 +161,7 @@ int ogg_in(ssize_t r)
 	return 0;
 }
 
-int ogg_parse(struct ogg *ogg, void *buffer, size_t size)
+int ogg_parse(struct fileparse *ogg, void *buffer, size_t size)
 {
 	char *bufb = buffer;
 	
@@ -177,13 +177,15 @@ int ogg_parse(struct ogg *ogg, void *buffer, size_t size)
 	
 	return 0;
 }
-struct ogg *ogg_create(
+struct fileparse *ogg_create(
     ssize_t (*data_cb)(void *data, size_t size),
-    int (*trigger_cb)(enum ogg_trigger trig)
+    int (*trigger_cb)(enum fileparse_trigger trig),
+    int (**parse)(struct fileparse *ogg, void *buffer, size_t size)
 )
 {
 	ogg.data_cb = data_cb;
 	ogg.trigger_cb = trigger_cb;
+	*parse = ogg_parse;
 	
 	return &ogg;
 }

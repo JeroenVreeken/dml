@@ -39,11 +39,16 @@ struct dml_stream_client_simple {
 	struct dml_client *client;
 	struct dml_connection *dc;
 
+	bool found_req_id;
 	uint8_t req_id[DML_ID_SIZE];
 	bool verify;
 
 	void *arg;
 	int (*data_cb)(void *arg, void *data, size_t datasize);
+	
+	char *name;
+	char *alias;
+	char *mime;
 };
 
 static int keepalive_cb(void *arg)
@@ -54,8 +59,12 @@ static int keepalive_cb(void *arg)
 		return 0;
 	}
 	
-	fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
-	dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
+	if (dss->found_req_id) {
+		fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
+		dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
+	} else {
+		//TODO What is the best way to trigger discovery?
+	}
 	
 	dml_poll_timeout(dss, 
 	    &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, 0});
@@ -70,12 +79,50 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 
 //	fprintf(stderr, "got id: %d\n", id);
 	switch(id) {
-		case DML_PACKET_DESCRIPTION: {
-			if (!dml_stream_update_description(data, len, NULL))
+		case DML_PACKET_ROUTE: {
+			if (dss->found_req_id)
 				break;
 			
-			fprintf(stderr, "Request certificate\n");
-			dml_packet_send_req_certificate(dc, dss->req_id);
+			uint8_t id[DML_ID_SIZE];
+			uint8_t hops;
+			
+			dml_packet_parse_route(data, len, id, &hops);
+			
+			if (hops < 255) {
+				dml_packet_send_req_description(dc, id);
+			}
+		}
+		case DML_PACKET_DESCRIPTION: {
+			if (!dss->found_req_id) {
+				uint8_t desc_id[DML_ID_SIZE];
+				uint8_t version;
+				uint32_t bps;
+				char *mime, *name, *alias, *description;
+	
+				dml_packet_parse_description(data, len, desc_id, &version, 
+				    &bps, &mime, &name, &alias, &description);
+				
+				bool found = true;
+				if (dss->name && strcmp(name, dss->name))
+					found = false;
+				if (dss->alias && strcmp(alias, dss->alias))
+					found = false;
+				if (dss->mime && strcmp(mime, dss->mime))
+					found = false;
+				
+				if (found) {
+					dss->found_req_id = true;
+					memcpy(dss->req_id, desc_id, DML_ID_SIZE);
+				}
+			}
+			
+			if (dss->found_req_id) {
+				if (!dml_stream_update_description(data, len, NULL))
+					break;
+		
+				fprintf(stderr, "Request certificate\n");
+				dml_packet_send_req_certificate(dc, dss->req_id);
+			}
 			break;
 		}
 		case DML_PACKET_CERTIFICATE: {
@@ -221,22 +268,28 @@ static void client_connect(struct dml_client *client, void *arg)
 	fd = dml_client_fd_get(client);
 	
 	dc = dml_connection_create(fd, arg, rx_packet, client_connection_close);
-	dml_packet_send_hello(dc, DML_PACKET_HELLO_LEAF, "dml_stream_client " DML_VERSION);
-	dml_packet_send_req_description(dc, dss->req_id);
-
-	struct dml_stream *ds = dml_stream_by_id_alloc(dss->req_id);
-	uint64_t timestamp;
-	struct timespec ts;
-	
-	clock_gettime(CLOCK_REALTIME, &ts);
-	timestamp = (uint64_t)(ts.tv_sec - DML_TIME_MARGIN) << 16;
-	dml_stream_timestamp_set(ds, timestamp);
+	if (dss->found_req_id) {
+		dml_packet_send_hello(dc, DML_PACKET_HELLO_LEAF, "dml_stream_client " DML_VERSION);
+		dml_packet_send_req_description(dc, dss->req_id);
+	} else {
+		dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dml_stream_client " DML_VERSION);	
+	}
 
 	dss->dc = dc;
 }
 
 struct dml_stream_client_simple *dml_stream_client_simple_create(
     char *server, uint8_t req_id[DML_ID_SIZE],
+	void *arg,
+    int (*data_cb)(void *arg, void *, size_t),
+    bool verify)
+{
+	return dml_stream_client_simple_search_create(
+	    server, req_id, NULL, NULL, NULL, arg, data_cb, verify);
+}
+
+struct dml_stream_client_simple *dml_stream_client_simple_search_create(
+    char *server, uint8_t req_id[DML_ID_SIZE], char *name, char *alias, char *mime,
 	void *arg,
     int (*data_cb)(void *arg, void *, size_t),
     bool verify)
@@ -248,7 +301,17 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
 	if (!dss)
 		goto err_calloc;
 
-	memcpy(dss->req_id, req_id, DML_ID_SIZE);
+	if (req_id) {
+		memcpy(dss->req_id, req_id, DML_ID_SIZE);
+		dss->found_req_id = true;
+	} else {
+		if (name)
+			dss->name = strdup(name);
+		if (alias)
+			dss->alias = strdup(alias);
+		if (mime)
+			dss->mime = strdup(mime);
+	}
 	dss->data_cb = data_cb;
 	dss->verify = verify;
 	dss->arg = arg;  

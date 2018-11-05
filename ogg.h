@@ -22,18 +22,12 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-struct ogg;
+#include "fileparse.h"
 
-enum ogg_trigger {
-	OGG_TRIGGER_HEADER_COMPLETE,
-	OGG_TRIGGER_PACKET_COMPLETE,
-};
-
-int ogg_parse(struct ogg *mat, void *buffer, size_t size);
-
-struct ogg *ogg_create(
+struct fileparse *ogg_create(
     ssize_t (*data_cb)(void *data, size_t size),
-    int (*trigger_cb)(enum ogg_trigger trig)
+    int (*trigger_cb)(enum fileparse_trigger trig),
+    int (**parse)(struct fileparse *ogg, void *buffer, size_t size)
 );
 
 #endif /* _INCLUDE_OGG_H_ */

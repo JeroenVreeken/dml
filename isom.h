@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2016
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2018
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -15,15 +15,15 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#ifndef _INCLUDE_MATROSKA_H_
-#define _INCLUDE_MATROSKA_H_
+#ifndef _INCLUDE_ISOM_H_
+#define _INCLUDE_ISOM_H_
 
 #include "fileparse.h"
 
-struct fileparse *matroska_create(
+struct fileparse *isom_create(
     ssize_t (*data_cb)(void *data, size_t size),
     int (*trigger_cb)(enum fileparse_trigger trig),
     int (**parse)(struct fileparse *mat, void *buffer, size_t size)
 );
 
-#endif /* _INCLUDE_MATROSKA_H_ */
+#endif /* _INCLUDE_ISOM_H_ */

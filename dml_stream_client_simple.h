@@ -26,5 +26,11 @@ struct dml_stream_client_simple *dml_stream_client_simple_create(
     int (*data_cb)(void *arg, void *, size_t),
     bool verify);
 
+struct dml_stream_client_simple *dml_stream_client_simple_search_create(
+    char *server, uint8_t req_id[DML_ID_SIZE], char *name, char *alias, char *mime,
+    void *arg,
+    int (*data_cb)(void *arg, void *, size_t),
+    bool verify);
+
 #endif /* _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_ */
 

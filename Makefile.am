@@ -62,7 +62,7 @@ dml_trx_LDADD = libdml.la
 dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar -lm
 
 
-dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c
+dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c isom.c
 dml_streamer_LDADD = libdml.la
 
 

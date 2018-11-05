@@ -48,15 +48,15 @@ struct matroska_element {
 	uint64_t pos;
 };
 
-struct matroska {
+struct fileparse {
 	int level;
 	struct matroska_element level_state[MATROSKA_LEVEL_MAX+1];
 	
 	ssize_t (*data_cb)(void *data, size_t size);
-	int (*trigger_cb)(enum matroska_trigger trig);
+	int (*trigger_cb)(enum fileparse_trigger trig);
 };
 
-bool matroska_element_dive(struct matroska *mat)
+bool matroska_element_dive(struct fileparse *mat)
 {
 	struct matroska_element *em = &mat->level_state[mat->level];
 
@@ -68,7 +68,7 @@ bool matroska_element_dive(struct matroska *mat)
 	return false;
 }
 
-int matroska_element_trigger(struct matroska *mat)
+int matroska_element_trigger(struct fileparse *mat)
 {
 	struct matroska_element *em = &mat->level_state[mat->level];
 
@@ -76,20 +76,20 @@ int matroska_element_trigger(struct matroska *mat)
 	    em->id[1] == 0x54 &&
 	    em->id[2] == 0xae &&
 	    em->id[3] == 0x6b)
-		mat->trigger_cb(MATROSKA_TRIGGER_HEADER_COMPLETE);
+		mat->trigger_cb(FILEPARSE_TRIGGER_HEADER_COMPLETE);
 
 	if (em->id[0] == 0x1f &&
 	    em->id[1] == 0x43 &&
 	    em->id[2] == 0xb6 &&
 	    em->id[3] == 0x75)
-		mat->trigger_cb(MATROSKA_TRIGGER_PACKET_COMPLETE);
+		mat->trigger_cb(FILEPARSE_TRIGGER_PACKET_COMPLETE);
 
 	return 0;
 }
 
 #define PUSH(d) do { mat->data_cb(bufo + pos, (d)); pos += (d); } while(0)
 
-int matroska_parse(struct matroska *mat, void *buffer, size_t size)
+int matroska_parse(struct fileparse *mat, void *buffer, size_t size)
 {
 	uint8_t *bufo = buffer;
 	size_t pos = 0;
@@ -224,19 +224,21 @@ int matroska_parse(struct matroska *mat, void *buffer, size_t size)
 	return 0;
 }
 
-struct matroska *matroska_create(
+struct fileparse *matroska_create(
     ssize_t (*data_cb)(void *data, size_t size),
-    int (*trigger_cb)(enum matroska_trigger trig)
+    int (*trigger_cb)(enum fileparse_trigger trig),
+    int (**parse)(struct fileparse *mat, void *buffer, size_t size)
 )
 {
-	struct matroska *mat;
+	struct fileparse *mat;
 	
-	mat = calloc(1, sizeof(struct matroska));
+	mat = calloc(1, sizeof(struct fileparse));
 	if (!mat)
 		goto err_calloc;
 	
 	mat->data_cb = data_cb;
 	mat->trigger_cb = trigger_cb;
+	*parse = matroska_parse;
 	
 	return mat;
 

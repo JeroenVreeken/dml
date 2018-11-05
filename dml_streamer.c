@@ -25,6 +25,7 @@
 #include "dml_config.h"
 
 #include "ogg.h"
+#include "isom.h"
 #include "matroska.h"
 
 #include <stdlib.h>
@@ -190,9 +191,9 @@ ssize_t data_cb(void *data, size_t size)
 	return size;
 }
 
-int trigger_cb_m(enum matroska_trigger trig)
+int trigger_cb(enum fileparse_trigger trig)
 {
-	if (trig == MATROSKA_TRIGGER_HEADER_COMPLETE) {
+	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
 		header_done = true;
 	} else {
 		send_data(pkt_data, pkt_size);
@@ -204,22 +205,8 @@ int trigger_cb_m(enum matroska_trigger trig)
 	return 0;
 }
 
-int trigger_cb_o(enum ogg_trigger trig)
-{
-	if (trig == OGG_TRIGGER_HEADER_COMPLETE) {
-		header_done = true;
-	} else {
-		send_data(pkt_data, pkt_size);
-		free(pkt_data);
-		pkt_data = NULL;
-		pkt_size = 0;
-	}
-	
-	return 0;
-}
-
-struct ogg *ogg;
-struct matroska *mat;
+struct fileparse *fileparse;
+int (*parse)(struct fileparse *ogg, void *buffer, size_t size);
 
 int fd_in(void *arg)
 {
@@ -229,10 +216,7 @@ int fd_in(void *arg)
 	
 	r = read(fd_ogg, buffer, sizeof(buffer));
 	if (r > 0) {
-		if (mat)
-			return matroska_parse(mat, buffer, r);
-		else
-			return ogg_parse(ogg, buffer, r);
+			return parse(fileparse, buffer, r);
 	}
 	
 	return 0;
@@ -247,6 +231,7 @@ int main(int argc, char **argv)
 	char *key;
 	char *server;
 	bool use_ogg = true;
+	bool use_isom = false;
 
 	if (argc > 1)
 		file = argv[1];
@@ -258,6 +243,8 @@ int main(int argc, char **argv)
 	mime = dml_config_value("mime", NULL, "application/ogg");
 	if (strcmp(mime + strlen(mime) - 3, "ogg"))
 		use_ogg = false;
+	if (!strcmp(mime + strlen(mime) - 3, "mp4"))
+		use_isom = true;
 	name = dml_config_value("name", NULL, "example");
 	alias = dml_config_value("alias", NULL, "");
 	description = dml_config_value("description", NULL, "Test stream");
@@ -293,9 +280,11 @@ int main(int argc, char **argv)
 
 
 	if (use_ogg)
-		ogg = ogg_create(data_cb, trigger_cb_o);
+		fileparse = ogg_create(data_cb, trigger_cb, &parse);
+	else if (use_isom)
+		fileparse = isom_create(data_cb, trigger_cb, &parse);
 	else
-		mat = matroska_create(data_cb, trigger_cb_m);
+		fileparse = matroska_create(data_cb, trigger_cb, &parse);
 
 	dml_poll_add(&fd_ogg, fd_in, NULL, NULL);
 	dml_poll_fd_set(&fd_ogg, 0);

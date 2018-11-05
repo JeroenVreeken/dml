@@ -272,9 +272,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	dml_str_id(req_id, req_id_str);
-
-	dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
+	if (dml_str_id(req_id, req_id_str)) {
+		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, DML_MIME_DV_C2, NULL, data_cb, true);
+	} else {
+		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
+	}
 	if (!dss) {
 		printf("Could not create stream\n");
 		return -1;
