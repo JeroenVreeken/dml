@@ -167,7 +167,7 @@ void send_data(void *data, size_t size)
 	timestamp = (uint64_t)ts.tv_sec << 16;
 	timestamp |= prev_ctr;
 	
-	printf("timestamp: 0x%016llx\n", timestamp);
+	printf("timestamp: 0x%016"PRIx64"\n", timestamp);
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
