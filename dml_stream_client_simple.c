@@ -133,7 +133,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			fprintf(stderr, "Parse certificate\n");
 			if (dml_packet_parse_certificate(data, len, cid, &cert, &size))
 				break;
-			
+			fprintf(stderr, "verify %d\n", dss->verify);
 			if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
 				fprintf(stderr, "Request header\n");
 				dml_packet_send_req_header(dc, dss->req_id);
@@ -149,28 +149,34 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			size_t header_size;
 			struct dml_stream *ds;
 			struct dml_crypto_key *dk;
+			bool send_connect = false;
 			
 			if (dml_packet_parse_header(data, len, hid, sig, &header, &header_size))
 				break;
 			
-			if (!dss->verify) {
-				dss->data_cb(dss->arg, header, header_size);
-			} else if ((ds = dml_stream_by_id(hid))) {
-				if ((dk = dml_stream_crypto_get(ds))) {
+			if ((ds = dml_stream_by_id(hid))) {
+				if (!dss->verify) {
+					send_connect = true;
+				} else if ((dk = dml_stream_crypto_get(ds))) {
 					bool verified = dml_crypto_verify(header, header_size, sig, dk);
 			
 					if (verified) {
-						dss->data_cb(dss->arg, header, header_size);
-						dss->header_written = true;
-		
-						dml_stream_data_id_set(ds, DML_PACKET_DATA);
-						dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
-						fprintf(stderr, "Send connect\n");
+						send_connect = true;
 					} else {
 						fprintf(stderr, "Failed to verify header signature (%zd bytes)\n", header_size);
 					}
 				}
 			}
+			
+			if (send_connect) {
+				dss->data_cb(dss->arg, header, header_size);
+				dss->header_written = true;
+		
+				dml_stream_data_id_set(ds, DML_PACKET_DATA);
+				dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
+				fprintf(stderr, "Send connect\n");
+			}
+			
 			free(header);
 			
 			break;
