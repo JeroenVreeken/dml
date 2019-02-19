@@ -40,7 +40,7 @@ static void (*dv_mac_cb)(uint8_t *mac) = NULL;
 
 #define TRX_DV_WATCHDOG 5
 
-static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode) = NULL;
+static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level) = NULL;
 static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size) = NULL;
 static int (*fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size) = NULL;
 static void *in_cb_arg = NULL;
@@ -92,12 +92,18 @@ static int trx_dv_in_cb(void *arg)
 				mode = CODEC2_MODE_700C;
 				datasize = 4;
 				break;
-#ifdef CODEC2_MODE_1300C
-			case ETH_P_CODEC2_1300C:
-				mode = CODEC2_MODE_1300C;
-				datasize = 7;
+			case ETH_P_CODEC2_WB:
+				mode = CODEC2_MODE_WB;
+				datasize = 8;
 				break;
-#endif
+			case ETH_P_CODEC2_450:
+				mode = CODEC2_MODE_450;
+				datasize = 3;
+				break;
+			case ETH_P_CODEC2_450PWB:
+				mode = CODEC2_MODE_450PWB;
+				datasize = 3;
+				break;
 			case ETH_P_ALAW:
 				mode = 'A';
 				datasize = ret - 16;
@@ -122,7 +128,7 @@ static int trx_dv_in_cb(void *arg)
 				return 0;
 		}
 		if (ret >= datasize + 14) {
-			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 16, datasize, mode);
+			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 16, datasize, mode, dv_frame[15]);
 		}
 	} else {
 		printf("frame not the right size: %zd: \n", ret);
@@ -136,7 +142,7 @@ static int trx_dv_in_cb(void *arg)
 }
 
 
-int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size)
+int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size, uint8_t level)
 {
 	uint16_t type;
 	ssize_t max_size = 0;
@@ -178,12 +184,18 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 			type = htons(ETH_P_CODEC2_700C);
 			max_size = 4;
 			break;
-#ifdef CODEC2_MODE_1300C
-		case CODEC2_MODE_1300C:
-			type = htons(ETH_P_CODEC2_1300C);
-			max_size = 7;
+		case CODEC2_MODE_WB:
+			type = htons(ETH_P_CODEC2_WB);
+			max_size = 8;
 			break;
-#endif
+		case CODEC2_MODE_450:
+			type = htons(ETH_P_CODEC2_450);
+			max_size = 3;
+			break;
+		case CODEC2_MODE_450PWB:
+			type = htons(ETH_P_CODEC2_450PWB);
+			max_size = 3;
+			break;
 		case 'A':
 			type = htons(ETH_P_ALAW);
 			max_size = 320;
@@ -212,8 +224,8 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 		memcpy(dv_frame + 0, to, 6);
 		memcpy(dv_frame + 6, from, 6);
 		memcpy(dv_frame + 12, &type, 2);
-		dv_frame[14] = 0;
-		dv_frame[15] = 1;
+		dv_frame[14] = from[0] ^ from[1] ^ from[2] ^ from[3] ^ from[4] ^ from[5];
+		dv_frame[15] = level;
 		memcpy(dv_frame + 16, dv, out_size);
 	
 		ssize_t ret = send(dv_sock, dv_frame, 16 + out_size, 0);
@@ -286,10 +298,12 @@ int trx_dv_duration(size_t size, int mode)
 			return (size * 40) / 4;
 		case CODEC2_MODE_700C:
 			return (size * 40) / 4;
-#ifdef CODEC2_MODE_1300C
-		case CODEC2_MODE_1300C:
-			return (size * 40) / 7;
-#endif
+		case CODEC2_MODE_450:
+			return (size * 40) / 3;
+		case CODEC2_MODE_450PWB:
+			return (size * 40) / 3;
+		case CODEC2_MODE_WB:
+			return (size * 20) / 8;
 		case 'A':
 		case 'U':
 			return size / 8;
@@ -371,7 +385,7 @@ static int trx_dv_watchdog(void *arg)
 }
 
 int trx_dv_init(char *dev, 
-    int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode),
+    int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level),
     int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
     int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
     void *arg,

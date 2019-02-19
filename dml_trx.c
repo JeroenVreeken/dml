@@ -55,6 +55,8 @@
 #define TIME_VALID_DOWNLINK	(5*60)
 #define TIME_VALID_OWN 		(60*60)
 
+#define DML_TRX_LEVEL_MSG	255
+
 #define debug(...) printf(__VA_ARGS__)
 
 static bool fullduplex = false;
@@ -77,8 +79,8 @@ static int send_data_fprs(void *data, size_t size, unsigned int link, void *arg)
 static void recv_data(void *data, size_t size);
 static void recv_data_fprs(void *data, size_t size, uint64_t timestamp);
 
-static bool rx_state = false;
-static bool tx_state = false;
+static uint8_t rx_state = false;
+static uint8_t tx_state = false;
 
 static char command[100];
 static int command_len = 0;
@@ -451,7 +453,7 @@ static void stream_header_cb(struct dml_host *host, struct dml_stream *ds, void 
 			
 	if (ds == cur_con) {
 		fprintf(stderr, "Play header\n");
-		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size);
+		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size, DML_TRX_LEVEL_MSG);
 	} else {
 		fprintf(stderr, "Stream mismatch: %p %p\n", ds, cur_con);
 	}
@@ -582,7 +584,7 @@ static void recv_data(void *data, size_t size)
 	uint8_t *datab = data;
 	
 	uint8_t mode = datab[6];
-	bool state = datab[7] & 0x1;
+	uint8_t state = datab[7];
 	
 //	printf("mode %d state %d\n", mode, state);
 	
@@ -598,7 +600,7 @@ static void recv_data(void *data, size_t size)
 		}
 	
 		if (size > 8) {
-			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8);
+			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8, state);
 		}
 	}
 }
@@ -611,11 +613,11 @@ static int rx_watchdog(void *arg)
 
 	memcpy(data, rx_state ? mac_last : mac_bcast, 6);
 	data[6] = 0;
-	data[7] = false;
+	data[7] = 0;
 
 	send_data(data, 8, stream_dv);
 
-	rx_state = false;
+	rx_state = 0;
 	/* Flush command buffer */
 	command_len = 0;
 
@@ -625,10 +627,10 @@ static int rx_watchdog(void *arg)
 		
 		data = soundlib_get(SOUND_MSG_SILENCE, &size);
 		if (data) {
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
 		}
 
 		struct sound_msg_e *e = sound_msg_q;
@@ -640,7 +642,7 @@ static int rx_watchdog(void *arg)
 			if (size < sendsize)
 				sendsize = size;
 		
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, sendsize);
+			trx_dv_send(mac_dev, mac_bcast, 'A', data, sendsize, DML_TRX_LEVEL_MSG);
 			data += sendsize;
 			size -= sendsize;
 		}
@@ -658,14 +660,14 @@ static int rx_watchdog(void *arg)
 	return 0;
 }
 
-static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode)
+static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level)
 {
 	uint8_t data[8 + size];
 
 	if (!rx_state) {
 		printf("rx_state to on\n");
 	}
-	rx_state = true;
+	rx_state = level;
 
 	memcpy(data, from, 6);
 	memcpy(mac_last, from, 6);
