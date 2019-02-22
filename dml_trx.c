@@ -1119,7 +1119,7 @@ int main(int argc, char **argv)
 			
 			memcpy(header, mac_dev, 6);
 			header[6] = 'A';
-			header[7] = 1;
+			header[7] = 255;
 			dml_stream_header_set(stream_dv, header, header_size + 8);
 		}
 	}

@@ -77,6 +77,7 @@ Decentralized Media Linking
 <script src="aprs_symbol.js"></script>
 <script src="alaw.js"></script>
 <script src="ulaw.js"></script>
+<script src="le16_be16.js"></script>
 <script src="resample.js"></script>
 <script src="libcodec2.js"></script>
 <script src="codec2.js"></script>
@@ -367,8 +368,9 @@ function mse()
 	this.data = function mse_data(newdata) {
 		sourceBuffer.appendBuffer(newdata);
 		if (video.buffered.length) {
-			if (video.buffered.start(0) > video.currentTime)
+			if (video.buffered.start(0) > video.currentTime) {
 				video.currentTime = video.buffered.start(0);
+			}
 		}
 	}
 }
@@ -491,9 +493,10 @@ function dmlc2()
 		
 		dmlc2_this.audio_ctx = new (window.AudioContext || window.webkitAudioContext)();
 		dmlc2_this.rate = dmlc2_this.audio_ctx.sampleRate;
+		console.log("audio_ctx rate: " + dmlc2_this.rate);
 		dmlc2_this.resample = new resample();
 		dmlc2_this.queue = new Array();
-		dmlc2_this.scriptnode = dmlc2_this.audio_ctx.createScriptProcessor(1024, 0, 1);
+		dmlc2_this.scriptnode = dmlc2_this.audio_ctx.createScriptProcessor(0, 0, 1);
 		dmlc2_this.scriptnode.onaudioprocess = function (event) {
 //			console.log("event: " + event.outputBuffer.length);
 			var i, out, len, off;
@@ -505,13 +508,15 @@ function dmlc2()
 					var copylen = dmlc2_this.queue[0].length;
 					if (copylen > len)
 						copylen = len;
+					//console.log("len: " + len + " q: " + dmlc2_this.queue[0].length +
+					//    " "+ dmlc2_this.queue.length + " copylen " + copylen + " off "+off);
 					
 					for (i = 0; i < copylen; i++) {
 						out[off] = dmlc2_this.queue[0][i];
+
 						off++;
 					}
 					len -= copylen;
-					off += copylen;
 					dmlc2_this.queue[0].splice(0, copylen);
 					if (dmlc2_this.queue[0].length == 0) {
 						dmlc2_this.queue.shift();
@@ -532,8 +537,10 @@ function dmlc2()
 	}
 	this.disconnect = function dmlc2_disconnect() 
 	{
-		dmlc2_this.scriptnode.disconnect();
-		dmlc2_this.scriptnode = undefined;
+		if (dmlc2_this.scriptnode) {
+			dmlc2_this.scriptnode.disconnect();
+			dmlc2_this.scriptnode = undefined;
+		}
 		dmlc2_this.audio_ctx = undefined;
 		disconnect();
 		document.getElementById("dmlc2_div").style.display = "none";
@@ -546,13 +553,15 @@ function dmlc2()
 	
 	dmlc2_this.alaw_data = new alaw();
 	dmlc2_this.ulaw_data = new ulaw();
+	dmlc2_this.le16_data = new le16();
+	dmlc2_this.be16_data = new be16();
 	dmlc2_this.c2 = new codec2();
 	
 	this.data = function dmlc2_data(newdata) {
-		if (data.byteLength >= 8) {
+		if (newdata.byteLength >= 8) {
 			var dv = new DataView(newdata);
 			
-			var newstate = dv.getUint8(7) & 0x1;
+			var newstate = dv.getUint8(7);
 			var bytemode = dv.getUint8(6);
 			var newmode = CODEC2.MODE[bytemode];
 			var newcallsign = eth_ar.call(newdata);
@@ -566,22 +575,9 @@ function dmlc2()
 				} else if (newmode == 'u-law') {
 					samples = dmlc2_this.ulaw_data.decode(c2_buf);
 				} else if (newmode == 'le16') {
-					var i;
-					var nr = c2_buf.length / 2;
-					samples = new Array(nr);
-					var dv = new DataView(c2_buf.buffer);
-					for (i = 0; i < nr; i++) {
-						samples[i] = dv.getInt16(c2_buf.byteOffset + i*2, true) / 32768.0;
-//						samples[i] = Int16Array(c2_buf)[i] / 32768.0;
-					}
+					samples = dmlc2_this.le16.decode(c2_buf);
 				} else if (newmode == 'be16') {
-					var i;
-					var nr = c2_buf.length / 2;
-					samples = new Array(nr);
-					var dv = new DataView(c2_buf.buffer);
-					for (i = 0; i < nr; i++) {
-						samples[i] = dv.getInt16(c2_buf.byteOffset + i*2, false) / 32768.0;
-					}
+					samples = dmlc2_this.be16.decode(c2_buf);
 				} else {
 					dmlc2_this.c2.create(bytemode);
 					samples = dmlc2_this.c2.decode(c2_buf);
