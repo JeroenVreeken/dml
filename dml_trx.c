@@ -1140,7 +1140,7 @@ int main(int argc, char **argv)
 			printf("Could not create command pipe\n");
 			return -1;
 		}
-		fd_command = open(command_pipe_name, O_RDONLY | O_NONBLOCK);
+		fd_command = open(command_pipe_name, O_RDWR | O_NONBLOCK);
 		if (fd_command < 0) {
 			printf("Could not open command pipe\n");
 			return -1;
