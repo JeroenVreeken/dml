@@ -131,8 +131,10 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			size_t size;
 			
 			fprintf(stderr, "Parse certificate\n");
-			if (dml_packet_parse_certificate(data, len, cid, &cert, &size))
+			if (dml_packet_parse_certificate(data, len, cid, &cert, &size)) {
+				fprintf(stderr, "Failed to parse certificate\n");
 				break;
+			}
 			fprintf(stderr, "verify %d\n", dss->verify);
 			if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
 				fprintf(stderr, "Request header\n");

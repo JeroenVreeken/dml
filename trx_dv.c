@@ -92,10 +92,12 @@ static int trx_dv_in_cb(void *arg)
 				mode = CODEC2_MODE_700C;
 				datasize = 4;
 				break;
+#if defined(CODEC2_MODE_WB)
 			case ETH_P_CODEC2_WB:
 				mode = CODEC2_MODE_WB;
 				datasize = 8;
 				break;
+#endif
 			case ETH_P_CODEC2_450:
 				mode = CODEC2_MODE_450;
 				datasize = 3;
@@ -184,10 +186,12 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 			type = htons(ETH_P_CODEC2_700C);
 			max_size = 4;
 			break;
+#if defined(CODEC2_MODE_WB)
 		case CODEC2_MODE_WB:
 			type = htons(ETH_P_CODEC2_WB);
 			max_size = 8;
 			break;
+#endif
 		case CODEC2_MODE_450:
 			type = htons(ETH_P_CODEC2_450);
 			max_size = 3;
@@ -302,8 +306,10 @@ int trx_dv_duration(size_t size, int mode)
 			return (size * 40) / 3;
 		case CODEC2_MODE_450PWB:
 			return (size * 40) / 3;
+#if defined(CODEC2_MODE_WB)
 		case CODEC2_MODE_WB:
 			return (size * 20) / 8;
+#endif
 		case 'A':
 		case 'U':
 			return size / 8;
