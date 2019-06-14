@@ -170,6 +170,25 @@ void send_data(void *data, size_t size)
 	dml_packet_send_data(dml_con, packet_id, data, size, timestamp, dk);
 }
 
+void send_data_check(void *data, size_t size)
+{
+	printf("size %zd ", size);
+
+	char *cdata = data;
+
+	while (size) {
+		size_t copysize = size;
+		
+		if (copysize > 60000) {
+			copysize = 60000;
+		}
+		printf(" %zd ", copysize);
+		send_data(cdata, copysize);
+		cdata += copysize;
+		size -= copysize;
+	}
+	printf("\n");
+}
 
 int fd_ogg = 0;
 
@@ -194,9 +213,10 @@ ssize_t data_cb(void *data, size_t size)
 int trigger_cb(enum fileparse_trigger trig)
 {
 	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
+		printf("header size %zd\n", header_size);
 		header_done = true;
 	} else {
-		send_data(pkt_data, pkt_size);
+		send_data_check(pkt_data, pkt_size);
 		free(pkt_data);
 		pkt_data = NULL;
 		pkt_size = 0;
