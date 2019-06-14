@@ -87,7 +87,7 @@ int dml_client_connect(struct dml_client *dc)
 	struct addrinfo *result;
 	struct addrinfo *entry;
 	struct addrinfo hints = { 0 };
-	int error, i;
+	int error;
 	int sock = -1;
 	char *port;
 	
@@ -110,8 +110,8 @@ int dml_client_connect(struct dml_client *dc)
 				close(sock);
 				sock = -1;
 			} else {
-				i = 1;
-				setsockopt (sock, IPPROTO_TCP, TCP_NODELAY, &i, sizeof (int));
+				setsockopt (sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
+				setsockopt (sock, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
 				break;
 			}
 		}

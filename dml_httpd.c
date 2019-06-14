@@ -398,7 +398,9 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 			break;
 		}
 		case LWS_CALLBACK_RECEIVE: {
-			uint8_t *rcv = in;
+			uint8_t rcv[len+1];
+			memcpy(rcv, in, len);
+			rcv[len] = 0;
 			struct ws_client *ws_client;
 //			printf("lws receive: %zd\n", len);
 			
@@ -478,6 +480,11 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 			break;
 		}
 
+		case LWS_CALLBACK_HTTP_FILE_COMPLETION:
+			/* kill the connection after we sent one file */
+			r = -1;
+			break;
+			
 		case LWS_CALLBACK_ADD_POLL_FD: {
 			struct lws_pollargs *args = in;
 			dml_poll_add(wsi, wsi_in_cb, wsi_out_cb, NULL);
@@ -517,6 +524,7 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 //				printf("unhandled callback (%d)\n", reason);
 			break;
 	}
+
 
 	return r;
 }

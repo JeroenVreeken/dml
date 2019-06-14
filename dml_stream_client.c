@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 
 	dml_str_id(req_id, req_id_str);
 
-	dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
+	dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, false);
 	if (!dss) {
 		printf("Could not create stream\n");
 		return -1;

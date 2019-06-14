@@ -15,7 +15,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#undef TESTMAIN
+//#define TESTMAIN
 
 #include <string.h>
 #include <stdlib.h>
@@ -27,80 +27,151 @@
 #include "isom.h"
 
 struct fileparse {
-	uint8_t box_header[8];
-	size_t box_header_pos;
+	uint8_t *box;
+	size_t cur_size;
 	size_t box_size;
-
-	bool header_done;
 
 	ssize_t (*data_cb)(void *data, size_t size);
 	int (*trigger_cb)(enum fileparse_trigger trig);
 };
 
+char *subbox[] = {
+	"moov",
+		"trak",
+			"mdia",
+				"minf",
+					"stbl",
+	"moof",
+		"traf",
+};
+
+char *removebox[] = {
+	"tfdt",
+};
+
+char *dumpbox[] = {
+	"mvhd",
+	"mfhd",
+	"stts",
+	"tfdt",
+//	"trun",
+};
+
+void printbox(void *box, size_t *box_size, int level)
+{
+	uint8_t *cbox = box;
+	uint8_t *type = &cbox[4];
+	char levelstr[level*2+1];
+	
+	memset(levelstr, ' ', level*2);
+	levelstr[level*2] = 0;
+	printf("%sbox: %c%c%c%c %zd\n", levelstr,
+	     type[0], type[1], type[2], type[3], *box_size);
+
+	int i;
+	bool has_subbox = false;
+	for (i = 0; i < sizeof(subbox)/sizeof(subbox[0]); i++) {
+		if (!memcmp(subbox[i], type, 4)) {
+			has_subbox = true;
+		}
+	}
+	bool is_removebox = false;
+	for (i = 0; i < sizeof(removebox)/sizeof(removebox[0]); i++) {
+		if (!memcmp(removebox[i], type, 4)) {
+			is_removebox = true;
+		}
+	}
+	bool is_dumpbox = false;
+	for (i = 0; i < sizeof(dumpbox)/sizeof(dumpbox[0]); i++) {
+		if (!memcmp(dumpbox[i], type, 4)) {
+			is_dumpbox = true;
+		}
+	}
+	
+
+	if (is_dumpbox) {
+		printf("%s  ", levelstr);
+		for (i = 0; i < *box_size; i++) {
+			if (i == 8)
+				printf(" ");
+			printf("%02x", cbox[i]);
+		}
+		printf("\n");
+	}
+
+	if (is_removebox) {
+		*box_size = 0;
+		return;
+	}
+
+	size_t pos;
+	if (has_subbox) for (pos = 8; pos < *box_size; ) {
+
+		size_t subbox_size = 
+			(cbox[pos + 0] << 24) |
+			(cbox[pos + 1] << 16) |
+			(cbox[pos + 2] << 8) |
+			(cbox[pos + 3] << 0);
+		
+		size_t org_size = subbox_size;
+		printbox(&cbox[pos], &subbox_size, level+1);
+		
+		if (subbox_size < org_size) {
+			size_t removed = org_size - subbox_size;
+			
+			memmove(&cbox[pos+subbox_size], &cbox[pos+removed], *box_size - (pos + removed));
+			printf("%sremoved %zd, %zd <- %zd (%zd) %zd\n", levelstr, removed, pos, pos+removed, *box_size - (pos+removed), subbox_size);
+			*box_size -= removed;
+		}
+
+		pos += subbox_size;
+	}
+	printf("%s%zd\n", levelstr, *box_size);
+	cbox[0] = (*box_size >> 24) & 0xff;
+	cbox[1] = (*box_size >> 16) & 0xff;
+	cbox[2] = (*box_size >> 8) & 0xff;
+	cbox[3] = (*box_size >> 0) & 0xff;
+}
+
 int isom_parse(struct fileparse *isom, void *buffer, size_t size)
 {
-	uint8_t *cbuffer = buffer;
+	char *cbuffer = buffer;
 	
 	while (size) {
-		if (isom->box_header_pos < 8) {
-			isom->box_header[isom->box_header_pos] = cbuffer[0];
-			isom->box_header_pos++;
-			if (isom->box_header_pos == 8) {
+		if (isom->cur_size < 4) {
+			size_t copy = 4 - isom->cur_size;
+			if (size < copy) {
+				copy = size;
+			}
+			memcpy(&isom->box[isom->cur_size], cbuffer, copy);
+			cbuffer += copy;
+			size -= copy;
+			isom->cur_size += copy;
+			if (isom->cur_size == 4) {
 				isom->box_size = 
-					(isom->box_header[0] << 24) |
-					(isom->box_header[1] << 16) |
-					(isom->box_header[2] << 8) |
-					(isom->box_header[3] << 0);
-				if (0) printf("box: %zd: %02x%02x%02x%02x %c%c%c%c\n", isom->box_size,
-				    isom->box_header[4], 
-				    isom->box_header[5], 
-				    isom->box_header[6], 
-				    isom->box_header[7], 
-				    isom->box_header[4], 
-				    isom->box_header[5], 
-				    isom->box_header[6], 
-				    isom->box_header[7]); 
-				if (isom->box_size >= 8) {
-					isom->box_size -= 8;
-				}
-				if (isom->box_size == 0) {
-					isom->box_header_pos = 0;
-				}
-
-				if (isom->box_header[4] == 'm' &&
-				    isom->box_header[5] == 'o' &&
-				    isom->box_header[6] == 'o' &&
-				    isom->box_header[7] == 'f') {
-					if (isom->header_done) {
-						isom->trigger_cb(FILEPARSE_TRIGGER_PACKET_COMPLETE);
-					} else {
-						isom->header_done = true;
-						isom->trigger_cb(FILEPARSE_TRIGGER_HEADER_COMPLETE);
-					}
-				}
-
-				isom->data_cb(isom->box_header, 8);
+				    (isom->box[0] << 24) |
+				    (isom->box[1] << 16) |
+				    (isom->box[2] << 8) |
+				    (isom->box[3] << 0);
+				
+				isom->box = realloc(isom->box, isom->box_size);
 			}
-		
-		
-			cbuffer++;
-			size--;
 		} else {
-			size_t data_size = size;
-			
-			if (data_size > isom->box_size) {
-				data_size = isom->box_size;
+			size_t copy = isom->box_size - isom->cur_size;
+			if (size < copy) {
+				copy = size;
 			}
-			
-			isom->box_size -= data_size;
-			size -= data_size;
-			isom->data_cb(cbuffer, data_size);
-			cbuffer += data_size;
-
-			if (isom->box_size == 0) {
-				isom->box_header_pos = 0;
-			}
+			memcpy(&isom->box[isom->cur_size], cbuffer, copy);
+			cbuffer += copy;
+			size -= copy;
+			isom->cur_size += copy;
+		}
+		if (isom->cur_size == isom->box_size) {
+			printbox(isom->box, &isom->box_size, 0);
+					
+			write(2, isom->box, isom->box_size);
 		
+			isom->cur_size = 0;
 		}
 	}
 	
@@ -117,6 +188,7 @@ struct fileparse *isom_create(
 	isom = calloc(sizeof(struct fileparse), 1);
 	if (!isom)
 		goto err;
+	isom->box = malloc(4);
 
 	*parse = isom_parse;
 	isom->data_cb = data_cb;
@@ -151,7 +223,6 @@ int main(int argc, char **argv)
 	do {
 		r = read(0, buffer, 1000);
 		if (r > 0) {
-			printf("read: %zd\n", r);
 			isom_parse(isom, buffer, r);
 		}
 	} while (r > 0);
