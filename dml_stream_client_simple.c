@@ -99,8 +99,9 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				uint32_t bps;
 				char *mime, *name, *alias, *description;
 	
-				dml_packet_parse_description(data, len, desc_id, &version, 
-				    &bps, &mime, &name, &alias, &description);
+				if (dml_packet_parse_description(data, len, desc_id, &version, 
+				    &bps, &mime, &name, &alias, &description))
+					break;
 				
 				bool found = true;
 				if (dss->name && strcmp(name, dss->name))
