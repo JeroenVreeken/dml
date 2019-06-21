@@ -21,9 +21,9 @@ libdml_la_SOURCES = \
 	dml_stream.c 
 
 libdml_la_CFLAGS=-fPIC
-libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 -lcrypto
+libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@
 
-bin_PROGRAMS = dmld dml_list dml_reflector dml_streamer dml_stream_client dml_stream_client_codec2 dml_trx dml_fprs_db
+bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
 
 DML_SRCS = \
 	dml_config.c \
@@ -31,11 +31,8 @@ DML_SRCS = \
 
 ALAW_SRCS = alaw.c
 
-ULAW_SRCS = ulaw.c
-
 TRX_SRCS = \
 	trx_dv.c \
-	$(ULAW_SRCS) \
 	$(ALAW_SRCS)
 
 
@@ -52,14 +49,25 @@ dmld_LDADD = libdml.la
 dml_list_SOURCES = $(DML_SRCS) dml_list.c
 dml_list_LDADD = libdml.la
 
+if ENABLE_DML_REFLECTOR
+
+bin_PROGRAMS += dml_reflector
+
 dml_reflector_SOURCES = $(DML_SRCS) $(TRX_SRCS) dml_reflector.c soundlib.c
 dml_reflector_LDADD = libdml.la
 dml_reflector_LDFLAGS = -lcodec2 -leth_ar -lm
 
+endif
+
+if ENABLE_DML_TRX
+
+bin_PROGRAMS += dml_trx
 
 dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c soundlib.c
 dml_trx_LDADD = libdml.la
 dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar -lm
+
+endif
 
 
 dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c isom.c
@@ -69,7 +77,7 @@ dml_streamer_LDADD = libdml.la
 dml_stream_client_SOURCES = $(DML_SRCS) dml_stream_client.c
 dml_stream_client_LDADD = libdml.la
 
-dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ULAW_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
+dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
 dml_stream_client_codec2_LDADD = libdml.la
 dml_stream_client_codec2_LDFLAGS = -lm
 

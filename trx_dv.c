@@ -19,7 +19,7 @@
 #include <eth_ar/eth_ar.h>
 #include <dml/dml_poll.h>
 #include "alaw.h"
-#include "ulaw.h"
+#include <eth_ar/ulaw.h>
 
 #include <arpa/inet.h>
 #include <linux/if_packet.h>

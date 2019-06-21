@@ -20,9 +20,7 @@
 #define _INCLUDE_ALAW_H_
 
 #include <stdint.h>
-
-void alaw_decode(int16_t *samples, uint8_t *alaw, int nr);
-void alaw_encode(uint8_t *alaw, int16_t *samples, int nr);
+#include <eth_ar/alaw.h>
 
 uint8_t *alaw_beep(double freq, double rate, double length);
 uint8_t *alaw_silence(double rate, double length);

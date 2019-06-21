@@ -24,7 +24,17 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/ecdsa.h>
+#include <openssl/sha.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+struct dml_crypto_key {
+	EC_KEY *ec_key;
+	
+	X509 *cert;
+	STACK_OF(X509) *chain;
+};
 
 X509_STORE *x509_store;
 STACK_OF(X509) *certchain;

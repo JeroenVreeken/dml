@@ -24,7 +24,7 @@
 #include "dml_config.h"
 #include "dml_stream_client_simple.h"
 #include "alaw.h"
-#include "ulaw.h"
+#include <eth_ar/ulaw.h>
 
 #include <stdlib.h>
 #include <unistd.h>
