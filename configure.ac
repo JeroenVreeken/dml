@@ -8,6 +8,19 @@ AC_PROG_CC
 AC_CONFIG_MACRO_DIR([m4])
 
 
+# Are we using emscripten?
+
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#ifndef __EMSCRIPTEN__
+# error this is not emscripten
+#endif
+]])], 
+ [EMSCRIPTEN_FOUND="yes"; CFLAGS+=' -I$(srcdir)/wasm_stubs' ],
+ [EMSCRIPTEN_FOUND="no" ; LIB_LDFLAGS+=' -lcrypto' ]
+)
+
+
+
 # Check for codec2 library
 
 dnl Search for libcodec2
@@ -85,11 +98,22 @@ AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" =
 	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
 )
 
+AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
+	[enable_dml_trx="yes"; enable_dml_reflector="yes" ], 
+	[enable_dml_trx="no"; enable_dml_reflector="no" ]
+)
+
 AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
+AM_CONDITIONAL(ENABLE_DML_REFLECTOR, test "x$enable_dml_reflector" = "xyes")
+AM_CONDITIONAL(ENABLE_DML_TRX, test "x$enable_dml_trx" = "xyes")
 
 
+AC_SUBST([LIB_LDFLAGS])
 
 AC_OUTPUT([Makefile])
 
 echo "Optional parts:"
-echo "    dml_httpd:" $enable_dml_httpd
+echo "    dml_httpd:     " $enable_dml_httpd
+echo "    dml_reflector: " $enable_dml_reflector
+echo "    dml_trx:       " $enable_dml_trx
+echo "    wasm:          " $EMSCRIPTEN_FOUND

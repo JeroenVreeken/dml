@@ -30,7 +30,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
-#include <openssl/pem.h>
 
 #define DML_STREAM_CLIENT_SIMPLE_KEEPALIVE 120
 

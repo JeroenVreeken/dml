@@ -25,6 +25,7 @@
 #include <dml/dml_poll.h>
 
 #include <string.h>
+#include <stdio.h>
 
 struct dml_host {
 	struct dml_client *client;

@@ -34,7 +34,6 @@
 #include <string.h>
 #include <time.h>
 #include <inttypes.h>
-#include <openssl/pem.h>
 
 
 uint8_t ref_id[DML_ID_SIZE];

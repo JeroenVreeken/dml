@@ -20,14 +20,8 @@
 
 #include "dml.h"
 
-#include <openssl/pem.h>
 
-struct dml_crypto_key {
-	EC_KEY *ec_key;
-	
-	X509 *cert;
-	STACK_OF(X509) *chain;
-};
+struct dml_crypto_key;
 
 int dml_crypto_init(char *ca_file, char *ca_dir);
 

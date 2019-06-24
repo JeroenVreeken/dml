@@ -26,7 +26,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
-#include <openssl/pem.h>
 
 
 size_t skip = 0;
