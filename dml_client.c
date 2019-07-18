@@ -91,6 +91,9 @@ static int dml_client_connect_success(void *arg)
 	struct dml_client *dc = arg;
 
 	dml_poll_remove(dc);
+
+	setsockopt (dc->fd, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
+	setsockopt (dc->fd, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
 	
 	dc->connect_cb(dc, dc->arg);
 
@@ -131,8 +134,6 @@ int dml_client_connect(struct dml_client *dc)
 				close(sock);
 				sock = -1;
 			} else {
-				setsockopt (sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
-				setsockopt (sock, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
 				break;
 			}
 		}

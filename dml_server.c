@@ -97,6 +97,7 @@ int dml_server_handle(struct dml_server *ds)
 	
 	setsockopt(acceptsock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof (int));
 	setsockopt(acceptsock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
+	setsockopt(acceptsock, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
 
 	ds->connection_cb(ds->connection_cb_arg, acceptsock);
 
