@@ -94,6 +94,7 @@ int dml_connection_destroy(struct dml_connection *dc)
 //	printf("close %p fd: %d\n", dc, dc->fd);
 	dml_poll_remove(dc);
 	close(dc->fd);
+	dc->rx_cb = NULL;
 	free(dc);
 	
 	return 0;
@@ -168,6 +169,8 @@ int dml_connection_handle(struct dml_connection *dc)
 			return dc->close_cb(dc, dc->arg);
 	}
 
+	//printf("%p %zd %zd\n", dc, dc->tx_len, dc->tx_pos);
+
 	dml_connection_output(dc);
 	
 	return 0;
@@ -182,6 +185,7 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 			return -1;
 		}
 		memmove(dc->tx_buf, &dc->tx_buf[dc->tx_pos], dc->tx_len);
+		dc->tx_len -= dc->tx_pos;
 		dc->tx_pos = 0;
 	}
 
