@@ -15,14 +15,16 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
+#define _GNU_SOURCE
+
 #include <dml/dml_client.h>
 #include <dml/dml_server.h>
-
-#define _GNU_SOURCE
+#include <dml/dml_poll.h>
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -31,6 +33,7 @@
 #include <netdb.h>
 #include <signal.h>
 #include <resolv.h>
+#include <errno.h>
 
 struct dml_client {
 	int fd;
@@ -82,6 +85,18 @@ int dml_client_destroy(struct dml_client *dc)
 	return 0;
 }
 
+
+static int dml_client_connect_success(void *arg)
+{
+	struct dml_client *dc = arg;
+
+	dml_poll_remove(dc);
+	
+	dc->connect_cb(dc, dc->arg);
+
+	return 0;
+}
+
 int dml_client_connect(struct dml_client *dc)
 {
 	struct addrinfo *result;
@@ -106,7 +121,13 @@ int dml_client_connect(struct dml_client *dc)
 		sock = socket(entry->ai_family, entry->ai_socktype,
 		    entry->ai_protocol);
 		if (sock >= 0) {
-			if (connect(sock, entry->ai_addr, entry->ai_addrlen)) {
+			int flags = fcntl(sock, F_GETFL, 0);
+			if (flags >= 0)
+				fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+			if (connect(sock, entry->ai_addr, entry->ai_addrlen) &&
+			    errno != EINPROGRESS) {
+				fprintf(stderr, "connect failed %d\n", errno);
 				close(sock);
 				sock = -1;
 			} else {
@@ -124,7 +145,10 @@ int dml_client_connect(struct dml_client *dc)
 	free(port);
 	dc->fd = sock;
 	
-	dc->connect_cb(dc, dc->arg);
+	dml_poll_add(dc, NULL, dml_client_connect_success, NULL);
+	dml_poll_fd_set(dc, sock);
+	dml_poll_in_set(dc, false);
+	dml_poll_out_set(dc, true);
 	
 	return 0;
 

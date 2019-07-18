@@ -134,11 +134,18 @@ void client_connect(struct dml_client *client, void *arg)
 int main(int argc, char **argv)
 {
 	struct dml_client *dc;
+
+	char *host = "localhost";
+	unsigned short port = 0;
+	if (argc > 1)
+		host = argv[1];
+	if (argc > 2)
+		port = atoi(argv[2]);
 	
-	dc = dml_client_create("localhost", 0, client_connect, NULL);		
+	dc = dml_client_create(host, port, client_connect, NULL);		
 
 	if (dml_client_connect(dc)) {
-		printf("Could not connect to server\n");
+		perror("Could not connect to server");
 		return -1;
 	}
 

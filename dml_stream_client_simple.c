@@ -32,6 +32,7 @@
 #include <string.h>
 
 #define DML_STREAM_CLIENT_SIMPLE_KEEPALIVE 120
+#define DML_STREAM_CLIENT_SIMPLE_RECONNECT 10
 
 struct dml_stream_client_simple {
 	bool header_written;
@@ -244,7 +245,7 @@ static int client_reconnect(void *arg)
 
 	if (dml_client_connect(dss->client)) {
 		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(dss, &(struct timespec){ 2, 0 });
+		dml_poll_timeout(dss, &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_RECONNECT, 0 });
 	} else {
 		printf("Reconnect to DML server successfull\n");
 		dml_poll_add(dss, NULL, NULL, keepalive_cb);

@@ -70,6 +70,7 @@ int main(int argc, char **argv)
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
+	bool verify = atoi(dml_config_value("verify", NULL, "1"));
 	
 	if (dml_crypto_init(NULL, ca)) {
 		fprintf(stderr, "Failed to init crypto\n");
@@ -79,9 +80,9 @@ int main(int argc, char **argv)
 	dml_str_id(req_id, req_id_str);
 
 	if (dml_str_id(req_id, req_id_str)) {
-		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, true);
+		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, verify);
 	} else {
-		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
+		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, verify);
 	}
 
 	if (!dss) {
