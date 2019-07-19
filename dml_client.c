@@ -94,7 +94,10 @@ static int dml_client_connect_success(void *arg)
 
 	setsockopt (dc->fd, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
 	setsockopt (dc->fd, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
-	
+#ifdef TCP_KEEPINTVL
+	setsockopt (dc->fd, IPPROTO_TCP, TCP_KEEPIDLE, &(int){60}, sizeof(int));
+#endif
+
 	dc->connect_cb(dc, dc->arg);
 
 	return 0;
