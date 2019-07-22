@@ -37,8 +37,9 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	}
 	size_t writesize = datasize - skip;
 	
-	if (write(1, data + skip, writesize) != writesize)
-		return -1;
+	if (write(1, data + skip, writesize) != writesize) {
+		exit(-1);
+	}
 	
 	return 0;
 }
