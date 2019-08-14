@@ -110,6 +110,7 @@ static int dml_connection_output(struct dml_connection *dc)
 	ssize_t r;
 	
 	if (dc->tx_len) {
+		/* Try to send everything from pos to len */
 		r = write(dc->fd, dc->tx_buf + dc->tx_pos, dc->tx_len - dc->tx_pos);
 		if (r >= 0) {
 			dc->tx_pos += r;
@@ -181,10 +182,13 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 	uint8_t *data = datav;
 	
 	if (dc->tx_len + len + 4 >= DML_TX_BUF_SIZE) {
+		/* Is there room if we use the part with already send data? */
 		if (dc->tx_len + len + 4 >= DML_TX_BUF_SIZE + dc->tx_pos) {
+			/* No room, drop it */
 			return -1;
 		}
-		memmove(dc->tx_buf, &dc->tx_buf[dc->tx_pos], dc->tx_len);
+		/* remove everything already send (indicated by pos) */
+		memmove(dc->tx_buf, &dc->tx_buf[dc->tx_pos], dc->tx_len - dc->tx_pos);
 		dc->tx_len -= dc->tx_pos;
 		dc->tx_pos = 0;
 	}
