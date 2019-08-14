@@ -61,6 +61,7 @@ function dml()
 	var dml_this = this;
 
 	
+	var open_cb = function() {}
 	var packet_hello_cb = function(flags, ident) {}
 	var packet_route_cb = function(hops, id) {}
 	var packet_description_cb = function(id, version, bps, mime, name, alias, description) {}
@@ -157,6 +158,7 @@ function dml()
 	dml_this.func_onopen = function(event) {
 		console.log("dml_this.ws.onopen()");
 		dml_this.ws.binaryType = "arraybuffer";
+		dml_this.open_cb();
 	}
 
 	dml_this.func_onclose = function(event) {

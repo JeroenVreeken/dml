@@ -6,19 +6,25 @@
 </head>
 <style>
 div {
-	border: 0px; 
+	border: 1px outset; 
 	border-radius: 5px;
 	margin-top: 1px;
 	margin-bottom: 0px;
 	margin-left: 1px;
 	margin-right: 1px;
-	padding-left: 1px;
-	padding-right: 1px;
-	padding-top: 1px;
-	padding-top: 1px;
+	padding-left: 2px;
+	padding-right: 2px;
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+button {
+	background-color: lightgrey;
+	border: 1px outset white;
+	border-radius: 5px;
+	border-color: black;
 }
 </style>
-<body style="background-color: white;">
+<body style="background-color: #f0f0f0;">
 
 <script>
 /*
@@ -48,10 +54,10 @@ div {
 <p>
 Decentralized Media Linking
 </p>
-<div id="hello">No HELLO from server received.</div>
+<div id="hello" style="background-color: white;">No HELLO from server received.</div>
 
 <div id="video_div" style="display: none;">
-	<video style="border: 2px solid" id="video"></video>
+	<video style="border: 2px solid" id="video" controls></video>
 	<button onclick="curcon.disconnect()">Disconnect</button>
 </div>
 
@@ -65,7 +71,7 @@ Decentralized Media Linking
 	<button onclick="curcon.disconnect()">Disconnect</button>
 </div>
 
-<div id = "routes"></div>
+<div id = "routes" style="background-color: white;"></div>
 
 <p>
 <a href="jslicense.html" rel="jslicense">JavaScript License</a>
@@ -181,6 +187,30 @@ function routes_sort(a, b)
 	if (!b.description)
 		return -1;
 
+	if (a.description.name && b.description.name) {
+		a_names = a.description.name.toLowerCase().split(".");
+		b_names = b.description.name.toLowerCase().split(".");
+		
+		names = a_names.length;
+		if (b_names.length > names)
+			names = b_names.length;
+		var i;
+		for (i = 0; i < names; i++) {
+			ia = a_names.length - 1 - i;
+			ib = b_names.length - 1 - i;
+			//console.log(i + " " + a_names[ia] + " == " + b_names[ib]);
+			if (i >= a_names.length)
+				return -1;
+			if (i >= b_names.length)
+				return 1;
+			
+			if (a_names[ia] < b_names[ib])
+				return -1;
+			if (a_names[ia] > b_names[ib])
+				return 1;
+		}
+	}
+
 	if (a.description.name < b.description.name) {
 		return -1;
 	}
@@ -214,10 +244,13 @@ function update_routes()
 		var can_play_mse = false;
 		var can_play_dml = false;
 		var can_play_fprs = false;
+		var has_description = false
+		var post_ui_str = "";
 	
 		var shastr = sha2str(routes[i].id);	
 		var ui_id = shastr;
 		if (routes[i].description) {
+			has_description = true;
 			ui_id = routes[i].description.name;
 			if (routes[i].description.alias)
 				ui_id += " (" + routes[i].description.alias + ")";
@@ -263,23 +296,36 @@ function update_routes()
 		str += "\thops:\t" + routes[i].hops + "<br>";
 		str += "</div>";
 		
-		idcolor="yellow";
+		if (has_description) {
+			idcolor="white";
+		} else {
+			idcolor="yellow";
+		}
 
 		if (can_play_mse) {
 			idcolor="lightblue";
-			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect & Play</button>";
+			button_str = "<button onclick=\"mse.connect(" + i + ")\">Connect</button>";
 		} else if (can_play_dml) {
 			idcolor="lightgreen";
-			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect & Play</button>";
+			button_str = "<button onclick=\"dc2.connect(" + i + ")\">Connect</button>";
 		} else if (can_play_fprs) {
 			idcolor="orange";
-			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect & monitor FPRS frames</button>";
+			button_str = "<button onclick=\"fprs.connect(" + i + ")\">Connect</button>";
 		} else {
-			button_str = "Mime type not supported by browser\n";
+			mime = "unknown mimetype";
+			if (routes[i].description) {
+				if (routes[i].description.mime) {
+					mime = routes[i].description.mime;
+				}
+			}
+			button_str = "";
+			post_ui_str = "\n<mark><small>\"" + mime + "\"</small></mark>\n";
 		}
 		id_str = "<div width='100%' style='background-color:" + idcolor + ";'>";
-		id_str += "<button onclick=\"div_toggle('desc_" + shastr + "')\">i</button>";
-		id_str += ui_id + " " + button_str;
+		id_str += button_str + " ";
+		id_str += "<span style='float:right'><button onclick=\"div_toggle('desc_" + shastr + "')\">i</button></span>";
+		id_str += ui_id;
+		id_str += post_ui_str;
 		id_str += str;
 		id_str += "</div>";
 		
@@ -347,7 +393,7 @@ function mse()
 		
 		var obj = document.createElement('video');
 		var media_sup = obj.canPlayType(mime) ? true : false;
-		console.log("mime: " + mime + " MSE: " + mse_sup + " HTMLMediaElement: " + media_sup);
+		//console.log("mime: " + mime + " MSE: " + mse_sup + " HTMLMediaElement: " + media_sup);
 		return mse_sup;
 	}
 
@@ -387,27 +433,52 @@ function mse()
 		}
 		
 		mse_this.sourceBuffer = mse_this.mediaSource.addSourceBuffer(mime);
-
+		mse_this.sourceBuffer.addEventListener('error', mse_this.event_buffer_error);
+		mse_this.sourceBuffer.addEventListener('updateend', mse_this.event_buffer_updateend);
+		mse_this.bufferfifo = [];
 		do_connect(connected_id);
 		console.log("Requested header");
 	};
 	
 	this.data = function mse_data(newdata) {
-		mse_this.sourceBuffer.appendBuffer(newdata);
+		mse_this.bufferfifo.push(newdata);
+		while (mse_this.bufferfifo.length && !mse_this.sourceBuffer.updating) {
+			mse_this.sourceBuffer.appendBuffer(mse_this.bufferfifo.shift());
+		}
 		if (mse_this.video.buffered.length) {
-			if (mse_this.video.buffered.start(0) > mse_this.video.currentTime) {
-				mse_this.video.currentTime = mse_this.video.buffered.start(0);
+			start = mse_this.video.buffered.start(0);
+			end = mse_this.video.buffered.end(0);
+			cur = mse_this.video.currentTime;
+			diff = end - cur;
+			console.log("end " + end + " cur " + cur + " diff " + diff + " fifo length: " + mse_this.bufferfifo.length);
+			if (start > cur || diff > 10 && !mse_this.video.paused) {
+				console.log("Skipping to time " + end);
+				mse_this.video.currentTime = end;
 			}
 		}
 	}
 	
 	this.event_error = function (e) {
-		console.log("mediasource error" + e);
+		console.log("mediasource error " + e);
+		if (connected)
+			disconnect();
 	}
 	
 	this.event_sourceclose = function (e) {
-		console.log("mediasource sourceclose" + e);
+		console.log("mediasource sourceclose " + e);
+		if (connected)
+			disconnect();
 		mse_this.displaydiv.style.display = "none";
+	}
+	
+	this.event_buffer_error = function (e) {
+		console.log("sourcebuffer error " + e);
+	}
+	
+	this.event_buffer_updateend = function (e) {
+		if (mse_this.bufferfifo.length && !mse_this.sourceBuffer.updating) {
+			mse_this.sourceBuffer.appendBuffer(mse_this.bufferfifo.shift());
+		}
 	}
 }
 
@@ -662,6 +733,24 @@ var dc2 = new dmlc2();
 var curcon;
 
 connection = new dml();
+
+
+connection.open_cb = function() {
+	console.log("New DML connection");
+	if (connected) {
+		console.log("Reconnect");
+		curcon.disconnect();
+		
+		var i;
+	
+		for(i = 0; i < routes.length; i++) {
+			if (!ab_cmp(routes[i].id, connected_id))
+				break;
+		}
+
+		curcon.connect(i);
+	}
+}
 
 connection.packet_hello_cb = function(flags, ident) {
 	document.getElementById("hello").innerHTML = 
