@@ -142,7 +142,8 @@ void ws_client_remove(struct ws_client *client)
 				writebuf_free(wb);
 			}
 			
-			dml_connection_destroy(client->dc);
+			if (client->dc)
+				dml_connection_destroy(client->dc);
 			
 /*			printf("close srcp connections\n");
 			poll_remove(srcp_fd_get((*entry)->srcp_cmd));
