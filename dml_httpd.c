@@ -348,12 +348,20 @@ void client_connect(struct dml_client *client, void *arg)
 			
 	ws_client = ws_client_get_by_wsi(wsi);
 	
+	if (!ws_client)
+		goto err_ws;
+
 	fd = dml_client_fd_get(client);
 	
 	dc = dml_connection_create(fd, arg, rx_packet, client_connection_close);
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dml_httpd " DML_VERSION);
 
 	ws_client->dc = dc;
+	
+	return;
+err_ws:
+	dml_client_destroy(client);
+	return;
 }
 
 int wsi_in_cb(void *arg)
