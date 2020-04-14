@@ -11,6 +11,7 @@ lib_LTLIBRARIES=libdml.la
 libdml_la_SOURCES = \
 	dml_client.c \
 	dml_connection.c \
+	dml_config.c \
 	dml_crypto.c \
 	dml_host.c \
 	dml_id.c \
@@ -26,7 +27,6 @@ libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@
 bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
 
 DML_SRCS = \
-	dml_config.c \
 	dml_stream_client_simple.c
 
 ALAW_SRCS = alaw.c

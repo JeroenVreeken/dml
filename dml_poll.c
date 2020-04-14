@@ -23,6 +23,8 @@
 #include <string.h>
 #include <stdint.h>
 
+//#define DEBUG_T
+
 struct dml_poll {
 	struct dml_poll *next;
 
@@ -224,6 +226,35 @@ int dml_poll_timeout(void *arg, struct timespec *ts)
 	return 0;
 }
 
+#ifdef DEBUG_T
+static struct timespec dml_poll_t; 
+static double t_max = 0;
+static void dml_poll_tstart(void)
+{
+	clock_gettime(CLOCK_MONOTONIC, &dml_poll_t);
+}
+
+static void dml_poll_tend(char *name)
+{
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+	double dur = t.tv_sec - dml_poll_t.tv_sec;
+	dur += (double)(t.tv_nsec - dml_poll_t.tv_nsec) / 1000000000.0;
+	
+	if (dur > t_max || dur > 0.002) {
+		t_max = dur;
+		printf("dml_poll callback '%s' duration: %f\n", name, dur);
+	}
+}
+#else
+static void dml_poll_tstart(void)
+{
+}
+static void dml_poll_tend(char *name)
+{
+}
+#endif
+
 int dml_poll_loop(void)
 {
 	do {
@@ -267,17 +298,24 @@ int dml_poll_loop(void)
 			if (p->fd >= 0) {
 				short revents;
 				
-				if (!dp->use_revents_cb)
+				if (!dp->use_revents_cb) {
 					revents = p->revents;
-				else
+				} else {
+					dml_poll_tstart();
 					revents = dp->revents_cb(dp->arg, p, dp->pfd_size);
+					dml_poll_tend("revents_cb");
+				}
 //				printf("%p %d: %x %x\n", dp, dp->pfd_nr, p->revents, p->events);
 				if (revents & POLLIN) {
+					dml_poll_tstart();
 					dp->in_cb(dp->arg);
+					dml_poll_tend("in_cb");
 					break;
 				}
 				if (revents & POLLOUT) {
+					dml_poll_tstart();
 					dp->out_cb(dp->arg);
+					dml_poll_tend("out_cb");
 					break;
 				}
 			}
@@ -288,7 +326,9 @@ int dml_poll_loop(void)
 				    (dp->timeout.tv_sec == now.tv_sec &&
 				    dp->timeout.tv_nsec <= now.tv_nsec)) {
 					dp->timeout.tv_sec = 0;
+					dml_poll_tstart();
 					dp->time_cb(dp->arg);
+					dml_poll_tend("time_cb");
 					break;
 				}
 			}

@@ -252,6 +252,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	
 	printf("Received packet, id %d, len %d\n", id, len);
 	ws_client = ws_client_get_by_dc(dc);
+	if (!ws_client)
+		return;
+
 	wb = writebuf_alloc(len + 4);
 	msg = (uint8_t *)wb->msg;
 	wb->msg_len = len + 4;
@@ -331,9 +334,10 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 			
 	printf("Connection to DML server closed\n");
 	ws_client = ws_client_get_by_wsi(wsi);
-	ws_client->dml_closed = true;
-//	ws_client->dc = NULL;
-	
+	if (ws_client) {
+		ws_client->dml_closed = true;
+//		ws_client->dc = NULL;
+	}
 	lws_callback_on_writable(wsi);
 
 	return 0;

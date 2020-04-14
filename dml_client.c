@@ -20,6 +20,7 @@
 #include <dml/dml_client.h>
 #include <dml/dml_server.h>
 #include <dml/dml_poll.h>
+#include <dml_config.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -124,6 +125,12 @@ int dml_client_connect(struct dml_client *dc)
 		goto err_getaddrinfo;
 	}
 	for (entry = result; entry; entry = entry->ai_next) {
+		if (entry->ai_family == AF_INET6) {
+			bool ipv6 = atoi(dml_config_value("ipv6", NULL, "1"));
+			if (!ipv6) {
+				continue;
+			}
+		}
 		sock = socket(entry->ai_family, entry->ai_socktype,
 		    entry->ai_protocol);
 		if (sock >= 0) {
