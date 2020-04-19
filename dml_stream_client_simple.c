@@ -17,7 +17,6 @@
  */
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -51,7 +50,7 @@ struct dml_stream_client_simple {
 	char *mime;
 };
 
-static int keepalive_cb(void *arg)
+static gboolean keepalive_cb(void *arg)
 {
 	struct dml_stream_client_simple *dss = arg;
 	
@@ -66,10 +65,9 @@ static int keepalive_cb(void *arg)
 		//TODO What is the best way to trigger discovery?
 	}
 	
-	dml_poll_timeout(dss, 
-	    &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, 0});
+	g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 static void rx_packet(struct dml_connection *dc, void *arg, 
@@ -228,8 +226,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 //					fprintf(stderr, "Received %zd ok\n", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
 				
-					dml_poll_timeout(dss, 
-					    &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, 0});
+					g_source_remove_by_user_data(dss);
+					g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 				}
 			}
 			break;
@@ -239,28 +237,26 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 	return;
 }
 
-static int client_reconnect(void *arg)
+static gboolean client_reconnect(void *arg)
 {
 	struct dml_stream_client_simple *dss = arg;
 
 	if (dml_client_connect(dss->client)) {
 		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(dss, &(struct timespec){ DML_STREAM_CLIENT_SIMPLE_RECONNECT, 0 });
+		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_RECONNECT, client_reconnect, dss);
 	} else {
 		printf("Reconnect to DML server successfull\n");
-		dml_poll_add(dss, NULL, NULL, keepalive_cb);
+		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 	}
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 static int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct dml_stream_client_simple *dss = arg;
 
-	dml_poll_add(dss, NULL, NULL, client_reconnect);
-	dml_poll_timeout(dss, &(struct timespec){ 1, 0 });
-	
+	g_timeout_add_seconds(1, client_reconnect, dss);
 	
 	if (dc)
 		dml_connection_destroy(dc);
@@ -333,7 +329,7 @@ struct dml_stream_client_simple *dml_stream_client_simple_search_create(
 	if (dml_client_connect(client))
 		goto err_connect;
 
-	dml_poll_add(dss, NULL, NULL, keepalive_cb);
+	g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 	
 	return dss;
 

@@ -17,7 +17,6 @@
  */
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -149,7 +148,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;
 }

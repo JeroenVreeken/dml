@@ -98,6 +98,13 @@ AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" =
 	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
 )
 
+
+# glib
+PKG_CHECK_MODULES([GLIB], [glib-2.0])
+
+
+# build selection logic
+
 AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
 	[enable_dml_trx="yes"; enable_dml_reflector="yes" ], 
 	[enable_dml_trx="no"; enable_dml_reflector="no" ]

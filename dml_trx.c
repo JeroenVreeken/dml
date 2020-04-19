@@ -19,7 +19,6 @@
 
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_host.h>
@@ -311,7 +310,7 @@ static int fprs_update_mac(uint8_t mac[6])
 	return 0;
 }
 
-static int fprs_timer(void *arg)
+static gboolean fprs_timer(void *arg)
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
@@ -368,13 +367,12 @@ static int fprs_timer(void *arg)
 		    DML_STATUS_OK);
 	}
 
-	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_TRX_FPRS_TIMER, 0});
+	g_timeout_add_seconds(DML_TRX_FPRS_TIMER, fprs_timer, &fprs_timer);
 	    
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
-static int fprs_db_check(void *arg)
+static gboolean fprs_db_check(void *arg)
 {
 	if (!cur_db) {
 		struct dml_stream *ds = NULL;
@@ -407,10 +405,9 @@ static int fprs_db_check(void *arg)
 		fprs_parse_request_flush(send_data_fprs, NULL);
 	}
 
-	dml_poll_timeout(&cur_db,
-	    &(struct timespec){ DML_TRX_FPRS_DB_TIMER, 0 });
+	g_timeout_add_seconds(DML_TRX_FPRS_DB_TIMER, fprs_db_check, &cur_db);
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 static void stream_removed_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
@@ -605,7 +602,7 @@ static void recv_data(void *data, size_t size)
 	}
 }
 
-static int rx_watchdog(void *arg)
+static gboolean rx_watchdog(void *arg)
 {
 	printf("No activity, sending state off packet\n");
 	
@@ -654,10 +651,9 @@ static int rx_watchdog(void *arg)
 		free(e);
 	}
 
-	dml_poll_timeout(&rx_state, 
-	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
+	g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE, rx_watchdog, &rx_state);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level)
@@ -679,9 +675,11 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 
 	fprs_update_mac(from);
 
-	dml_poll_timeout(&rx_state, rx_state ?
-	    &(struct timespec){0, RXSTATE_CHECK_TIMER_NS} :
-	    &(struct timespec){DML_TRX_DATA_KEEPALIVE, 0} );
+	g_source_remove_by_user_data(&rx_state);
+	if (rx_state)
+		g_timeout_add(RXSTATE_CHECK_TIMER_NS/1000000, rx_watchdog, &rx_state);
+	else
+		g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE, rx_watchdog, &rx_state);
 
 	return 0;
 }
@@ -829,7 +827,7 @@ static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 	return 0;
 }
 
-static int command_pipe_cb(void *arg)
+static gboolean command_pipe_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 	int fd = *(int*)arg;
 	static char c;
@@ -838,14 +836,14 @@ static int command_pipe_cb(void *arg)
 	
 	if (r == 1) {
 		if (c == '\r')
-			return 0;
+			return TRUE;
 		if (c == '\n') {
 			if (command_pipe_len) {
 				command_pipe[command_pipe_len] = 0;
 				if (allow_commands)
 					command_cb_handle(command_pipe);
 				command_pipe_len = 0;
-				return 0;
+				return TRUE;
 			}
 		}
 		
@@ -856,7 +854,7 @@ static int command_pipe_cb(void *arg)
 			command_pipe_len = 0;
 	}
 	
-	return 0;
+	return TRUE;
 }
 
 
@@ -976,6 +974,7 @@ int main(int argc, char **argv)
 	uint32_t bps = 6400;
 	struct dml_crypto_key *dk;
 	int fd_command;
+	GIOChannel *io_command = NULL;
 
 	if (argc > 1)
 		file = argv[1];
@@ -1068,10 +1067,6 @@ int main(int argc, char **argv)
 	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
 	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
 
-	dml_poll_add(&rx_state, NULL, NULL, rx_watchdog);
-	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
-	dml_poll_add(&cur_db, NULL, NULL, fprs_db_check);
-
 	fprs_parse_hook_message(message_cb, NULL);
 
 
@@ -1147,19 +1142,17 @@ int main(int argc, char **argv)
 		}
 	}
 	
-	dml_poll_add(&fd_command, command_pipe_cb, NULL, NULL);
-	dml_poll_fd_set(&fd_command, fd_command);
-	dml_poll_in_set(&fd_command, true);
+	io_command = g_io_channel_unix_new(fd_command);
+	g_io_channel_set_encoding(io_command, NULL, NULL);
+	g_io_add_watch(io_command, G_IO_IN, command_pipe_cb, &fd_command);
 
-	dml_poll_timeout(&rx_state, 
-	    &(struct timespec){ DML_TRX_DATA_KEEPALIVE, 0});
-	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_TRX_FPRS_TIMER_INIT, 0});
+	g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE, rx_watchdog, &rx_state);
+	g_timeout_add_seconds(DML_TRX_FPRS_TIMER_INIT, fprs_timer, &fprs_timer);
 	
-	dml_poll_timeout(&cur_db,
-	    &(struct timespec){ DML_TRX_FPRS_DB_TIMER, 0 });
+	g_timeout_add_seconds(DML_TRX_FPRS_DB_TIMER, fprs_db_check, &cur_db);
 
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
+	g_io_channel_unref(io_command);
 
 	return 0;
 }

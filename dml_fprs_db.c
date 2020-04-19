@@ -18,7 +18,6 @@
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
 #include <dml/dml_host.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -192,7 +191,7 @@ void message_cb(struct fprs_frame *frame)
 	aprs_msg_nr++;
 }
 
-static int fprs_timer(void *arg)
+static gboolean fprs_timer(void *arg)
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
@@ -217,23 +216,21 @@ static int fprs_timer(void *arg)
 		}
 	}
 
-	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
-	    
-	return 0;
+	g_timeout_add_seconds(DML_FPRS_DB_TIMER, fprs_timer, &fprs_timer);
+
+	return G_SOURCE_REMOVE;
 }
 
-static int fprs_req_timer(void *arg)
+static gboolean fprs_req_timer(void *arg)
 {
 	struct timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);
 
 	fprs_parse_request_flush(send_data, NULL);
 
-	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_FPRS_REQ_TIMER, 0});
+	g_timeout_add_seconds(DML_FPRS_REQ_TIMER, fprs_req_timer, &fprs_req_timer);
 	    
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 int main(int argc, char **argv)
@@ -334,15 +331,10 @@ int main(int argc, char **argv)
 	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);
 	dml_host_stream_req_reverse_disconnect_cb_set(host, stream_req_reverse_disconnect_cb, NULL);
 
-	dml_poll_add(&fprs_timer, NULL, NULL, fprs_timer);
-	dml_poll_add(&fprs_req_timer, NULL, NULL, fprs_req_timer);
+	g_timeout_add_seconds(DML_FPRS_DB_TIMER, fprs_timer, &fprs_timer);
+	g_timeout_add_seconds(DML_FPRS_REQ_TIMER, fprs_req_timer, &fprs_req_timer);
 
-	dml_poll_timeout(&fprs_timer, 
-	    &(struct timespec){ DML_FPRS_DB_TIMER, 0});
-	dml_poll_timeout(&fprs_req_timer, 
-	    &(struct timespec){ DML_FPRS_REQ_TIMER, 0});
-
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;
 }

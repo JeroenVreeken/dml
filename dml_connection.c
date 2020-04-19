@@ -17,7 +17,6 @@
  */
 #include <dml/dml_connection.h>
 #include <dml/dml_packet.h>
-#include <dml/dml_poll.h>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,6 +35,7 @@ enum connection_rx_state {
 
 struct dml_connection {
 	int fd;
+	GIOChannel *io;
 	enum connection_rx_state rx_state;
 	
 	uint8_t rx_data[DML_PACKET_SIZE_MAX];
@@ -71,16 +71,15 @@ struct dml_connection *dml_connection_create(int fd,
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 
 	dc->fd = fd;
+	dc->io = g_io_channel_unix_new (fd);
+	g_io_channel_set_encoding(dc->io, NULL, NULL);
 	dc->rx_state = CONNECTION_HEADER;
 	dc->rx_cb = rx_cb;
 	dc->close_cb = close_cb;
 	dc->arg = arg;
 
-	dml_poll_add(dc, (int (*)(void *))dml_connection_handle, (int (*)(void *))dml_connection_handle, NULL);
 //	printf("new connection fd: %d\n", fd);
-	dml_poll_fd_set(dc, fd);
-	dml_poll_in_set(dc, true);
-	dml_poll_out_set(dc, false);
+	g_io_add_watch(dc->io, G_IO_IN, dml_connection_handle, dc);
 
 	return dc;
 err_fcntl:
@@ -92,8 +91,10 @@ err_calloc:
 int dml_connection_destroy(struct dml_connection *dc)
 {
 //	printf("close %p fd: %d\n", dc, dc->fd);
-	dml_poll_remove(dc);
+	g_source_remove_by_user_data(dc);
+	g_source_remove_by_user_data(dc);
 	close(dc->fd);
+	g_io_channel_unref(dc->io);
 	dc->rx_cb = NULL;
 	free(dc);
 	
@@ -116,7 +117,9 @@ static int dml_connection_output(struct dml_connection *dc)
 			dc->tx_pos += r;
 		}
 		if (dc->tx_pos >= dc->tx_len) {
-			dml_poll_out_set(dc, false);
+			g_source_remove_by_user_data(dc);
+			g_source_remove_by_user_data(dc);
+			g_io_add_watch(dc->io, G_IO_IN, dml_connection_handle, dc);
 			dc->tx_len = 0;
 			dc->tx_pos = 0;
 		}
@@ -125,8 +128,9 @@ static int dml_connection_output(struct dml_connection *dc)
 	return 0;
 }
 
-int dml_connection_handle(struct dml_connection *dc)
+gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
+	struct dml_connection *dc = arg;
 //	printf("handle %p\n", dc);
 	
 	ssize_t r = 0;
@@ -163,8 +167,10 @@ int dml_connection_handle(struct dml_connection *dc)
 		}
 	}
 
+	//TODO
 	if (r == 0 || (r < 0 && errno != EAGAIN)) {
-		dml_poll_remove(dc);
+		g_source_remove_by_user_data(dc);
+		g_source_remove_by_user_data(dc);
 		
 		if (dc->close_cb)
 			return dc->close_cb(dc, dc->arg);
@@ -174,7 +180,7 @@ int dml_connection_handle(struct dml_connection *dc)
 
 	dml_connection_output(dc);
 	
-	return 0;
+	return TRUE;
 }
 
 int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len)
@@ -203,7 +209,7 @@ int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uin
 	dml_connection_output(dc);
 	
 	if (dc->tx_len)
-		dml_poll_out_set(dc, true);
+		g_io_add_watch(dc->io, G_IO_OUT, dml_connection_handle, dc);
 
 	return 0;
 }

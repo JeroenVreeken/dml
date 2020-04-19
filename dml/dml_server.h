@@ -18,11 +18,13 @@
 #ifndef _INCLUDE_DML_SERVER_H_
 #define _INCLUDE_DML_SERVER_H_
 
+#include <glib.h>
+
 struct dml_server;
 
 struct dml_server *dml_server_create(void (*cb)(void *arg, int fd), void *arg);
 int dml_server_fd_get(struct dml_server *ds);
-int dml_server_handle(struct dml_server *ds);
+gboolean dml_server_handle(GIOChannel *source, GIOCondition condition, gpointer arg);
 
 #define DML_SERVER_PORT	7373
 

@@ -41,15 +41,16 @@
 #include <linux/sockios.h>
 #endif
 
-#include <dml/dml_poll.h>
+#include <dml/dml.h>
 #include "fprs_aprsis.h"
 
 static int fd_is = -1;
+static GIOChannel *io_is = NULL;
 static char *call = NULL;
 static char *is_host = NULL;
 static int is_port;
 
-static int aprs_is_cb(void *arg);
+static gboolean aprs_is_cb(GIOChannel *source, GIOCondition condition, gpointer arg);
 
 static bool filter_type_message = false;
 static void (*message_cb)(struct fprs_frame *) = NULL;
@@ -168,14 +169,12 @@ static int aprsis_open(void)
 			goto err_write;
 	}
 
-	if (dml_poll_add(fprs_aprsis_init, aprs_is_cb, NULL, NULL))
-		goto err_poll;
-	dml_poll_fd_set(fprs_aprsis_init, fd_is);
-	dml_poll_in_set(fprs_aprsis_init, true);
+	io_is = g_io_channel_unix_new(fd_is);
+	g_io_channel_set_encoding(io_is, NULL, NULL);
+	g_io_add_watch(io_is, G_IO_IN, aprs_is_cb, fprs_aprsis_init);
 
 	return 0;
 err_write:
-err_poll:
 	return -1;
 }
 
@@ -183,9 +182,9 @@ static void aprs_is_error(void)
 {
 	close(fd_is);
 	fd_is = -1;
+	g_io_channel_unref(io_is);
 	
-	dml_poll_fd_set(fprs_aprsis_init, fd_is);
-	dml_poll_in_set(fprs_aprsis_init, false);
+	g_source_remove_by_user_data(fprs_aprsis_init);
 
 	printf("Lost connection to APRS-IS\n");
 
@@ -193,7 +192,7 @@ static void aprs_is_error(void)
 	aprsis_open();
 }
 
-static int aprs_is_cb(void *arg)
+static gboolean aprs_is_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 	static char buffer[1000];
 	static size_t pos;
@@ -229,10 +228,10 @@ static int aprs_is_cb(void *arg)
 		if (r == 0) {
 			aprs_is_error();
 		}
-		return -1;
+		return FALSE;
 	}
 	
-	return 0;
+	return TRUE;
 }
 
 int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
@@ -265,9 +264,9 @@ int fprs_aprsis_init(char *host, int port, char *mycall, bool req_msg, void (*ms
 	if (fd_is >= 0) {
 		close(fd_is);
 		fd_is = -1;
+		g_io_channel_unref(io_is);
 	
-		dml_poll_fd_set(fprs_aprsis_init, fd_is);
-		dml_poll_in_set(fprs_aprsis_init, false);
+		g_source_remove_by_user_data(fprs_aprsis_init);
 	}
 	free(is_host);
 	free(call);

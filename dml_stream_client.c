@@ -15,7 +15,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include <dml/dml_poll.h>
+
 #include <dml/dml.h>
 #include <dml/dml_id.h>
 #include <dml/dml_crypto.h>
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;
 }

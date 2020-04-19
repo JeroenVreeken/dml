@@ -17,7 +17,6 @@
  */
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -38,7 +37,7 @@
 #include <time.h>
 
 
-#define DML_REFLECTOR_PARROT_WAIT (500*1000*1000)
+#define DML_REFLECTOR_PARROT_WAIT (500)
 #define DML_REFLECTOR_PARROT_MAX (60*60*50)
 
 #define DML_REFLECTOR_DATA_KEEPALIVE 10
@@ -56,7 +55,7 @@ struct dml_host *host;
 struct dml_crypto_key *dk;
 
 void send_beep(void);
-static int watchdog(void *arg);
+static gboolean watchdog(void *arg);
 
 enum sound_msg {
 	SOUND_MSG_HEADER,
@@ -109,8 +108,8 @@ void send_data(void *data, size_t size, uint64_t timestamp)
 	uint64_t tmax;
 	uint16_t packet_id = dml_stream_data_id_get(stream_dv);
 		
-	dml_poll_timeout(&watchdog, 
-	    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
+	g_source_remove_by_user_data(&watchdog);
+	g_timeout_add_seconds(DML_REFLECTOR_DATA_KEEPALIVE, watchdog, &watchdog);
 
 	if (!packet_id)
 		return;
@@ -147,7 +146,7 @@ struct parrot_data *parrot_queue = NULL;
 struct timespec parrot_ts;
 
 
-int parrot_dequeue(void *data)
+static gboolean parrot_dequeue(void *data)
 {
 	uint64_t parrot_timestamp;
 	uint16_t packet_id = dml_stream_data_id_get(stream_dv);
@@ -156,8 +155,7 @@ int parrot_dequeue(void *data)
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
 
-		dml_poll_timeout(&watchdog, 
-		    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
+		g_timeout_add_seconds(DML_REFLECTOR_DATA_KEEPALIVE, parrot_dequeue, &watchdog);
 
 		struct timespec ts;
 		clock_gettime(CLOCK_REALTIME, &ts);
@@ -176,8 +174,7 @@ int parrot_dequeue(void *data)
 			waitms = 1;
 		}
 
-		dml_poll_timeout(&parrot_queue,
-		    &(struct timespec){ 0, waitms * 1000000});
+		g_timeout_add(waitms, parrot_dequeue, &parrot_queue);
 		
 		parrot_timestamp = dml_ts2timestamp(&parrot_ts);
 printf("e %016"PRIx64" %ld %ld %d\n", parrot_timestamp, diff, waitms, entry->duration);
@@ -209,7 +206,7 @@ printf("= %016"PRIx64"\n", parrot_timestamp);
 		parrot_ts.tv_sec = 0;
 	}
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 void parrot_queue_add(void *data, size_t size, int duration)
@@ -234,8 +231,8 @@ void parrot_queue_add(void *data, size_t size, int duration)
 	
 	*listp = entry;
 
-	dml_poll_timeout(&parrot_queue,
-	    &(struct timespec){ 0, DML_REFLECTOR_PARROT_WAIT });
+	g_source_remove_by_user_data(&parrot_queue);
+	g_timeout_add(DML_REFLECTOR_PARROT_WAIT, parrot_dequeue, &parrot_queue);
 }
 
 
@@ -298,7 +295,7 @@ printf("%ld ", ts.tv_sec);
 	send_data(data, beepsize + 8, timestamp);
 }
 
-static int watchdog(void *arg)
+static gboolean watchdog(void *arg)
 {
 	struct timespec ts;
 	uint64_t timestamp;
@@ -318,7 +315,7 @@ printf("%ld ", ts.tv_sec);
 	
 	send_data(data, 8, timestamp);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 
@@ -410,15 +407,9 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (parrot)
-		dml_poll_add(&parrot_queue, NULL, NULL, parrot_dequeue);
+	g_timeout_add_seconds(DML_REFLECTOR_DATA_KEEPALIVE, watchdog, &watchdog);
 
-	dml_poll_add(&watchdog, NULL, NULL, watchdog);
-
-	dml_poll_timeout(&watchdog, 
-	    &(struct timespec){ DML_REFLECTOR_DATA_KEEPALIVE, 0});
-
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;
 }

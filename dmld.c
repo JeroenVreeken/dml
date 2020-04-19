@@ -20,7 +20,6 @@
 
 #include <dml/dml_server.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml_route.h>
 #include <dml/dml.h>
@@ -138,7 +137,8 @@ void connection_destroy(struct connection *con)
 			break;
 		}
 	}
-	dml_poll_remove(con);
+	g_source_remove_by_user_data(con);
+	g_source_remove_by_user_data(con);
 
 	while (con->bad_list) {
 		struct connection_update *cu = con->bad_list;
@@ -316,7 +316,7 @@ int connection_data_remove(struct connection_data *data)
 	return 0;
 }
 
-int connection_data_keepalive(void *arg)
+gboolean connection_data_keepalive(void *arg)
 {
 	time_t now = time(NULL);
 	struct connection_data *entry;
@@ -333,8 +333,9 @@ int connection_data_keepalive(void *arg)
 		}
 	}
 
-	dml_poll_timeout(connection_data_keepalive, &(struct timespec){ DMLD_DATA_KEEPALIVE, 0 });
-	return 0;
+	g_timeout_add_seconds(DMLD_DATA_KEEPALIVE, connection_data_keepalive, connection_data_keepalive);
+
+	return G_SOURCE_REMOVE;
 }
 
 
@@ -370,8 +371,9 @@ void update_clear(struct connection *con)
 	memset(con->update_id, 0, DML_ID_SIZE);
 }
 
-int update(struct connection *con)
+gboolean update(void *arg)
 {
+	struct connection *con = arg;
 //	printf("update\n");
 	
 	while (dml_connection_send_empty(con->dc)) {
@@ -399,15 +401,16 @@ int update(struct connection *con)
 	}
 
 //	printf("wait a little %p\n", con);
-	dml_poll_timeout(con, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, update, con);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
-int update_all(struct connection *con)
+gboolean update_all(void *arg)
 {
+	struct connection *con = arg;
 	dml_route_sort_lock_dec();
-//	printf("update_all\n");
+//	printf("g\n");
 	while (dml_connection_send_empty(con->dc)) {
 		uint8_t hops;
 		struct dml_connection *dc;
@@ -418,8 +421,7 @@ int update_all(struct connection *con)
 //		printf("r: %d\n", r);
 		if (r) {
 //			printf("switch to regular updates %p\n", con);
-			dml_poll_add(con, NULL, NULL, (int (*)(void *))update);
-			dml_poll_timeout(con, &(struct timespec){ 1, 0 });
+			g_timeout_add_seconds(1, update, con);
 			return 0;
 		}
 		/* no update to the originating node */
@@ -432,10 +434,9 @@ int update_all(struct connection *con)
 //	printf("wait a little %p\n", con);
 
 	dml_route_sort_lock_inc();
-	dml_poll_add(con, NULL, NULL, (int (*)(void *))update_all);
-	dml_poll_timeout(con, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, update_all, con);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 
@@ -476,7 +477,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			con->bad_list = up;
 			printf("On bad list\n");
 			/* It is bad, so we want updates a bit faster */
-			dml_poll_timeout(con, &(struct timespec){ 0, 100000000 });
+			g_timeout_add(100, update, con);
 		} else {
 			up->next = con->good_list;
 			con->good_list = up;
@@ -822,16 +823,16 @@ void server_connection(void *arg, int fd)
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dmld " DML_VERSION);
 }
 
-int client_reconnect(void *clientv)
+gboolean client_reconnect(void *clientv)
 {
 	struct dml_client *client = clientv;
 
 	if (dml_client_connect(client)) {
 		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(client, &(struct timespec){ 2, 0 });
+		g_timeout_add_seconds(2, client_reconnect, client);
 	}
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 int client_connection_close(struct dml_connection *dc, void *arg)
@@ -840,8 +841,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 	printf("client close %p %s\n", dc, connection_name_get(con));
 	struct dml_client *client = con->client;
 
-	dml_poll_add(client, NULL, NULL, client_reconnect);
-	dml_poll_timeout(client, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, client_reconnect, client);
 	
 	dml_route_remove(dc);
 	connection_destroy(con);
@@ -869,7 +869,7 @@ void client_connect(struct dml_client *client, void *arg)
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dmld " DML_VERSION);
 }
 
-int cleanup(void *arg)
+gboolean cleanup(void *arg)
 {
 	int r;
 	static uint8_t id[DML_ID_SIZE] = { 0 };
@@ -890,9 +890,9 @@ int cleanup(void *arg)
 		printf("Sorted routes\n");
 	}
 
-	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, cleanup, cleanup);
 
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 int main(int argc, char **argv)
@@ -922,19 +922,16 @@ int main(int argc, char **argv)
 
 		if (dml_client_connect(dc)) {
 			printf("Failed to connect to %s, try again later\n", server);
-			dml_poll_add(dc, NULL, NULL, client_reconnect);
-			dml_poll_timeout(dc, &(struct timespec){ 1, 0 });
+			g_timeout_add_seconds(1, client_reconnect, dc);
 		}
 	}
 
 	dml_route_update_cb_set(connection_update);
 
-	dml_poll_add(cleanup, NULL, NULL, cleanup);
-	dml_poll_timeout(cleanup, &(struct timespec){ 1, 0 });
-	dml_poll_add(connection_data_keepalive, NULL, NULL, connection_data_keepalive);
-	dml_poll_timeout(connection_data_keepalive, &(struct timespec){ DMLD_DATA_KEEPALIVE, 0 });
+	g_timeout_add_seconds(1, cleanup, cleanup);
+	g_timeout_add(DMLD_DATA_KEEPALIVE, connection_data_keepalive, connection_data_keepalive);
 
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;
 }

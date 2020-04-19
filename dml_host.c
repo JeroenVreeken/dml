@@ -22,7 +22,6 @@
 #include <dml/dml_connection.h>
 #include <dml/dml_crypto.h>
 #include <dml/dml_packet.h>
-#include <dml/dml_poll.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -361,16 +360,16 @@ int dml_host_connect(struct dml_host *host, struct dml_stream *ds)
 	return 0;
 }
 
-static int client_reconnect(void *arg)
+static gboolean client_reconnect(void *arg)
 {
 	struct dml_host *host = arg;
 
 	if (dml_client_connect(host->client)) {
 		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(host, &(struct timespec){ 2, 0 });
+		g_timeout_add_seconds(2, client_reconnect, host);
 	}
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 
@@ -389,8 +388,7 @@ static int client_connection_close(struct dml_connection *dc, void *arg)
 	if (host->connection_closed_cb)
 		host->connection_closed_cb(host, host->connection_closed_cb_arg);
 
-	dml_poll_add(host, NULL, NULL, client_reconnect);
-	dml_poll_timeout(host, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, client_reconnect, host);
 	
 	if (dc) {
 		return dml_connection_destroy(dc);
@@ -510,8 +508,7 @@ struct dml_host *dml_host_create(char *server)
 
 	if (dml_client_connect(host->client)) {
 		printf("Could not connect to server\n");
-		dml_poll_add(host, NULL, NULL, client_reconnect);
-		dml_poll_timeout(host, &(struct timespec){ 2, 0 });
+		g_timeout_add_seconds(2, client_reconnect, host);
 	}
 
 err_alloc:

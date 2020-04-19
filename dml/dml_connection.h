@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <glib.h>
 
 struct dml_connection;
 
@@ -31,7 +32,7 @@ struct dml_connection *dml_connection_create(int fd,
 int dml_connection_destroy(struct dml_connection *dc);
 
 int dml_connection_fd_get(struct dml_connection *dc);
-int dml_connection_handle(struct dml_connection *dc);
+gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpointer arg);
 int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len);
 bool dml_connection_send_empty(struct dml_connection *dc);
 int dml_connection_send_data(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len);

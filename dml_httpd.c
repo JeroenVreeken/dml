@@ -36,7 +36,6 @@
 #include "dml_config.h"
 #include <dml/dml_connection.h>
 #include <dml/dml_packet.h>
-#include <dml/dml_poll.h>
 
 magic_t magic;
 
@@ -57,6 +56,7 @@ struct writebuf {
 
 struct ws_client {
 	struct lws *wsi;
+	GIOChannel *io;
 	
 	struct writebuf *writeq;
 
@@ -368,19 +368,19 @@ err_ws:
 	return;
 }
 
-int wsi_in_cb(void *arg)
+gboolean wsi_in_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 //	struct lws *wsi = arg;
 	lws_service(lws_context, 0);
 
-	return 0;
+	return TRUE;
 }
-int wsi_out_cb(void *arg)
+gboolean wsi_out_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 //	struct lws *wsi = arg;
 	lws_service(lws_context, 0);
 
-	return 0;
+	return TRUE;
 }
 
 
@@ -498,25 +498,29 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 			r = -1;
 			break;
 			
+		case LWS_CALLBACK_CHANGE_MODE_POLL_FD: {
+			g_source_remove_by_user_data(wsi);
+			g_source_remove_by_user_data(wsi);
+
+			//fallthrough
+		}
 		case LWS_CALLBACK_ADD_POLL_FD: {
+			struct ws_client *ws_client = ws_client_get_by_wsi(wsi);
+			if (!ws_client) {
+				ws_client = ws_client_add(wsi);
+			}
 			struct lws_pollargs *args = in;
-			dml_poll_add(wsi, wsi_in_cb, wsi_out_cb, NULL);
-			dml_poll_fd_set(wsi, args->fd);
-			dml_poll_in_set(wsi, args->events & POLLIN);
-			dml_poll_out_set(wsi, args->events & POLLOUT);
+			ws_client->io = g_io_channel_unix_new(args->fd);
+			g_io_channel_set_encoding(ws_client->io, NULL, NULL);
+			if (args->events & POLLIN)
+				g_io_add_watch(ws_client->io, G_IO_IN, wsi_in_cb, wsi);
+			if (args->events & POLLOUT)
+				g_io_add_watch(ws_client->io, G_IO_OUT, wsi_out_cb, wsi);
 			break;
 		}
 		case LWS_CALLBACK_DEL_POLL_FD: {
-		
-			dml_poll_remove(wsi);
-			break;
-		}
-		case LWS_CALLBACK_CHANGE_MODE_POLL_FD: {
-			struct lws_pollargs *args = in;
-		
-			dml_poll_fd_set(wsi, args->fd);
-			dml_poll_in_set(wsi, args->events & POLLIN);
-			dml_poll_out_set(wsi, args->events & POLLOUT);
+			g_source_remove_by_user_data(wsi);
+			g_source_remove_by_user_data(wsi);
 			break;
 		}
 
@@ -593,7 +597,7 @@ int main(int argc, char **argv)
 	printf("starting server...\n");
     
 	
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
     
 	lws_context_destroy(lws_context);
 	magic_close(magic);

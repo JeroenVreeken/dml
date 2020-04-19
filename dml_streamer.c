@@ -17,7 +17,6 @@
  */
 #include <dml/dml_client.h>
 #include <dml/dml_connection.h>
-#include <dml/dml_poll.h>
 #include <dml/dml_packet.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -105,16 +104,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 	return;
 }
 
-int client_reconnect(void *clientv)
+gboolean client_reconnect(void *clientv)
 {
 	struct dml_client *client = clientv;
 
 	if (dml_client_connect(client)) {
 		printf("Reconnect to DML server failed\n");
-		dml_poll_timeout(client, &(struct timespec){ 2, 0 });
+		g_timeout_add_seconds(2, client_reconnect, client);
 	}
 	
-	return 0;
+	return G_SOURCE_REMOVE;
 }
 
 int client_connection_close(struct dml_connection *dc, void *arg)
@@ -122,8 +121,7 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 	dml_con = NULL;
 	packet_id = 0;
 
-	dml_poll_add(arg, NULL, NULL, client_reconnect);
-	dml_poll_timeout(arg, &(struct timespec){ 1, 0 });
+	g_timeout_add_seconds(1, client_reconnect, arg);
 	
 	if (dc)
 		return dml_connection_destroy(dc);
@@ -228,7 +226,7 @@ int trigger_cb(enum fileparse_trigger trig)
 struct fileparse *fileparse;
 int (*parse)(struct fileparse *ogg, void *buffer, size_t size);
 
-int fd_in(void *arg)
+gboolean fd_in(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 	char buffer[4096];
 	
@@ -239,7 +237,7 @@ int fd_in(void *arg)
 			return parse(fileparse, buffer, r);
 	}
 	
-	return 0;
+	return TRUE;
 }
 
 
@@ -252,6 +250,7 @@ int main(int argc, char **argv)
 	char *server;
 	bool use_ogg = true;
 	bool use_isom = false;
+	GIOChannel *io = NULL;
 
 	if (argc > 1)
 		file = argv[1];
@@ -306,11 +305,12 @@ int main(int argc, char **argv)
 	else
 		fileparse = matroska_create(data_cb, trigger_cb, &parse);
 
-	dml_poll_add(&fd_ogg, fd_in, NULL, NULL);
-	dml_poll_fd_set(&fd_ogg, 0);
-	dml_poll_in_set(&fd_ogg, true);
+	io = g_io_channel_unix_new(fd_ogg);
+	g_io_channel_set_encoding(io, NULL, NULL);
+	g_io_add_watch(io, G_IO_IN, fd_in, &fd_ogg);
 
-	dml_poll_loop();
+	g_main_loop_run(g_main_loop_new(NULL, false));
+	g_io_channel_unref(io);
 
 	return 0;
 }

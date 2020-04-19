@@ -19,11 +19,11 @@
 
 #include <dml/dml_client.h>
 #include <dml/dml_server.h>
-#include <dml/dml_poll.h>
 #include <dml_config.h>
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -38,6 +38,7 @@
 
 struct dml_client {
 	int fd;
+	GIOChannel *io;
 	
 	char *host;
 	unsigned short port;
@@ -65,6 +66,7 @@ struct dml_client *dml_client_create(char *host, unsigned short port, void (*cb)
 
 	dc->port = port;
 	dc->fd = -1;
+	dc->io = NULL;
 	dc->connect_cb = cb;
 	dc->arg = arg;
 	
@@ -79,6 +81,7 @@ int dml_client_destroy(struct dml_client *dc)
 {
 	if (dc->fd >= 0)
 		close(dc->fd);
+	g_io_channel_unref(dc->io);
 	
 	free(dc->host);
 	free(dc);
@@ -87,11 +90,11 @@ int dml_client_destroy(struct dml_client *dc)
 }
 
 
-static int dml_client_connect_success(void *arg)
+static gboolean dml_client_connect_success(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 	struct dml_client *dc = arg;
 
-	dml_poll_remove(dc);
+	g_source_remove_by_user_data(dc);
 
 	setsockopt (dc->fd, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
 	setsockopt (dc->fd, SOL_SOCKET, SO_KEEPALIVE, &(int){1}, sizeof (int));
@@ -101,7 +104,8 @@ static int dml_client_connect_success(void *arg)
 
 	dc->connect_cb(dc, dc->arg);
 
-	return 0;
+	//TODO
+	return FALSE;
 }
 
 int dml_client_connect(struct dml_client *dc)
@@ -155,11 +159,10 @@ int dml_client_connect(struct dml_client *dc)
 	
 	free(port);
 	dc->fd = sock;
+	dc->io = g_io_channel_unix_new (sock);
+	g_io_channel_set_encoding(dc->io, NULL, NULL);
 	
-	dml_poll_add(dc, NULL, dml_client_connect_success, NULL);
-	dml_poll_fd_set(dc, sock);
-	dml_poll_in_set(dc, false);
-	dml_poll_out_set(dc, true);
+	g_io_add_watch(dc->io, G_IO_OUT, dml_client_connect_success, dc);
 	
 	return 0;
 

@@ -1,9 +1,9 @@
 ACLOCAL_AMFLAGS=-I m4
 
-CFLAGS+= -Wall -Werror -O3
+CFLAGS+= -Wall -Werror -O3  @GLIB_CFLAGS@
 
 
-nobase_include_HEADERS = dml/dml.h dml/dml_client.h dml/dml_connection.h dml/dml_crypto.h dml/dml_host.h dml/dml_id.h dml/dml_packet.h dml/dml_poll.h dml/dml_route.h dml/dml_stream.h dml/dml_server.h
+nobase_include_HEADERS = dml/dml.h dml/dml_client.h dml/dml_connection.h dml/dml_crypto.h dml/dml_host.h dml/dml_id.h dml/dml_packet.h dml/dml_route.h dml/dml_stream.h dml/dml_server.h
 
 
 lib_LTLIBRARIES=libdml.la
@@ -16,13 +16,12 @@ libdml_la_SOURCES = \
 	dml_host.c \
 	dml_id.c \
 	dml_packet.c \
-	dml_poll.c \
 	dml_route.c \
 	dml_server.c \
 	dml_stream.c 
 
 libdml_la_CFLAGS=-fPIC
-libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@
+libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@ @GLIB_LIBS@
 
 bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
 

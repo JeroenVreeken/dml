@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
+#include <glib.h>
 
 #define DML_VERSION "0.2"
 

@@ -17,7 +17,7 @@
  */
 #include "trx_dv.h"
 #include <eth_ar/eth_ar.h>
-#include <dml/dml_poll.h>
+#include <dml/dml.h>
 #include "alaw.h"
 #include <eth_ar/ulaw.h>
 
@@ -34,6 +34,7 @@
 #include <codec2/codec2.h>
 
 static int dv_sock = -1;
+static GIOChannel *dv_io = NULL;
 static char *dv_dev = NULL;
 static uint8_t dv_mac[6] = { 0 };
 static void (*dv_mac_cb)(uint8_t *mac) = NULL;
@@ -45,7 +46,7 @@ static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, siz
 static int (*fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size) = NULL;
 static void *in_cb_arg = NULL;
 
-static int trx_dv_in_cb(void *arg)
+static gboolean trx_dv_in_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
 	uint8_t dv_frame[6 + 6 + 2 + 1500];
 	ssize_t ret;
@@ -127,11 +128,13 @@ static int trx_dv_in_cb(void *arg)
 				datasize = ret - 16;
 				break;
 			case ETH_P_AR_CONTROL:
-				return ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 16, ret - 16);
+				ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 16, ret - 16);
+				return TRUE;
 			case ETH_P_FPRS:
-				return fprs_cb(in_cb_arg, dv_frame + 6, dv_frame + 14, ret - 14);
+				fprs_cb(in_cb_arg, dv_frame + 6, dv_frame + 14, ret - 14);
+				return TRUE;
 			default:
-				return 0;
+				return TRUE;
 		}
 		if (ret >= datasize + 14) {
 			in_cb(in_cb_arg, dv_frame + 6, dv_frame, dv_frame + 16, datasize, mode, dv_frame[15]);
@@ -144,7 +147,7 @@ static int trx_dv_in_cb(void *arg)
 		}
 		printf("\n");
 	}
-	return 0;
+	return TRUE;
 }
 
 
@@ -382,24 +385,23 @@ err_bind:
 
 static bool dv_bound = false;
 
-static int trx_dv_watchdog(void *arg)
+static gboolean trx_dv_watchdog(void *arg)
 {
 	bool bound = !trx_dv_bind_if();
 	
 	if (!bound && dv_bound) {
 		printf("Lost interface\n");
-		dml_poll_fd_set(trx_dv_init, -1);
-		dml_poll_in_set(trx_dv_init, false);
+
+		g_source_remove_by_user_data(trx_dv_init);
 	}
 	if (bound && !dv_bound) {
 		printf("Bound to interface\n");
-		dml_poll_fd_set(trx_dv_init, dv_sock);
-		dml_poll_in_set(trx_dv_init, true);
+		g_io_add_watch(dv_io, G_IO_IN, trx_dv_in_cb, trx_dv_init);
 	}
 	dv_bound = bound;
 	
-	dml_poll_timeout(trx_dv_init, &(struct timespec){ TRX_DV_WATCHDOG, 0});
-	return 0;
+	g_timeout_add_seconds(TRX_DV_WATCHDOG, trx_dv_watchdog, trx_dv_init);
+	return G_SOURCE_REMOVE;
 }
 
 int trx_dv_init(char *dev, 
@@ -427,25 +429,21 @@ int trx_dv_init(char *dev,
 
 	dv_sock = sock;
 
-	if (dml_poll_add(trx_dv_init, trx_dv_in_cb, NULL, trx_dv_watchdog))
-		goto err_poll;
-
 	if (trx_dv_bind_if()) {
 		printf("Failed to connect to interface, trying again later\n");
 		dv_bound = false;
-		dml_poll_fd_set(trx_dv_init, -1);
-		dml_poll_in_set(trx_dv_init, false);
+
+		g_source_remove_by_user_data(trx_dv_init);
 	} else {
 		dv_bound = true;
-		dml_poll_fd_set(trx_dv_init, sock);
-		dml_poll_in_set(trx_dv_init, true);
+		dv_io = g_io_channel_unix_new(sock);
+		g_io_channel_set_encoding(dv_io, NULL, NULL);
+		g_io_add_watch(dv_io, G_IO_IN, trx_dv_in_cb, trx_dv_init);
 	}
-	dml_poll_timeout(trx_dv_init, &(struct timespec){ TRX_DV_WATCHDOG, 0});
+	g_timeout_add_seconds(TRX_DV_WATCHDOG, trx_dv_watchdog, trx_dv_init);
 
 	return 0;
 
-err_poll:
-	close(sock);
 err_socket:
 	return -1;
 }

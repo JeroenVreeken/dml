@@ -16,7 +16,6 @@
 
  */
 #include <dml/dml_server.h>
-#include <dml/dml_poll.h>
 
 #include <string.h>
 #include <malloc.h>
@@ -30,6 +29,7 @@
 
 struct dml_server {
 	int fd;
+	GIOChannel *io;
 	void (*connection_cb)(void *arg, int fd);
 	void *connection_cb_arg;
 };
@@ -64,12 +64,12 @@ struct dml_server *dml_server_create(void (*cb)(void *arg, int fd), void *arg)
 		goto err_calloc;
 	
 	ds->fd = listensock6;
+	ds->io = g_io_channel_unix_new (listensock6);
+	g_io_channel_set_encoding(ds->io, NULL, NULL);
 	ds->connection_cb = cb;
 	ds->connection_cb_arg = arg;
 
-	dml_poll_add(ds, (int (*)(void *))dml_server_handle, NULL, NULL);
-	dml_poll_fd_set(ds, listensock6);
-	dml_poll_in_set(ds, true);
+	g_io_add_watch(ds->io, G_IO_IN, dml_server_handle, ds);
 
 	return ds;
 err_calloc:
@@ -84,8 +84,9 @@ int dml_server_fd_get(struct dml_server *ds)
 	return ds->fd;
 }
 
-int dml_server_handle(struct dml_server *ds)
+gboolean dml_server_handle(GIOChannel *source, GIOCondition condition, gpointer arg)
 {
+	struct dml_server *ds = arg;
 	int acceptsock;
 	struct sockaddr_in6 from6;
 	socklen_t len6 = sizeof(from6);
@@ -93,7 +94,7 @@ int dml_server_handle(struct dml_server *ds)
 	acceptsock = accept(ds->fd, (struct sockaddr *)&from6, &len6);
 	
 	if (acceptsock < 0)
-		return -1;
+		return TRUE;
 	
 	setsockopt(acceptsock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof (int));
 	setsockopt(acceptsock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof (int));
@@ -104,6 +105,6 @@ int dml_server_handle(struct dml_server *ds)
 
 	ds->connection_cb(ds->connection_cb_arg, acceptsock);
 
-	return 0;
+	return TRUE;
 }
 
