@@ -54,6 +54,29 @@ int dml_packet_parse_hello(uint8_t *data, uint16_t len, uint32_t *flags, char **
 	return 0;
 }
 
+int dml_packet_send_update(struct dml_connection *dc, uint32_t flags)
+{
+	uint8_t data[4];
+	
+	data[0] = (flags >> 24) & 0xff;
+	data[1] = (flags >> 16) & 0xff;
+	data[2] = (flags >> 8) & 0xff;
+	data[3] = (flags >> 0) & 0xff;
+	
+	return dml_connection_send(dc, data, DML_PACKET_UPDATE, 4);
+}
+
+int dml_packet_parse_update(uint8_t *data, uint16_t len, uint32_t *flags)
+{
+	if (len < 4)
+		return -1;
+	
+	if (flags)
+		*flags = (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + data[3];
+	
+	return 0;
+}
+
 int dml_packet_send_description(struct dml_connection *dc, 
     uint8_t id[DML_ID_SIZE], uint8_t version, uint32_t bps, char *mime, 
     char *name, char *alias, char *description)

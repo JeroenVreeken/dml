@@ -421,6 +421,7 @@ gboolean update_all(void *arg)
 //		printf("r: %d\n", r);
 		if (r) {
 //			printf("switch to regular updates %p\n", con);
+			dml_packet_send_update(con->dc, DML_PACKET_UPDATE_INITIAL_DONE);
 			g_timeout_add_seconds(1, update, con);
 			return 0;
 		}

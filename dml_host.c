@@ -36,6 +36,9 @@ struct dml_host {
 	void (*connection_closed_cb)(struct dml_host *host, void *arg);
 	void *connection_closed_cb_arg;
 
+	void (*update_cb)(struct dml_host *host, uint32_t flags, void *arg);
+	void *update_cb_arg;
+
 	void (*stream_added_cb)(struct dml_host *host, struct dml_stream *ds, void *arg);
 	void *stream_added_cb_arg;
 	
@@ -60,6 +63,10 @@ bool dml_host_mime_filter(struct dml_host *host, struct dml_stream *ds)
 	char *dmime = dml_stream_mime_get(ds);
 	int i;
 
+	/* exception: no filter, pass all */
+	if (!host->mime_filter_nr)
+		return true;
+
 	for (i = 0; i < host->mime_filter_nr; i++) {
 		if (!strcmp(host->mime_filter[i], dmime)) {
 			return true;
@@ -74,6 +81,17 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 	struct dml_host *host = arg;
 
 	switch(id) {
+		case DML_PACKET_UPDATE: {
+			uint32_t flags;
+			
+			if (dml_packet_parse_update(data, len, &flags))
+				break;
+		
+			if (host->update_cb)
+				host->update_cb(host, flags, host->update_cb_arg);
+		
+			break;
+		}
 		case DML_PACKET_ROUTE: {
 			uint8_t hops;
 			uint8_t rid[DML_ID_SIZE];
@@ -431,6 +449,15 @@ int dml_host_mime_filter_set(struct dml_host *host, int nr, char **mimetypes)
 {
 	host->mime_filter = mimetypes;
 	host->mime_filter_nr = nr;
+	
+	return 0;
+}
+
+int dml_host_update_cb_set(struct dml_host *host,
+    void(*cb)(struct dml_host *host, uint32_t flags, void *arg), void *arg)
+{
+	host->update_cb = cb;
+	host->update_cb_arg = arg;
 	
 	return 0;
 }

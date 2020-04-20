@@ -15,9 +15,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#include <dml/dml_client.h>
-#include <dml/dml_connection.h>
-#include <dml/dml_packet.h>
+#include <dml/dml_host.h>
 #include <dml/dml.h>
 #include <dml/dml_id.h>
 
@@ -26,129 +24,66 @@
 #include <inttypes.h>
 #include <string.h>
 
-struct info {
-	uint8_t id[DML_ID_SIZE];
-	
-	struct info *next;
-};
+static GMainLoop *loop;
+static int nr_ids = 0;
+static int nr_added = 0;
 
-struct info *info_list;
-
-int info_add(uint8_t id[DML_ID_SIZE])
+static void stream_added_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
 {
-	struct info *entry;
+	char *idstr = dml_id_str(dml_stream_id_get(ds));
+	char *mime, *name, *alias, *description;
+	uint32_t bps;
 	
-	for (entry = info_list; entry; entry = entry->next) {
-		if (!memcmp(entry->id, id, DML_ID_SIZE))
-			return -1;
+	mime = dml_stream_mime_get(ds);
+	name = dml_stream_name_get(ds);
+	alias = dml_stream_alias_get(ds);
+	description = dml_stream_description_get(ds);
+	bps = dml_stream_bps_get(ds);
+	
+	printf("id: %s\n\tmime: '%s'\n\tbps: %d\n\tname: '%s'\n"
+	    "\talias: '%s'\n\tdescription: '%s'\n",
+	    idstr, mime, bps, name, alias, description);
+	
+	free(idstr);
+	nr_added++;
+	
+	if (nr_added == nr_ids) {
+		g_main_loop_quit(loop);
 	}
-	
-	entry = calloc(1, sizeof(struct info));
-	memcpy(entry->id, id, DML_ID_SIZE);
-	entry->next = info_list;
-	info_list = entry;
-	
-	return 0;
 }
 
-void rx_packet(struct dml_connection *dc, void *arg, 
-    uint16_t id, uint16_t len, uint8_t *data)
+void update_cb(struct dml_host *host, uint32_t flags, void *arg)
 {
-	switch (id) {
-		case DML_PACKET_HELLO: {
-			char *ident;
-			uint32_t flags;
-			
-			dml_packet_parse_hello(data, len, &flags, &ident);
-			printf("ident: '%s' flags: %08"PRIx32"\n", ident, flags);
-			
-			free(ident);
-			break;
+	if (flags == DML_PACKET_UPDATE_INITIAL_DONE) {
+		struct dml_stream *entry;
+		
+		for (entry = NULL; (entry = dml_stream_iterate(entry)); ) {
+			nr_ids++;
 		}
-		case DML_PACKET_ROUTE: {
-			uint8_t id[DML_ID_SIZE];
-			uint8_t hops;
-			
-			dml_packet_parse_route(data, len, id, &hops);
-
-			char *idstr  = dml_id_str(id);
-			printf("id: %s hops: %d\n", idstr, hops);
-			free(idstr);
-			
-			if (!info_add(id)) {
-				dml_packet_send_req_description(dc, id);
-			}
-			break;
-		}
-		case DML_PACKET_DESCRIPTION: {
-			uint8_t desc_id[DML_ID_SIZE];
-			uint8_t version;
-			uint32_t bps;
-			char *mime, *name, *alias, *description;
-
-			dml_packet_parse_description(data, len, desc_id, &version, 
-			    &bps, &mime, &name, &alias, &description);
-			char *idstr = dml_id_str(desc_id);
-			
-			uint8_t hash_id[DML_ID_SIZE];
-			dml_id_gen(hash_id, version, bps, mime, name, alias,
-			    description);
-			bool hash_match = !memcmp(hash_id, desc_id, DML_ID_SIZE);
-			
-			printf("id: %s\n\tmime: '%s'\n\tbps: %d\n\tname: '%s'\n"
-			    "\talias: '%s'\n\tdescription: '%s'\n"
-			    "\thash ok: %d\n",
-			    idstr, mime, bps, name, alias, description,
-			    hash_match);
-			
-			free(idstr);
-			free(mime);
-			free(name);
-			free(alias);
-			free(description);
-		}
-		default:
-			break;
+	
+		printf("Received %d IDs, retrieving stream descriptions\n", nr_ids);
 	}
-	return;
-}
-
-int client_connection_close(struct dml_connection *dc, void *arg)
-{
-	//TODO timeout and reconnect!
-	return dml_connection_destroy(dc);
-}
-
-void client_connect(struct dml_client *client, void *arg)
-{
-	struct dml_connection *dc;
-	int fd;
-	
-	fd = dml_client_fd_get(client);
-	
-	dc = dml_connection_create(fd, client, rx_packet, client_connection_close);
-	dml_packet_send_hello(dc, DML_PACKET_HELLO_UPDATES, "dml_list " DML_VERSION);
 }
 
 int main(int argc, char **argv)
 {
-	struct dml_client *dc;
+	struct dml_host *host;
 
-	char *host = "localhost";
-	unsigned short port = 0;
+	char *server = "localhost";
 	if (argc > 1)
-		host = argv[1];
-	if (argc > 2)
-		port = atoi(argv[2]);
+		server = argv[1];
 	
-	dc = dml_client_create(host, port, client_connect, NULL);		
-
-	if (dml_client_connect(dc)) {
-		perror("Could not connect to server");
+	host = dml_host_create(server);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
 
-	g_main_loop_run(g_main_loop_new(NULL, false));
+	dml_host_update_cb_set(host, update_cb, NULL);
+	dml_host_stream_added_cb_set(host, stream_added_cb, NULL);
+
+	loop = g_main_loop_new(NULL, false);
+	g_main_loop_run(loop);
 
 	return 0;
 }

@@ -31,6 +31,8 @@
 #define DML_PACKET_HELLO_LEAF		1
 #define DML_PACKET_HELLO_UPDATES	2
 
+#define DML_PACKET_UPDATE_INITIAL_DONE	1
+
 #define DML_PACKET_DISC_UNROUTABLE	1
 #define DML_PACKET_DISC_REQUESTED	2
 
@@ -47,6 +49,7 @@ enum dml_packet_id {
 	DML_PACKET_HEADER = 4,
 	DML_PACKET_CONNECT = 5,
 	DML_PACKET_DISC = 6,
+	DML_PACKET_UPDATE = 7,
 	
 	DML_PACKET_REQ_DESCRIPTION = 34,
 	DML_PACKET_REQ_CERTIFICATE = 35,
@@ -60,6 +63,9 @@ enum dml_packet_id {
 
 int dml_packet_send_hello(struct dml_connection *dc, uint32_t flags, char *ident);
 int dml_packet_parse_hello(uint8_t *data, uint16_t len, uint32_t *flags, char **ident);
+
+int dml_packet_send_update(struct dml_connection *dc, uint32_t flags);
+int dml_packet_parse_update(uint8_t *data, uint16_t len, uint32_t *flags);
 
 int dml_packet_send_description(struct dml_connection *dc, 
     uint8_t id[DML_ID_SIZE], uint8_t version, uint32_t bps, char *mime, 

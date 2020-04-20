@@ -19,6 +19,7 @@
 #define _INCLUDE_DML_HOST_H_
 
 #include "dml_stream.h"
+#include <dml/dml_packet.h>
 
 struct dml_host;
 
@@ -28,6 +29,8 @@ struct dml_connection *dml_host_connection_get(struct dml_host *host);
 
 int dml_host_connection_closed_cb_set(struct dml_host *host, 
     void(*cb)(struct dml_host *host, void *arg), void *arg);
+int dml_host_update_cb_set(struct dml_host *host,
+    void(*cb)(struct dml_host *host, uint32_t flags, void *arg), void *arg);
 int dml_host_stream_added_cb_set(struct dml_host *host,
     void(*cb)(struct dml_host *host, struct dml_stream *ds, void *arg), void *arg);
 int dml_host_stream_removed_cb_set(struct dml_host *host,
@@ -41,6 +44,7 @@ int dml_host_stream_req_reverse_connect_cb_set(struct dml_host *host,
 int dml_host_stream_req_reverse_disconnect_cb_set(struct dml_host *host,
     void (*cb)(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg), void *arg);
 
+/* Filter on mime types: use nr=0, mimetypes = NULL to pass all */
 int dml_host_mime_filter_set(struct dml_host *host, int nr, char **mimetypes);
 bool dml_host_mime_filter(struct dml_host *host, struct dml_stream *ds);
 

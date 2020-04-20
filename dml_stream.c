@@ -172,6 +172,7 @@ struct dml_stream *dml_stream_update_description(uint8_t *data, uint16_t len, bo
 	stream->alias = alias;
 	stream->description = description;
 	stream->mime = mime;
+	stream->bps = bps;
 
 	return stream;
 
