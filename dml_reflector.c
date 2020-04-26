@@ -37,10 +37,11 @@
 #include <time.h>
 
 
-#define DML_REFLECTOR_PARROT_WAIT (500)
+#define DML_REFLECTOR_PARROT_WAIT_MS (500)
 #define DML_REFLECTOR_PARROT_MAX (60*60*50)
 
 #define DML_REFLECTOR_DATA_KEEPALIVE 10
+#define DML_REFLECTOR_GUARD_TIME_MS (200)
 
 uint8_t ref_id[DML_ID_SIZE];
 char *name;
@@ -232,11 +233,22 @@ void parrot_queue_add(void *data, size_t size, int duration)
 	*listp = entry;
 
 	g_source_remove_by_user_data(&parrot_queue);
-	g_timeout_add(DML_REFLECTOR_PARROT_WAIT, parrot_dequeue, &parrot_queue);
+	g_timeout_add(DML_REFLECTOR_PARROT_WAIT_MS, parrot_dequeue, &parrot_queue);
 }
 
 
-static bool tx_state = false;
+static uint8_t tx_level = 0;
+
+static char tx_call[ETH_AR_MAC_SIZE] = {0};
+
+static gboolean guard_cb(void *arg)
+{
+	printf("No incomming activity, releasing guard");
+
+	tx_level = 0;
+
+	return G_SOURCE_REMOVE;
+}
 
 static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg)
 {
@@ -248,20 +260,29 @@ static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_
 	uint8_t *datab = data;
 	
 	int mode = datab[6];
-	bool state = datab[7] & 0x1;
+	uint8_t level = datab[7];
 	
 	duration = trx_dv_duration(data_size - 8, mode);
 	
-	printf("mode %d state %d duration: %d\n", mode, state, duration);
+	printf("mode %d level %d duration: %d: ", mode, level, duration);
 	
-	if (state != tx_state) {
+	if (level > tx_level) {
 		char call[ETH_AR_CALL_SIZE];
 		int ssid;
 		bool multicast;
 		
 		eth_ar_mac2call(call, &ssid, &multicast, data);
-		tx_state = state;
-		printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", multicast ? "MULTICAST" : call, ssid);
+		tx_level = level;
+		memcpy(tx_call, data, ETH_AR_MAC_SIZE);
+		printf("State changed to %s (level=%d) by %s-%d\n", level ? "ON":"OFF", level, multicast ? "MULTICAST" : call, ssid);
+	} else {
+		if (memcmp(data, tx_call, ETH_AR_MAC_SIZE)) {
+			printf("Dropped due to tx guard\n");
+			return;
+		}
+		printf("Accepted\n");
+		g_source_remove_by_user_data(&tx_level);
+		g_timeout_add(DML_REFLECTOR_GUARD_TIME_MS, guard_cb, &tx_level);
 	}
 	
 	if (!parrot)
@@ -324,15 +345,14 @@ int main(int argc, char **argv)
 	char *file = "dml_reflector.conf";
 	char *certificate;
 	char *key;
-	char *server;
-	char *ca;
 	uint8_t *header;
 
 	if (argc > 1)
 		file = argv[1];
 
-	if (dml_config_load(file)) {
-		printf("Failed to load config file %s\n", file);
+	host = dml_host_create(file);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
 	name = dml_config_value("name", NULL, "test_reflector");
@@ -341,16 +361,8 @@ int main(int argc, char **argv)
 
 	parrot = atoi(dml_config_value("parrot", NULL, "0"));
 
-	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
-
-	ca = dml_config_value("ca", NULL, ".");
-	
-	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
-		return -1;
-	}
 
 	if (dml_crypto_load_cert(certificate)) {
 		printf("Could not load certificate\n");
@@ -375,11 +387,6 @@ int main(int argc, char **argv)
 	dml_stream_description_set(stream_dv, description);
 	dml_stream_bps_set(stream_dv, bps);
 	
-	host = dml_host_create(server);
-	if (!host) {
-		printf("Could not create host\n");
-		return -1;
-	}
 	dml_host_mime_filter_set(host, 1, (char*[]){ DML_MIME_DV_C2 });
 	dml_host_stream_data_cb_set(host, stream_data_cb, NULL);
 	dml_host_stream_req_reverse_connect_cb_set(host, stream_req_reverse_connect_cb, NULL);

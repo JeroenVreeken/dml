@@ -20,7 +20,10 @@
 
 #include <stdlib.h>
 
+char *dml_config_path(void);
+
 int dml_config_load(char *file);
+int dml_config_save(char *file);
 
 char *dml_config_value(char *key, char *prev_value, char *def);
 

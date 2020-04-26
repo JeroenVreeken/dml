@@ -661,7 +661,7 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 	uint8_t data[8 + size];
 
 	if (!rx_state) {
-		printf("rx_state to on\n");
+		printf("rx_state to on, level: %d\n", level);
 	}
 	rx_state = level;
 
@@ -963,8 +963,6 @@ int main(int argc, char **argv)
 	char *file = "dml_trx.conf";
 	char *certificate;
 	char *key;
-	char *server;
-	char *ca;
 	char *dv_dev;
 	char *name;
 	char *description;
@@ -979,15 +977,15 @@ int main(int argc, char **argv)
 	if (argc > 1)
 		file = argv[1];
 
-	if (dml_config_load(file)) {
-		printf("Failed to load config file %s\n", file);
+	host = dml_host_create(file);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
 	name = dml_config_value("name", NULL, "test_trx");
 	alias = dml_config_value("alias", NULL, "0000");
 	description = dml_config_value("description", NULL, "Test transceiver");
 
-	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
 
@@ -1011,13 +1009,6 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
-	ca = dml_config_value("ca", NULL, ".");
-	
-	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
-		return -1;
-	}
-
 	if (dml_crypto_load_cert(certificate)) {
 		printf("Could not load certificate\n");
 		return -1;
@@ -1054,11 +1045,6 @@ int main(int argc, char **argv)
 	dml_stream_description_set(stream_fprs, description);
 	dml_stream_bps_set(stream_fprs, bps);
 	
-	host = dml_host_create(server);
-	if (!host) {
-		printf("Could not create host\n");
-		return -1;
-	}
 	dml_host_connection_closed_cb_set(host, connection_closed_cb, NULL);
 	dml_host_mime_filter_set(host, 2, (char*[]){ DML_MIME_DV_C2 , DML_MIME_FPRS });
 	dml_host_stream_removed_cb_set(host, stream_removed_cb, NULL);

@@ -94,25 +94,32 @@ AC_SEARCH_LIBS([magic_open], [magic], [libmagic_found_lib=yes], [])
 AC_CHECK_HEADERS([magic.h],
         [libmagic_found_headers=yes; break;])
 
-AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" = "xyes"],
-	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
-)
-
 
 # glib
 PKG_CHECK_MODULES([GLIB], [glib-2.0])
 
+# gtk+
+PKG_CHECK_MODULES([GTK], [gtk+-3.0], [GTK_FOUND=yes], [GTK_FOUND=no])
+
 
 # build selection logic
+
+AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" = "xyes"],
+	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
+)
 
 AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
 	[enable_dml_trx="yes"; enable_dml_reflector="yes" ], 
 	[enable_dml_trx="no"; enable_dml_reflector="no" ]
 )
 
+AS_IF([test "x$GTK_FOUND" = "xyes" ], [enable_gdml="yes"], [enable_gdml="no"])
+
+
 AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_REFLECTOR, test "x$enable_dml_reflector" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_TRX, test "x$enable_dml_trx" = "xyes")
+AM_CONDITIONAL(ENABLE_GDML, test "x$enable_gdml" = "xyes")
 
 
 AC_SUBST([LIB_LDFLAGS])
@@ -124,3 +131,4 @@ echo "    dml_httpd:     " $enable_dml_httpd
 echo "    dml_reflector: " $enable_dml_reflector
 echo "    dml_trx:       " $enable_dml_trx
 echo "    wasm:          " $EMSCRIPTEN_FOUND
+echo "    gdml:          " $enable_gdml

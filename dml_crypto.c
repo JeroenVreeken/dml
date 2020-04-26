@@ -132,8 +132,11 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	X509_STORE_CTX_free(ctx);
 
 //	fprintf(stderr, "verify cert rc: %d: %d\n", rc, err);
-	if (rc != 1)
+	if (rc != 1) {
+		int x509_err = X509_STORE_CTX_get_error(ctx);
+		fprintf(stderr, "verify error: %d: %s\n", x509_err, X509_verify_cert_error_string(x509_err));
 		goto err_verify;
+	}
 	
 	struct dml_stream *ds = dml_stream_by_id(id);
 	if (!ds)

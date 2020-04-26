@@ -23,7 +23,7 @@
 
 struct dml_host;
 
-struct dml_host *dml_host_create(char *server);
+struct dml_host *dml_host_create(char *config_file);
 
 struct dml_connection *dml_host_connection_get(struct dml_host *host);
 

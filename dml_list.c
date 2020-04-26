@@ -69,11 +69,7 @@ int main(int argc, char **argv)
 {
 	struct dml_host *host;
 
-	char *server = "localhost";
-	if (argc > 1)
-		server = argv[1];
-	
-	host = dml_host_create(server);
+	host = dml_host_create(NULL);
 	if (!host) {
 		printf("Could not create host\n");
 		return -1;

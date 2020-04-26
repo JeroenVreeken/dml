@@ -23,7 +23,7 @@ libdml_la_SOURCES = \
 libdml_la_CFLAGS=-fPIC
 libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@ @GLIB_LIBS@
 
-bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
+bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db gdml
 
 DML_SRCS = \
 	dml_stream_client_simple.c
@@ -96,3 +96,12 @@ endif
 dml_fprs_db_SOURCES = $(DML_SRCS) $(FPRS_DB_SRCS) dml_fprs_db.c
 dml_fprs_db_LDADD = libdml.la
 dml_fprs_db_LDFLAGS = -leth_ar -lm 
+
+if ENABLE_GDML
+
+bin_PROGRAMS += gdml
+gdml_CFLAGS = @GTK_CFLAGS@
+gdml_LDADD = libdml.la
+gdml_LDFLAGS = @GTK_LIBS@
+
+endif

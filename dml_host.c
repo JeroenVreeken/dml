@@ -23,6 +23,8 @@
 #include <dml/dml_crypto.h>
 #include <dml/dml_packet.h>
 
+#include <dml_config.h>
+
 #include <string.h>
 #include <stdio.h>
 
@@ -525,12 +527,28 @@ int dml_host_connection_closed_cb_set(struct dml_host *host,
 	return 0;
 }
 
-struct dml_host *dml_host_create(char *server)
+struct dml_host *dml_host_create(char *config_file)
 {
 	struct dml_host *host = calloc(1, sizeof(struct dml_host));
+
 	if (!host)
 		goto err_alloc;
 	
+	if (dml_config_load(config_file)) {
+		if (config_file) {
+			printf("Failed to load config file %s\n", config_file);
+			goto err_config;
+		}
+	}
+
+	char *server = dml_config_value("server", NULL, "localhost");
+	char *ca = dml_config_value("ca", NULL, dml_config_path());
+	
+	if (dml_crypto_init(NULL, ca)) {
+		fprintf(stderr, "Failed to init crypto\n");
+		goto err_crypto;
+	}
+
 	host->client = dml_client_create(server, 0, client_connect, host);
 
 	if (dml_client_connect(host->client)) {
@@ -538,7 +556,11 @@ struct dml_host *dml_host_create(char *server)
 		g_timeout_add_seconds(2, client_reconnect, host);
 	}
 
-err_alloc:
 	return host;
+err_crypto:
+err_config:
+	free(host);
+err_alloc:
+	return NULL;
 }
 

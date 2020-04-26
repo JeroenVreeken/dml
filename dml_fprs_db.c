@@ -238,8 +238,6 @@ int main(int argc, char **argv)
 	char *file = "dml_fprs_db.conf";
 	char *certificate;
 	char *key;
-	char *server;
-	char *ca;
 	uint8_t id[DML_ID_SIZE];
 	char *name;
 	char *description;
@@ -249,19 +247,17 @@ int main(int argc, char **argv)
 	if (argc > 1)
 		file = argv[1];
 
-	if (dml_config_load(file)) {
-		printf("Failed to load config file %s\n", file);
+	host = dml_host_create(file);
+	if (!host) {
+		printf("Could not create host\n");
 		return -1;
 	}
 	name = dml_config_value("name", NULL, "test_db");
 	description = dml_config_value("description", NULL, "Test database");
 
-	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
 
-	ca = dml_config_value("ca", NULL, ".");
-	
 	aprsis_port = atoi(dml_config_value("aprsis_port", NULL, "14580"));
 	aprsis_host = dml_config_value("aprsis_host", NULL, NULL);
 	aprsis_call = dml_config_value("aprsis_call", NULL, NULL);
@@ -270,11 +266,6 @@ int main(int argc, char **argv)
 		aprsis = true;
 		fprs_aprsis_init(aprsis_host, aprsis_port, aprsis_call, 
 		    true, message_cb);
-	}
-
-	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
-		return -1;
 	}
 
 	if (dml_crypto_load_cert(certificate)) {
@@ -319,11 +310,6 @@ int main(int argc, char **argv)
 	dml_stream_description_set(stream_fprs_db, description);
 	dml_stream_bps_set(stream_fprs_db, bps);
 
-	host = dml_host_create(server);
-	if (!host) {
-		printf("Could not create host\n");
-		return -1;
-	}
 	dml_host_mime_filter_set(host, 1, (char*[]){ DML_MIME_FPRS });
 	dml_host_stream_added_cb_set(host, stream_added_cb, NULL);
 	dml_host_stream_removed_cb_set(host, stream_removed_cb, NULL);
