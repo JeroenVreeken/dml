@@ -243,7 +243,7 @@ static char tx_call[ETH_AR_MAC_SIZE] = {0};
 
 static gboolean guard_cb(void *arg)
 {
-	printf("No incomming activity, releasing guard");
+	printf("No incomming activity, releasing guard\n");
 
 	tx_level = 0;
 
@@ -280,6 +280,7 @@ static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_
 			printf("Dropped due to tx guard\n");
 			return;
 		}
+		tx_level = level;
 		printf("Accepted\n");
 		g_source_remove_by_user_data(&tx_level);
 		g_timeout_add(DML_REFLECTOR_GUARD_TIME_MS, guard_cb, &tx_level);
