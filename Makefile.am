@@ -23,7 +23,7 @@ libdml_la_SOURCES = \
 libdml_la_CFLAGS=-fPIC
 libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@ @GLIB_LIBS@
 
-bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db gdml
+bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
 
 DML_SRCS = \
 	dml_stream_client_simple.c
