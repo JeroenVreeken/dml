@@ -42,6 +42,7 @@
 #endif
 
 #include <dml/dml.h>
+#include "dml_config.h"
 #include "fprs_aprsis.h"
 
 static int fd_is = -1;
@@ -83,6 +84,13 @@ static int tcp_connect(char *host, int port)
 	}
 	
 	for (entry = result; entry; entry = entry->ai_next) {
+		if (entry->ai_family == AF_INET6) {
+			bool ipv6 = atoi(dml_config_value("ipv6", NULL, "1"));
+			if (!ipv6) {
+				continue;
+			}
+		}
+
 		int flags;
 		
 		sock = socket(entry->ai_family, entry->ai_socktype,
@@ -183,7 +191,7 @@ static int aprsis_open(void)
 err_write:
 	close(fd_is);
 	fd_is = -1;
-	printf("Writing to APRS-IS failed");
+	printf("Writing to APRS-IS failed\n");
 	return -1;
 }
 
