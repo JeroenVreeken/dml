@@ -423,7 +423,7 @@ gboolean update_all(void *arg)
 //			printf("switch to regular updates %p\n", con);
 			dml_packet_send_update(con->dc, DML_PACKET_UPDATE_INITIAL_DONE);
 			g_timeout_add_seconds(1, update, con);
-			return 0;
+			return G_SOURCE_REMOVE;
 		}
 		/* no update to the originating node */
 		if (dc == con->dc)
@@ -478,6 +478,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			con->bad_list = up;
 			printf("On bad list\n");
 			/* It is bad, so we want updates a bit faster */
+			g_source_remove_by_user_data(con);
 			g_timeout_add(100, update, con);
 		} else {
 			up->next = con->good_list;

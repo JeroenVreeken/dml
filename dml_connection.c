@@ -167,7 +167,6 @@ gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpoin
 		}
 	}
 
-	//TODO
 	if (r == 0 || (r < 0 && errno != EAGAIN)) {
 		g_source_remove_by_user_data(dc);
 		g_source_remove_by_user_data(dc);
