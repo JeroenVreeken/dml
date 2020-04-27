@@ -46,6 +46,9 @@
 
 static int fd_is = -1;
 static GIOChannel *io_is = NULL;
+static int to_is = 0;
+static int from_is = 0;
+
 static char *call = NULL;
 static char *is_host = NULL;
 static int is_port;
@@ -170,6 +173,9 @@ static int aprsis_open(void)
 	}
 
 	io_is = g_io_channel_unix_new(fd_is);
+	printf("io_is = %p\n", io_is);
+	to_is = 0;
+	from_is = 0;
 	g_io_channel_set_encoding(io_is, NULL, NULL);
 	g_io_add_watch(io_is, G_IO_IN, aprs_is_cb, fprs_aprsis_init);
 
@@ -182,11 +188,12 @@ static void aprs_is_error(void)
 {
 	close(fd_is);
 	fd_is = -1;
-	g_io_channel_unref(io_is);
 	
 	g_source_remove_by_user_data(fprs_aprsis_init);
+	g_io_channel_unref(io_is);
+	io_is = NULL;
 
-	printf("Lost connection to APRS-IS\n");
+	printf("Lost connection to APRS-IS (to is: %d, from is: %d)\n", to_is, from_is);
 
 	/* Fist attempt to reconnect: */
 	aprsis_open();
@@ -212,6 +219,7 @@ static gboolean aprs_is_cb(GIOChannel *source, GIOCondition condition, gpointer 
 					struct fprs_frame *frame = aprs2fprs(buffer);
 					if (frame) {
 						if (message_cb) {
+							from_is++;
 							message_cb(frame);
 						}
 						fprs_frame_destroy(frame);
@@ -226,6 +234,7 @@ static gboolean aprs_is_cb(GIOChannel *source, GIOCondition condition, gpointer 
 		}
 	} else {
 		if (r == 0) {
+			printf("Read from aprsis failed\n");
 			aprs_is_error();
 		}
 		return FALSE;
@@ -252,8 +261,11 @@ int fprs_aprsis_frame(struct fprs_frame *frame, uint8_t *from)
 
 	printf("%s", aprs);
 	if (write(fd_is, aprs, strlen(aprs)) <= 0) {
+		printf("Write to aprsis failed\n");
 		aprs_is_error();
 		return -1;
+	} else {
+		to_is++;
 	}
 
 	return 0;
@@ -265,6 +277,7 @@ int fprs_aprsis_init(char *host, int port, char *mycall, bool req_msg, void (*ms
 		close(fd_is);
 		fd_is = -1;
 		g_io_channel_unref(io_is);
+		io_is = NULL;
 	
 		g_source_remove_by_user_data(fprs_aprsis_init);
 	}
