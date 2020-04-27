@@ -181,6 +181,9 @@ static int aprsis_open(void)
 
 	return 0;
 err_write:
+	close(fd_is);
+	fd_is = -1;
+	printf("Writing to APRS-IS failed");
 	return -1;
 }
 
