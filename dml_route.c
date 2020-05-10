@@ -101,7 +101,10 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	
 	route = route_search(id);
 	if (!route) {
-		route = route_create(id);
+		if (hops != 255)
+			route = route_create(id);
+		else
+			return 0;
 	}
 	if (route->links) {
 		old_hops = route->link[route->lowest].hops;
@@ -109,7 +112,7 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	
 	for (i = 0; i < route->links; i++) {
 		if (route->link[i].dc == dc) {
-			if (route->lowest == i)
+			if (route->lowest == i && route->link[i].hops != hops)
 				changed = true;
 			break;
 		}
@@ -151,9 +154,13 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 					alt_hops = route->link[i].hops;
 			}
 			
-			printf("\tUpdate routing: link %d (%d hops, %d alt hops)\n",
-			    route->lowest, route->link[route->lowest].hops, alt_hops);
-			dml_route_update_cb(id, new_hops, route->link[route->lowest].dc, route->link[route->lowest].hops > old_hops, alt_hops);
+			bool bad = route->link[route->lowest].hops > old_hops;
+			if (route->link[route->lowest].hops == 255)
+				bad = true;
+
+			printf("\tUpdate routing: link %d (%d hops, %d alt hops, bad=%d)\n",
+			    route->lowest, route->link[route->lowest].hops, alt_hops, bad);
+			dml_route_update_cb(id, new_hops, route->link[route->lowest].dc, bad, alt_hops);
 		}
 	}
 
