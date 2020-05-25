@@ -156,7 +156,8 @@ static gboolean parrot_dequeue(void *data)
 	if (parrot_queue) {
 		struct parrot_data *entry = parrot_queue;
 
-		g_timeout_add_seconds(DML_REFLECTOR_DATA_KEEPALIVE, parrot_dequeue, &watchdog);
+		g_source_remove_by_user_data(&watchdog);
+		g_timeout_add_seconds(DML_REFLECTOR_DATA_KEEPALIVE, watchdog, &watchdog);
 
 		struct timespec ts;
 		clock_gettime(CLOCK_REALTIME, &ts);
