@@ -23,6 +23,8 @@
 
 #include <gtk/gtk.h>
 
+#include <string.h>
+
 #define debug(...) printf(__VA_ARGS__)
 
 static GtkWidget *window;
