@@ -100,8 +100,8 @@ dml_fprs_db_LDFLAGS = -leth_ar -lm
 if ENABLE_GDML
 
 bin_PROGRAMS += gdml
-gdml_CFLAGS = @GTK_CFLAGS@
+gdml_CFLAGS = @GTK_CFLAGS@ @GSTREAMER_CFLAGS@
 gdml_LDADD = libdml.la
-gdml_LDFLAGS = @GTK_LIBS@
+gdml_LDFLAGS = @GTK_LIBS@ @GSTREAMER_LIBS@
 
 endif

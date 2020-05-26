@@ -27,4 +27,7 @@ int dml_config_save(char *file);
 
 char *dml_config_value(char *key, char *prev_value, char *def);
 
+/* set a (unique) value */
+void dml_config_set(char *key, char *value);
+
 #endif /* _INCLUDE_DML_CONFIG_H_ */

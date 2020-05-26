@@ -185,3 +185,19 @@ char *dml_config_value(char *key, char *prev_value, char *def)
 	
 	return def;
 }
+
+void dml_config_set(char *key, char *value)
+{
+	struct dml_config **ep;
+	struct dml_config *entry;
+	
+	for (ep = &config_list; *ep; ep = &(*ep)->next) {
+		entry = *ep;
+		if (!strcmp(entry->key, key)) {
+			free(entry->value);
+			entry->value = strdup(value);
+			return;
+		}
+	}
+	dml_config_add(key, value);
+}

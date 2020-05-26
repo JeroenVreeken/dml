@@ -101,6 +101,9 @@ PKG_CHECK_MODULES([GLIB], [glib-2.0])
 # gtk+
 PKG_CHECK_MODULES([GTK], [gtk+-3.0], [GTK_FOUND=yes], [GTK_FOUND=no])
 
+# gstreamer
+PKG_CHECK_MODULES([GSTREAMER], [gstreamer-1.0 >= 1.4], [GSTREAMER_FOUND=yes], [GSTREAMER_FOUND=no])
+
 
 # build selection logic
 
@@ -113,7 +116,7 @@ AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
 	[enable_dml_trx="no"; enable_dml_reflector="no" ]
 )
 
-AS_IF([test "x$GTK_FOUND" = "xyes" ], [enable_gdml="yes"], [enable_gdml="no"])
+AS_IF([test "x$GTK_FOUND" = "xyes" && test "x$GSTREAMER_FOUND" = "xyes"], [enable_gdml="yes"], [enable_gdml="no"])
 
 
 AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")

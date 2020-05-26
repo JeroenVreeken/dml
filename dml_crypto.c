@@ -144,7 +144,7 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	name = dml_stream_name_get(ds);
 	if (!name)
 		goto err_name;
-	rc = X509_check_host(cert, name, 0, 0, NULL);
+	rc = X509_check_host(cert, name, 0, X509_CHECK_FLAG_ALWAYS_CHECK_SUBJECT, NULL);
 //	fprintf(stderr, "check host rc: %d\n", rc);
 	
 	struct dml_crypto_key *dk = dml_stream_crypto_get(ds);
