@@ -234,7 +234,7 @@ gboolean fd_in(GIOChannel *source, GIOCondition condition, gpointer arg)
 	
 	r = read(fd_ogg, buffer, sizeof(buffer));
 	if (r > 0) {
-			return parse(fileparse, buffer, r);
+			return (parse(fileparse, buffer, r) == 0);
 	}
 	
 	return TRUE;
