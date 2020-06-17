@@ -78,7 +78,7 @@ dml_stream_client_LDADD = libdml.la
 
 dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
 dml_stream_client_codec2_LDADD = libdml.la
-dml_stream_client_codec2_LDFLAGS = -lm
+dml_stream_client_codec2_LDFLAGS = -lm -leth_ar
 
 
 

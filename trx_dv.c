@@ -55,77 +55,61 @@ static gboolean trx_dv_in_cb(GIOChannel *source, GIOCondition condition, gpointe
 	if (ret >= 16) {
 		uint16_t type = (dv_frame[12] << 8) | dv_frame[13];
 		int mode;
-		size_t datasize;
+		size_t datasize = ret - 16;
 		switch (type) {
 			case ETH_P_CODEC2_3200:
 				mode = CODEC2_MODE_3200;
-				datasize = 8;
 				break;
 			case ETH_P_CODEC2_2400:
 				mode = CODEC2_MODE_2400;
-				datasize = 6;
 				break;
 			case ETH_P_CODEC2_1600:
 				mode = CODEC2_MODE_1600;
-				datasize = 8;
 				break;
 			case ETH_P_CODEC2_1400:
 				mode = CODEC2_MODE_1400;
-				datasize = 7;
 				break;
 			case ETH_P_CODEC2_1300:
 				mode = CODEC2_MODE_1300;
-				datasize = 7;
 				break;
 			case ETH_P_CODEC2_1200:
 				mode = CODEC2_MODE_1200;
-				datasize = 6;
 				break;
 #if defined(CODEC2_MODE_700)
 			case ETH_P_CODEC2_700:
 				mode = CODEC2_MODE_700;
-				datasize = 4;
 				break;
 #endif
 #if defined(CODEC2_MODE_700B)
 			case ETH_P_CODEC2_700B:
 				mode = CODEC2_MODE_700B;
-				datasize = 4;
 				break;
 #endif
 			case ETH_P_CODEC2_700C:
 				mode = CODEC2_MODE_700C;
-				datasize = 4;
 				break;
 #if defined(CODEC2_MODE_WB)
 			case ETH_P_CODEC2_WB:
 				mode = CODEC2_MODE_WB;
-				datasize = 8;
 				break;
 #endif
 			case ETH_P_CODEC2_450:
 				mode = CODEC2_MODE_450;
-				datasize = 3;
 				break;
 			case ETH_P_CODEC2_450PWB:
 				mode = CODEC2_MODE_450PWB;
-				datasize = 3;
 				break;
 			case ETH_P_ALAW:
 				mode = 'A';
-				datasize = ret - 16;
 				break;
 			case ETH_P_ULAW:
 				mode = 'U';
-				datasize = ret - 16;
 				break;
 			case ETH_P_LE16:
 				mode = 's';
-				datasize = ret - 16;
 				break;
 			case ETH_P_BE16:
 				mode = 'S';
-				datasize = ret - 16;
 				break;
 			case ETH_P_AR_CONTROL:
 				ctrl_cb(in_cb_arg, dv_frame + 6, dv_frame, (char *)dv_frame + 16, ret - 16);
