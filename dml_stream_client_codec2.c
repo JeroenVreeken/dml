@@ -42,6 +42,8 @@ static char *dumpdir = "./";
 static char *dumpfile = "dml_stream_dump";
 static size_t f_datasize = 0;
 
+static bool stddump = false;
+
 static unsigned char wav_header[] = {
 	// RIFF header
 	'R', 'I', 'F', 'F',
@@ -97,7 +99,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	struct tm tm_now;
 	
 	gmtime_r(&now, &tm_now);
-	if (tm_now.tm_hour != last_hour) {
+	if (!stddump && tm_now.tm_hour != last_hour) {
 		if (fd_dump >= 0) {
 			printf("Closing dump file\n");
 			finish_wav(fd_dump, f_datasize);
@@ -247,8 +249,14 @@ int main(int argc, char **argv)
 	uint8_t req_id[DML_ID_SIZE];
 	struct dml_stream_client_simple *dss;
 
-	if (argc > 2)
-		file = argv[2];
+	if (argc > 2) {
+		if (!strcmp(argv[2], "-")) {
+			stddump = true;
+			fd_dump = 1;
+		} else {
+			file = argv[2];
+		}
+	}
 	if (argc > 3)
 		dumpfile = argv[3];
 	if (argc > 4)
