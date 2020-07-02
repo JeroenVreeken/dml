@@ -106,9 +106,10 @@ int dml_connection_fd_get(struct dml_connection *dc)
 	return dc->fd;
 }
 
-static int dml_connection_output(struct dml_connection *dc)
+static gboolean dml_connection_output(struct dml_connection *dc)
 {
 	ssize_t r;
+	gboolean ret = TRUE;
 	
 	if (dc->tx_len) {
 		/* Try to send everything from pos to len */
@@ -122,10 +123,11 @@ static int dml_connection_output(struct dml_connection *dc)
 			g_io_add_watch(dc->io, G_IO_IN, dml_connection_handle, dc);
 			dc->tx_len = 0;
 			dc->tx_pos = 0;
+			ret = FALSE;
 		}
 	}
 	
-	return 0;
+	return ret;
 }
 
 gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpointer arg)
@@ -177,9 +179,7 @@ gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpoin
 
 	//printf("%p %zd %zd\n", dc, dc->tx_len, dc->tx_pos);
 
-	dml_connection_output(dc);
-	
-	return TRUE;
+	return dml_connection_output(dc);
 }
 
 int dml_connection_send(struct dml_connection *dc, void *datav, uint16_t id, uint16_t len)
