@@ -24,6 +24,7 @@
 #include <dml/dml_crypto.h>
 #include "dml_config.h"
 #include <dml/dml_stream.h>
+#include "dml_voice_data.h"
 
 #include <eth_ar/eth_ar.h>
 #include "alaw.h"
@@ -41,7 +42,6 @@
 #define DML_REFLECTOR_PARROT_MAX (60*60*50)
 
 #define DML_REFLECTOR_DATA_KEEPALIVE 10
-#define DML_REFLECTOR_GUARD_TIME_MS (200)
 
 uint8_t ref_id[DML_ID_SIZE];
 char *name;
@@ -238,19 +238,6 @@ void parrot_queue_add(void *data, size_t size, int duration)
 }
 
 
-static uint8_t tx_level = 0;
-
-static char tx_call[ETH_AR_MAC_SIZE] = {0};
-
-static gboolean guard_cb(void *arg)
-{
-	printf("No incomming activity, releasing guard\n");
-
-	tx_level = 0;
-
-	return G_SOURCE_REMOVE;
-}
-
 static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg)
 {
 	int duration;
@@ -267,25 +254,8 @@ static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_
 	
 	printf("mode %d level %d duration: %d: ", mode, level, duration);
 	
-	if (level > tx_level) {
-		char call[ETH_AR_CALL_SIZE];
-		int ssid;
-		bool multicast;
-		
-		eth_ar_mac2call(call, &ssid, &multicast, data);
-		tx_level = level;
-		memcpy(tx_call, data, ETH_AR_MAC_SIZE);
-		printf("State changed to %s (level=%d) by %s-%d\n", level ? "ON":"OFF", level, multicast ? "MULTICAST" : call, ssid);
-	} else {
-		if (memcmp(data, tx_call, ETH_AR_MAC_SIZE)) {
-			printf("Dropped due to tx guard\n");
-			return;
-		}
-		tx_level = level;
-		printf("Accepted\n");
-		g_source_remove_by_user_data(&tx_level);
-		g_timeout_add(DML_REFLECTOR_GUARD_TIME_MS, guard_cb, &tx_level);
-	}
+	if (dml_voice_data_level_check(data, data_size))
+		return;
 	
 	if (!parrot)
 		send_data(data, data_size, timestamp);

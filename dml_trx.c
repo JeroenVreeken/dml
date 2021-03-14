@@ -28,6 +28,7 @@
 #include <dml/dml_stream.h>
 #include "fprs_db.h"
 #include "fprs_parse.h"
+#include "dml_voice_data.h"
 
 #include "trx_dv.h"
 #include "soundlib.h"
@@ -79,7 +80,6 @@ static void recv_data(void *data, size_t size);
 static void recv_data_fprs(void *data, size_t size, uint64_t timestamp);
 
 static uint8_t rx_state = false;
-static uint8_t tx_state = false;
 
 static char command[100];
 static int command_len = 0;
@@ -581,23 +581,16 @@ static void recv_data(void *data, size_t size)
 	uint8_t *datab = data;
 	
 	uint8_t mode = datab[6];
-	uint8_t state = datab[7];
+	uint8_t level = datab[7];
 	
 //	printf("mode %d state %d\n", mode, state);
 	
+	if (dml_voice_data_level_check(data, size))
+		return;
+
 	if (!rx_state || fullduplex) {
-		if (state != tx_state) {
-			char call[ETH_AR_CALL_SIZE];
-			int ssid;
-			bool multicast;
-		
-			eth_ar_mac2call(call, &ssid, &multicast, data);
-			tx_state = state;
-			printf("State changed to %s by %s-%d\n", state ? "ON":"OFF", multicast ? "MULTICAST" : call, ssid);
-		}
-	
 		if (size > 8) {
-			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8, state);
+			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8, level);
 		}
 	}
 }
@@ -676,10 +669,14 @@ static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size
 	fprs_update_mac(from);
 
 	g_source_remove_by_user_data(&rx_state);
-	if (rx_state)
+	if (rx_state) {
+		if (!fullduplex) {
+			dml_voice_data_exclude(from, level);
+		}
 		g_timeout_add(RXSTATE_CHECK_TIMER_NS/1000000, rx_watchdog, &rx_state);
-	else
+	} else {
 		g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE, rx_watchdog, &rx_state);
+	}
 
 	return 0;
 }
