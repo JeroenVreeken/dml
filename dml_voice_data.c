@@ -19,6 +19,7 @@
 #include <eth_ar/eth_ar.h>
 
 #include <stdio.h>
+#include <string.h>
 
 #define DML_GUARD_TIME_MS (200)
 
