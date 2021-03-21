@@ -44,21 +44,22 @@ int dml_voice_data_level_check(void *data, size_t data_size)
 	unsigned char *datab = data;
 	uint8_t level = datab[7];
 
+	if (!memcmp(data, ex_call, ETH_AR_MAC_SIZE) && level == ex_level) {
+		printf("Dropped due to rx loop guard\n");
+		return -1;
+	}
+		
 	if (level > tx_level) {
 		char call[ETH_AR_CALL_SIZE];
 		int ssid;
 		bool multicast;
-		
-		if (!memcmp(data, ex_call, ETH_AR_MAC_SIZE) && level == ex_level) {
-			printf("Dropped due to rx loop guard\n");
-			return -1;
-		}
 		
 		eth_ar_mac2call(call, &ssid, &multicast, data);
 		tx_level = level;
 		memcpy(tx_call, data, ETH_AR_MAC_SIZE);
 		printf("State changed to %s (level=%d) by %s-%d\n", level ? "ON":"OFF", level, multicast ? "MULTICAST" : call, ssid);
 	} else {
+		/* once we accept one connection, don't allow it to be hijacked by someone else */
 		if (memcmp(data, tx_call, ETH_AR_MAC_SIZE)) {
 			printf("Dropped due to tx guard\n");
 			return -1;
