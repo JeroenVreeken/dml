@@ -611,6 +611,7 @@ static gboolean rx_watchdog(void *arg)
 	/* Flush command buffer */
 	command_len = 0;
 
+	int extra_wait_ms = 0;
 	while (sound_msg_q) {
 		uint8_t *data;
 		size_t size;
@@ -618,24 +619,19 @@ static gboolean rx_watchdog(void *arg)
 		data = soundlib_get(SOUND_MSG_SILENCE, &size);
 		if (data) {
 			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			extra_wait_ms += trx_dv_duration(size, 'A');
 			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			extra_wait_ms += trx_dv_duration(size, 'A');
 			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			extra_wait_ms += trx_dv_duration(size, 'A');
 			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
+			extra_wait_ms += trx_dv_duration(size, 'A');
 		}
 
 		struct sound_msg_e *e = sound_msg_q;
 
-		data = e->data;
-		size = e->size;
-		while (size) {
-			size_t sendsize = 160;
-			if (size < sendsize)
-				sendsize = size;
-		
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, sendsize, DML_TRX_LEVEL_MSG);
-			data += sendsize;
-			size -= sendsize;
-		}
+		extra_wait_ms += trx_dv_duration(e->size, 'A');
+		trx_dv_send(mac_dev, mac_bcast, 'A', e->data, e->size, DML_TRX_LEVEL_MSG);
 		
 		if (e->free_data)
 			free(e->data);
@@ -644,7 +640,7 @@ static gboolean rx_watchdog(void *arg)
 		free(e);
 	}
 
-	g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE, rx_watchdog, &rx_state);
+	g_timeout_add_seconds(DML_TRX_DATA_KEEPALIVE + (extra_wait_ms + 500)/1000, rx_watchdog, &rx_state);
 
 	return G_SOURCE_REMOVE;
 }
