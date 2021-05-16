@@ -216,19 +216,22 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 	}
 	
 	while (size) {
-		uint8_t dv_frame[6 + 6 + 2 + 1 + 1 + max_size];
+		size_t dv_frame_size = sizeof(struct eth_ar_voice_header) + max_size;
+		uint8_t dv_frame[dv_frame_size];
+		struct eth_ar_voice_header *header = (void*)dv_frame;
 		size_t out_size = size;
 		if (out_size > max_size)
 			out_size = max_size;
-		memcpy(dv_frame + 0, to, 6);
-		memcpy(dv_frame + 6, from, 6);
-		memcpy(dv_frame + 12, &type, 2);
-		dv_frame[14] = from[0] ^ from[1] ^ from[2] ^ from[3] ^ from[4] ^ from[5];
-		dv_frame[15] = level;
-		memcpy(dv_frame + 16, dv, out_size);
+		memcpy(header->to, to, 6);
+		memcpy(header->from, from, 6);
+		header->type = type;
+		header->nr = from[0] ^ from[1] ^ from[2] ^ from[3] ^ from[4] ^ from[5];
+		header->level = level;
+		memcpy(dv_frame + sizeof(struct eth_ar_voice_header), dv, out_size);
 	
-		ssize_t ret = send(dv_sock, dv_frame, 16 + out_size, 0);
-		if (ret == 16 + out_size) {
+		size_t frame_out_size = sizeof(struct eth_ar_voice_header) + out_size;
+		ssize_t ret = send(dv_sock, dv_frame, frame_out_size, 0);
+		if (ret == frame_out_size) {
 			size -= out_size;
 			dv += out_size;
 		}
