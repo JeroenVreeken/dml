@@ -64,7 +64,7 @@ bin_PROGRAMS += dml_trx
 
 dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c soundlib.c
 dml_trx_LDADD = libdml.la
-dml_trx_LDFLAGS = -lasound -lcodec2 -leth_ar -lm
+dml_trx_LDFLAGS = -lcodec2 -leth_ar -lm
 
 endif
 
@@ -78,7 +78,7 @@ dml_stream_client_LDADD = libdml.la
 
 dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
 dml_stream_client_codec2_LDADD = libdml.la
-dml_stream_client_codec2_LDFLAGS = -lm -leth_ar
+dml_stream_client_codec2_LDFLAGS = -lm -leth_ar $(CODEC2_LIBS)
 
 
 
@@ -88,7 +88,7 @@ bin_PROGRAMS += dml_httpd
 
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c
 dml_httpd_LDADD = libdml.la
-dml_httpd_LDFLAGS = -lwebsockets -lmagic
+dml_httpd_LDFLAGS = -lwebsockets $(MAGIC_LIBS)
 
 endif
 
