@@ -86,9 +86,9 @@ static int command_len = 0;
 static char command_pipe[100];
 static int command_pipe_len = 0;
 
-static uint8_t mac_last[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-static uint8_t mac_bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-static uint8_t mac_dev[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_last[ETH_AR_MAC_SIZE] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_bcast[ETH_AR_MAC_SIZE] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t mac_dev[ETH_AR_MAC_SIZE] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 static double my_fprs_longitude = 0.0;
 static double my_fprs_latitude = 0.0;
@@ -273,7 +273,7 @@ static int fprs_update_status(char *stream, char *assoc)
 	return 0;
 }
 
-static int fprs_update_mac(uint8_t mac[6])
+static int fprs_update_mac(uint8_t mac[ETH_AR_MAC_SIZE])
 {
 	struct fprs_frame *fprs_frame;
 	uint8_t dml_data[1024];
@@ -645,7 +645,7 @@ static gboolean rx_watchdog(void *arg)
 	return G_SOURCE_REMOVE;
 }
 
-static int dv_in_cb(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level)
+static int dv_in_cb(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], uint8_t *dv, size_t size, int mode, uint8_t level)
 {
 	uint8_t data[8 + size];
 
@@ -787,7 +787,7 @@ static void command_cb_handle(char *command)
 	}	
 }
 
-static int command_cb(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size)
+static int command_cb(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], char *ctrl, size_t size)
 {
 
 	for (; size; size--, ctrl++) {
@@ -851,7 +851,7 @@ static gboolean command_pipe_cb(GIOChannel *source, GIOCondition condition, gpoi
 }
 
 
-static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
+static int fprs_cb(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t *fprsdata, size_t size)
 {
 	struct fprs_frame *fprs_frame;
 	uint8_t f_data[1024];
@@ -890,7 +890,7 @@ static int fprs_cb(void *arg, uint8_t from[6], uint8_t *fprsdata, size_t size)
 	return 0;
 }
 
-void mac_dev_cb(uint8_t mac[6])
+void mac_dev_cb(uint8_t mac[ETH_AR_MAC_SIZE])
 {
 	int ssid;
 	bool multicast;
@@ -908,9 +908,9 @@ void mac_dev_cb(uint8_t mac[6])
 
 static char prev_msg[256] = {0};
 static char prev_id[256] = {0};
-static uint8_t prev_from[6] = {0};
+static uint8_t prev_from[ETH_AR_MAC_SIZE] = {0};
 
-int message_cb(uint8_t to[6], uint8_t from[6], 
+int message_cb(uint8_t to[ETH_AR_MAC_SIZE], uint8_t from[ETH_AR_MAC_SIZE], 
     void *data, size_t dsize, void *id, size_t isize, void *arg)
 {
 	int ssid;

@@ -36,14 +36,14 @@
 static int dv_sock = -1;
 static GIOChannel *dv_io = NULL;
 static char *dv_dev = NULL;
-static uint8_t dv_mac[6] = { 0 };
+static uint8_t dv_mac[ETH_AR_MAC_SIZE] = { 0 };
 static void (*dv_mac_cb)(uint8_t *mac) = NULL;
 
 #define TRX_DV_WATCHDOG 5
 
-static int (*in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level) = NULL;
-static int (*ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size) = NULL;
-static int (*fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size) = NULL;
+static int (*in_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], uint8_t *dv, size_t size, int mode, uint8_t level) = NULL;
+static int (*ctrl_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], char *ctrl, size_t size) = NULL;
+static int (*fprs_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t *fprs, size_t size) = NULL;
 static void *in_cb_arg = NULL;
 
 static gboolean trx_dv_in_cb(GIOChannel *source, GIOCondition condition, gpointer arg)
@@ -135,7 +135,7 @@ static gboolean trx_dv_in_cb(GIOChannel *source, GIOCondition condition, gpointe
 }
 
 
-int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t size, uint8_t level)
+int trx_dv_send(uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], int mode, uint8_t *dv, size_t size, uint8_t level)
 {
 	uint16_t type;
 	ssize_t max_size = 0;
@@ -242,27 +242,28 @@ int trx_dv_send(uint8_t from[6], uint8_t to[6], int mode, uint8_t *dv, size_t si
 	return -1;
 }
 
-int trx_dv_send_control(uint8_t from[6], uint8_t to[6], char *control)
+int trx_dv_send_control(uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], char *control)
 {
 	size_t control_size = strlen(control);
 	uint16_t type = htons(ETH_P_AR_CONTROL);
 
-	uint8_t dv_frame[6 + 6 + 2 + 1 + 1 + control_size];
-	memcpy(dv_frame + 0, to, 6);
-	memcpy(dv_frame + 6, from, 6);
-	memcpy(dv_frame + 12, &type, 2);
-	dv_frame[14] = 0;
-	dv_frame[15] = 1;
-	memcpy(dv_frame + 16, control, control_size);
+	uint8_t dv_frame[sizeof(struct eth_ar_voice_header) + control_size];
+	struct eth_ar_voice_header *header = (void*)dv_frame;
+	memcpy(header->to, to, 6);
+	memcpy(header->from, from, 6);
+	header->type = type;
+	header->nr = 0;
+	header->level = 1;
+	memcpy(dv_frame + sizeof(struct eth_ar_voice_header), control, control_size);
 
-	ssize_t ret = send(dv_sock, dv_frame, 16 + control_size, 0);
-	if (ret == 14 + control_size)
+	ssize_t ret = send(dv_sock, dv_frame, sizeof(struct eth_ar_voice_header) + control_size, 0);
+	if (ret == sizeof(struct eth_ar_voice_header) + control_size)
 		return 0;
 	
 	return -1;
 }
 
-int trx_dv_send_fprs(uint8_t from[6], uint8_t to[6], uint8_t *data, size_t size)
+int trx_dv_send_fprs(uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], uint8_t *data, size_t size)
 {
 	uint16_t type = htons(ETH_P_FPRS);
 
@@ -326,7 +327,7 @@ int trx_dv_duration(size_t size, int mode)
 static int trx_dv_bind_if(void)
 {
 	short protocol = htons(ETH_P_ALL);
-	uint8_t mac[6];
+	uint8_t mac[ETH_AR_MAC_SIZE];
 	struct ifreq ifr;
 
 	size_t if_name_len = strlen(dv_dev);
@@ -392,9 +393,9 @@ static gboolean trx_dv_watchdog(void *arg)
 }
 
 int trx_dv_init(char *dev, 
-    int (*new_in_cb)(void *arg, uint8_t from[6], uint8_t to[6], uint8_t *dv, size_t size, int mode, uint8_t level),
-    int (*new_ctrl_cb)(void *arg, uint8_t from[6], uint8_t to[6], char *ctrl, size_t size),
-    int (*new_fprs_cb)(void *arg, uint8_t from[6], uint8_t *fprs, size_t size),
+    int (*new_in_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], uint8_t *dv, size_t size, int mode, uint8_t level),
+    int (*new_ctrl_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t to[ETH_AR_MAC_SIZE], char *ctrl, size_t size),
+    int (*new_fprs_cb)(void *arg, uint8_t from[ETH_AR_MAC_SIZE], uint8_t *fprs, size_t size),
     void *arg,
     void (*new_mac_cb)(uint8_t *mac))
 {
