@@ -6,6 +6,11 @@ CFLAGS+= -Wall -Werror -O3  @GLIB_CFLAGS@
 nobase_include_HEADERS = dml/dml.h dml/dml_client.h dml/dml_connection.h dml/dml_crypto.h dml/dml_host.h dml/dml_id.h dml/dml_packet.h dml/dml_route.h dml/dml_stream.h dml/dml_server.h
 
 
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = dml.pc
+
+
+
 lib_LTLIBRARIES=libdml.la
 
 libdml_la_SOURCES = \
@@ -43,10 +48,11 @@ FPRS_DB_SRCS = \
 
 dmld_SOURCES = $(DML_SRCS) dmld.c
 dmld_LDADD = libdml.la
-
+dmld_LDFLAGS = $(ETH_AR_LIBS)
 
 dml_list_SOURCES = $(DML_SRCS) dml_list.c
 dml_list_LDADD = libdml.la
+dml_list_LDFLAGS = $(ETH_AR_LIBS)
 
 if ENABLE_DML_REFLECTOR
 
@@ -54,7 +60,7 @@ bin_PROGRAMS += dml_reflector
 
 dml_reflector_SOURCES = $(DML_SRCS) $(TRX_SRCS) dml_reflector.c soundlib.c
 dml_reflector_LDADD = libdml.la
-dml_reflector_LDFLAGS = -lcodec2 -leth_ar -lm
+dml_reflector_LDFLAGS = $(CODEC2_LIBS) $(ETH_AR_LIBS) -lm
 
 endif
 
@@ -64,21 +70,23 @@ bin_PROGRAMS += dml_trx
 
 dml_trx_SOURCES = $(DML_SRCS) $(TRX_SRCS) $(FPRS_DB_SRCS) dml_trx.c soundlib.c
 dml_trx_LDADD = libdml.la
-dml_trx_LDFLAGS = -lcodec2 -leth_ar -lm
+dml_trx_LDFLAGS = $(CODEC2_LIBS) $(ETH_AR_LIBS) -lm
 
 endif
 
 
 dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c isom.c
 dml_streamer_LDADD = libdml.la
+dml_streamer_LDFLAGS = $(ETH_AR_LIBS)
 
 
 dml_stream_client_SOURCES = $(DML_SRCS) dml_stream_client.c
 dml_stream_client_LDADD = libdml.la
+dml_stream_client_LDFLAGS = $(ETH_AR_LIBS)
 
 dml_stream_client_codec2_SOURCES = $(DML_SRCS) $(ALAW_SRCS) dml_stream_client_codec2.c
 dml_stream_client_codec2_LDADD = libdml.la
-dml_stream_client_codec2_LDFLAGS = -lm -leth_ar $(CODEC2_LIBS)
+dml_stream_client_codec2_LDFLAGS = -lm $(ETH_AR_LIBS) $(CODEC2_LIBS)
 
 
 
@@ -88,14 +96,14 @@ bin_PROGRAMS += dml_httpd
 
 dml_httpd_SOURCES = $(DML_SRCS) dml_httpd.c
 dml_httpd_LDADD = libdml.la
-dml_httpd_LDFLAGS = -lwebsockets $(MAGIC_LIBS)
+dml_httpd_LDFLAGS = -lwebsockets $(MAGIC_LIBS) $(ETH_AR_LIBS)
 
 endif
 
 
 dml_fprs_db_SOURCES = $(DML_SRCS) $(FPRS_DB_SRCS) dml_fprs_db.c
 dml_fprs_db_LDADD = libdml.la
-dml_fprs_db_LDFLAGS = -leth_ar -lm 
+dml_fprs_db_LDFLAGS = $(ETH_AR_LIBS) -lm 
 
 if ENABLE_GDML
 

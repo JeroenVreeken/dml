@@ -1,4 +1,4 @@
-AC_INIT([dml], [0.0], [jeroen@vreeken.net], [https://dmlinking.net/])
+AC_INIT([dml], [0.0], [jeroen@vreeken.net], [], [https://dmlinking.net/])
 AM_INIT_AUTOMAKE([foreign dist-xz])
 AM_SILENT_RULES([yes])
 LT_INIT
@@ -6,6 +6,7 @@ LT_INIT
 AC_PROG_CC
 
 AC_CONFIG_MACRO_DIR([m4])
+
 
 
 # Are we using emscripten?
@@ -38,15 +39,10 @@ AS_IF([test "x$codec2_found_headers" != "xyes"],
 # Check for eth_ar library
 
 dnl Search for libeth_ar
-AC_SEARCH_LIBS([eth_ar_call2mac], [eth_ar], [], [
-  AC_MSG_ERROR([unable to find the eth_ar_call2mac function in libeth_ar])
+PKG_CHECK_MODULES([ETH_AR], [eth_ar], [], [
+  AC_MSG_ERROR([unable to find libeth_ar])
 ])
 
-AC_CHECK_HEADERS([eth_ar/eth_ar.h eth_ar/fprs.h],
-        [eth_ar_found_headers=yes; break;])
-
-AS_IF([test "x$eth_ar_found_headers" != "xyes"],
-        [AC_MSG_ERROR([Unable to find the eth_ar headers])])
 
 
 # Check for alsa library (flite depends on it but does not link it itself...)
@@ -124,7 +120,12 @@ AM_CONDITIONAL(ENABLE_GDML, test "x$enable_gdml" = "xyes")
 
 AC_SUBST([LIB_LDFLAGS])
 
-AC_OUTPUT([Makefile])
+AC_CONFIG_FILES([
+Makefile
+dml.pc
+])
+
+AC_OUTPUT
 
 echo "Optional parts:"
 echo "    dml_httpd:     " $enable_dml_httpd
