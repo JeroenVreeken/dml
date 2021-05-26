@@ -246,6 +246,7 @@ static gboolean client_reconnect(void *arg)
 		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_RECONNECT, client_reconnect, dss);
 	} else {
 		printf("Reconnect to DML server successfull\n");
+		g_source_remove_by_user_data(dss);
 		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 	}
 	
@@ -256,6 +257,7 @@ static int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct dml_stream_client_simple *dss = arg;
 
+	g_source_remove_by_user_data(dss);
 	g_timeout_add_seconds(1, client_reconnect, dss);
 	
 	if (dc)
