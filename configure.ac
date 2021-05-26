@@ -82,7 +82,7 @@ AS_IF([ test "x$flite_headers_found" == "xyes" && \
 
 
 dnl Search for libmagic
-PKG_CHECK_MODULES([MAGIC], [libmagic], [libmagic_found_lib=yes], [])
+PKG_CHECK_MODULES([MAGIC], [libmagic], [libmagic_found_lib=yes], [libmagic_found_lib=no])
 
 AC_CHECK_HEADERS([magic.h],
         [libmagic_found_headers=yes; break;])

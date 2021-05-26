@@ -175,14 +175,20 @@ int dml_route_remove(struct dml_connection *dc)
 	for (route = route_list; route; route = route->next) {
 		int i;
 		uint8_t old_hops = route->links ? route->link[route->lowest].hops : 255;
+		bool origin = false;
 		
 		for (i = 0; i < route->links; i++) {
-			if (route->link[i].dc == dc)
+			if (route->link[i].dc == dc) {
+				if (route->link[i].hops == 0)
+					origin = true;
 				break;
+			}
 		}
 
 		char *idstr = dml_id_str(route->id);
 		printf("Remove route : %s link %d %p\n", idstr, i, dc);
+		if (origin)
+			printf("--Removing origin\n");
 		free(idstr);
 		if (i < route->links) {
 			if (route->lowest == i) {
@@ -199,6 +205,12 @@ int dml_route_remove(struct dml_connection *dc)
 		}
 		
 		for (i = 0; i < route->links; i++) {
+			/* If we lost the origin, the alt routes will soon go up. 
+			   Prevent a loop by not advertising them
+			 */
+			if (origin)
+				route->link[i].hops = 255;
+				
 			printf("\tLink %d: %d hops\n", i, route->link[i].hops);
 			if (route->link[i].hops < route->link[route->lowest].hops)
 				route->lowest = i;
