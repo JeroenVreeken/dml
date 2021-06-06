@@ -25,17 +25,14 @@
 
 #include <eth_ar/fprs.h>
 
-enum fprs_db_id_type {
-	FPRS_DB_ID_CALLSIGN,
-	FPRS_DB_ID_OBJECT,
-};
-
 struct fprs_db_id {
-	enum fprs_db_id_type type;
+	enum fprs_type type;
 	union {
 		uint8_t callsign[6];
 		char name[256];
+		uint8_t data[256];
 	} id;
+	size_t id_size;
 };
 
 int fprs_db_element_set(struct fprs_db_id *id, 

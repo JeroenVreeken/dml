@@ -1,4 +1,4 @@
-AC_INIT([dml], [0.0], [jeroen@vreeken.net], [], [https://dmlinking.net/])
+AC_INIT([dml], [0.1], [jeroen@vreeken.net], [], [https://dmlinking.net/])
 AM_INIT_AUTOMAKE([foreign dist-xz])
 AM_SILENT_RULES([yes])
 LT_INIT
@@ -105,13 +105,14 @@ AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" =
 )
 
 AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
-	[enable_dml_trx="yes"; enable_dml_reflector="yes" ], 
-	[enable_dml_trx="no"; enable_dml_reflector="no" ]
+	[enable_dml_trx="yes"; enable_dml_reflector="yes"; enable_dml_group="yes" ], 
+	[enable_dml_trx="no"; enable_dml_reflector="no"; enable_dml_group="no" ]
 )
 
 AS_IF([test "x$GTK_FOUND" = "xyes" && test "x$GSTREAMER_FOUND" = "xyes"], [enable_gdml="yes"], [enable_gdml="no"])
 
 
+AM_CONDITIONAL(ENABLE_DML_GROUP, test "x$enable_dml_group" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_REFLECTOR, test "x$enable_dml_reflector" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_TRX, test "x$enable_dml_trx" = "xyes")
@@ -128,6 +129,7 @@ dml.pc
 AC_OUTPUT
 
 echo "Optional parts:"
+echo "    dml_group:     " $enable_dml_group
 echo "    dml_httpd:     " $enable_dml_httpd
 echo "    dml_reflector: " $enable_dml_reflector
 echo "    dml_trx:       " $enable_dml_trx

@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+int soundlib_add(int nr, uint8_t *data, size_t size);
 int soundlib_add_beep(int nr, double freq, double length);
 int soundlib_add_silence(int nr, double length);
 int soundlib_add_file(int nr, char *name);

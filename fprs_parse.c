@@ -45,6 +45,7 @@ static int (*cb_message)(uint8_t to[6], uint8_t from[6], void *data, size_t dsiz
 static void *arg_message;
 
 
+
 static int fprs_request_add(struct fprs_db_id *id, enum fprs_type type, time_t t_req, unsigned int link)
 {
 	struct fprs_request *req, **entryp;
@@ -111,61 +112,51 @@ int fprs_parse_request_flush(
 		nextp = &(*entryp)->next;
 		bool remove = false;
 		
-		switch ((*entryp)->type) {
-			case FPRS_POSITION:
-			case FPRS_SYMBOL:
-			case FPRS_ALTITUDE:
-			case FPRS_VECTOR:
-			case FPRS_COMMENT:
-			case FPRS_DMLSTREAM:
-			case FPRS_DMLASSOC: {
-				struct fprs_frame *reply;
-				time_t t;
-				uint8_t *el_data;
-				size_t el_size;
-				
-				r = fprs_db_element_get(
-				    &(*entryp)->id, (*entryp)->type,
-				    &t, &el_data, &el_size);
-				if (!r) {
-					reply = fprs_frame_create();
-					if (!reply)
-						goto err;
-					fprs_frame_add_callsign(reply, (*entryp)->id.id.callsign);
-					fprs_frame_add_timestamp(reply, t);
-					link = 0;
-
-					struct fprs_element *el = fprs_frame_element_add(
-					    reply, (*entryp)->type, el_size);
-					if (el) {
-						link = (*entryp)->link;
-						memcpy(fprs_element_data(el), el_data, el_size);
-					}
-					fprs_request_remove(&(*entryp)->id, (*entryp)->type);
-					remove = true;
-					nextp = entryp;
-					free(el_data);
-
-					uint8_t *reply_data;
-					size_t reply_size = fprs_frame_data_size(reply);
-		
-					reply_data = calloc(reply_size, sizeof(uint8_t));
-					if (reply_data) {
-						fprs_frame_data_get(reply, reply_data, &reply_size);
-						cb(reply_data, reply_size, link, arg);
-						free(reply_data);
-					}
+		if (fprs_type_is_property((*entryp)->type)) {
+			struct fprs_frame *reply;
+			time_t t;
+			uint8_t *el_data;
+			size_t el_size;
 			
-					fprs_frame_destroy(reply);
-				}
-				break;
-			}
-			default:
-				remove = true;
-				fprs_request_remove(&(*entryp)->id, (*entryp)->type);
-				nextp = entryp;
+			r = fprs_db_element_get(
+			    &(*entryp)->id, (*entryp)->type,
+			    &t, &el_data, &el_size);
+			if (!r) {
+				/* We found the element type with a matching id in the DB */
+				reply = fprs_frame_create();
+				if (!reply)
+					goto err;
+				fprs_frame_add_callsign(reply, (*entryp)->id.id.callsign);
+				fprs_frame_add_timestamp(reply, t);
+				link = 0;
 
-				break;
+				struct fprs_element *el = fprs_frame_element_add(
+				    reply, (*entryp)->type, el_size);
+				if (el) {
+					link = (*entryp)->link;
+					memcpy(fprs_element_data(el), el_data, el_size);
+				}
+				fprs_request_remove(&(*entryp)->id, (*entryp)->type);
+				remove = true;
+				nextp = entryp;
+				free(el_data);
+
+				uint8_t *reply_data;
+				size_t reply_size = fprs_frame_data_size(reply);
+		
+				reply_data = calloc(reply_size, sizeof(uint8_t));
+				if (reply_data) {
+					fprs_frame_data_get(reply, reply_data, &reply_size);
+					cb(reply_data, reply_size, link, arg);
+					free(reply_data);
+				}
+		
+				fprs_frame_destroy(reply);
+			}
+		} else {
+			remove = true;
+			fprs_request_remove(&(*entryp)->id, (*entryp)->type);
+			nextp = entryp;
 		}
 		if (!remove) {
 			if (now - (*entryp)->t_req > FPRS_REQ_TIMEOUT) {
@@ -179,7 +170,7 @@ int fprs_parse_request_flush(
 					uint8_t *up_data;
 					size_t up_size;
 					
-					fprs_frame_add_request(frame_up, (*entryp)->id.id.callsign, &(*entryp)->type, 1);
+					fprs_frame_add_request(frame_up, (*entryp)->id.type, &(*entryp)->id.id, (*entryp)->id.id_size, &(*entryp)->type, 1);
 
 					up_size = fprs_frame_data_size(frame_up);
 					up_data = calloc(up_size, sizeof(uint8_t));
@@ -239,13 +230,12 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 		enum fprs_type req_el[128];
 		int req_el_nr = sizeof(req_el)/sizeof(enum fprs_type);
 		int i;
-		
-		req_id.type = FPRS_DB_ID_CALLSIGN;
+		req_id.id_size = sizeof(req_id.id);
 
-		r = fprs_request_dec(req_id.id.callsign, req_el, &req_el_nr,
+		r = fprs_request_dec(&req_id.type, &req_id.id, &req_id.id_size, req_el, &req_el_nr,
 		    fprs_element_data(fprs_request),
 		    fprs_element_size(fprs_request));
-		
+
 		if (r)
 			goto skip;
 		
@@ -258,7 +248,7 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 	if (fprs_destination) {
 		struct fprs_db_id dest_id = { 0 };
 		
-		dest_id.type = FPRS_DB_ID_CALLSIGN;
+		dest_id.type = FPRS_CALLSIGN;
 		memcpy(dest_id.id.callsign, fprs_element_data(fprs_destination), 6);
 
 		if (cb_message) {
@@ -303,7 +293,7 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 
 	if (!fprs_callsign)
 		if (fprs_objectname) {
-			id.type = FPRS_DB_ID_OBJECT;
+			id.type = FPRS_OBJECTNAME;
 			char *name = strndup(
 			    (char*)fprs_element_data(fprs_objectname),
 			    fprs_element_size(fprs_objectname));
@@ -314,7 +304,7 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 			goto skip;
 		}
 	else {
-		id.type = FPRS_DB_ID_CALLSIGN;
+		id.type = FPRS_CALLSIGN;
 		memcpy(id.id.callsign, fprs_element_data(fprs_callsign), 6);
 		fprs_frame_add_callsign(fprs_frame_prop, id.id.callsign);
 	}
@@ -334,52 +324,41 @@ int fprs_parse_data(void *data, size_t size, struct timespec *recv_time, unsigne
 		uint8_t *el_data = fprs_element_data(fprs_element);
 		size_t el_size = fprs_element_size(fprs_element);
 		
-		switch (fprs_type) {
-			case FPRS_POSITION:
-			case FPRS_SYMBOL:
-			case FPRS_ALTITUDE:
-			case FPRS_VECTOR:
-			case FPRS_COMMENT:
-			case FPRS_DMLSTREAM:
-			case FPRS_DMLASSOC: {
-				time_t prev_t;
-				uint8_t *prev_data;
-				size_t prev_size;
-				bool update = true;
-				bool prop_el = true;
+		if (fprs_type_is_property(fprs_type)) {
+			time_t prev_t;
+			uint8_t *prev_data;
+			size_t prev_size;
+			bool update = true;
+			bool prop_el = true;
 				
-				r = fprs_db_element_get(&id, fprs_type, &prev_t, &prev_data, &prev_size);
-				if (!r) {
-					update = false;
-					prop_el = false;
-					if (prev_t <= t_rx) {
-						if (prev_size != el_size ||
-						    memcmp(prev_data, el_data, el_size)) {
-							update = true;
-						}
-						if ((t_rx - prev_t >= FPRS_UNCHANGED_HOLDOFF) ||
-						    (t_rx - prev_t >= FPRS_MIN_HOLDOFF && update)) {
-							prop_el = true;
-							update = true;
-						}
-						free(prev_data);
+			r = fprs_db_element_get(&id, fprs_type, &prev_t, &prev_data, &prev_size);
+			if (!r) {
+				update = false;
+				prop_el = false;
+				if (prev_t <= t_rx) {
+					if (prev_size != el_size ||
+					    memcmp(prev_data, el_data, el_size)) {
+						update = true;
 					}
-				}
-				if (update)
-					fprs_db_element_set(&id, fprs_type, 
-					    t_rx, t_valid, link, el_data, el_size);
-				if (prop_el) {
-					struct fprs_element *p_el = fprs_frame_element_add(
-					    fprs_frame_prop, fprs_type, el_size);
-					if (p_el) {
-						memcpy(fprs_element_data(p_el), el_data, el_size);
+					if ((t_rx - prev_t >= FPRS_UNCHANGED_HOLDOFF) ||
+					    (t_rx - prev_t >= FPRS_MIN_HOLDOFF && update)) {
+						prop_el = true;
+						update = true;
 					}
-					propagate = true;
+					free(prev_data);
 				}
-				break;
 			}
-			default:
-				break;
+			if (update)
+				fprs_db_element_set(&id, fprs_type, 
+				    t_rx, t_valid, link, el_data, el_size);
+			if (prop_el) {
+				struct fprs_element *p_el = fprs_frame_element_add(
+				    fprs_frame_prop, fprs_type, el_size);
+				if (p_el) {
+					memcpy(fprs_element_data(p_el), el_data, el_size);
+				}
+				propagate = true;
+			}
 		}
 	}
 	

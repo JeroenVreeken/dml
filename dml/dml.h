@@ -70,4 +70,12 @@ static inline uint64_t dml_timestamp_add(uint64_t timestamp, struct timespec *ts
 	return dml_ts2timestamp(&org);
 }
 
+
+struct dml_dv_c2_header {
+	uint8_t from[6];
+	uint8_t mode;
+	uint8_t level;
+} __attribute__((__packed__));
+
+
 #endif /* _INCLUDE_DML_H_ */

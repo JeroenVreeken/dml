@@ -51,10 +51,10 @@ static struct fprs_db_entry *fprs_db_find(struct fprs_db_id *id)
 	for (entry = db; entry; entry = entry->next) {
 		if (id->type != entry->id.type)
 			continue;
-		if (id->type == FPRS_DB_ID_CALLSIGN) {
+		if (id->type == FPRS_CALLSIGN) {
 			if (!memcmp(entry->id.id.callsign, id->id.callsign, 6))
 				return entry;
-		} else {
+		} else if (id->type == FPRS_OBJECTNAME) {
 			if (!strcmp(entry->id.id.name, id->id.name))
 				return entry;
 		}
@@ -145,11 +145,19 @@ int fprs_db_element_set(struct fprs_db_id *id,
 	}
 
 	struct fprs_db_data **dentry;
+
+	bool unique = fprs_type_is_unique(type);
 	
 	/* Does it exist already? */
 	for (dentry = &entry->elements; *dentry; dentry = &(*dentry)->next) {
-		if ((*dentry)->type == type)
-			break;
+		if ((*dentry)->type == type) {
+			/* If it is a unique element just the existance is enough */
+			if (unique)
+				break;
+			/* non-unuque types must match exact */
+			if ((*dentry)->datasize == datasize && !memcmp((*dentry)->data, data, datasize))
+				break;
+		}
 	}
 	if (!*dentry) {
 		*dentry = calloc(1, sizeof(struct fprs_db_data));
@@ -173,14 +181,39 @@ int fprs_db_element_set(struct fprs_db_id *id,
 
 int fprs_db_element_get(struct fprs_db_id *id, enum fprs_type type, time_t *t, uint8_t **data, size_t *datasize)
 {
-	struct fprs_db_entry *entry;
+	struct fprs_db_entry *entry = NULL;
+	struct fprs_db_data *dentry;
 	
-	entry = fprs_db_find(id);
+	if (id->type == FPRS_CALLSIGN ||
+	    id->type == FPRS_OBJECTNAME) {
+		entry = fprs_db_find(id);
+	} else {
+		/* Search all data entries for the right type and content */
+		struct fprs_db_entry *entry;
+
+		for (entry = db; entry; entry = entry->next) {
+			bool found_id = false;
+			
+			for (dentry = entry->elements; dentry; dentry = dentry->next) {
+				if (dentry->type != id->type)
+					continue;
+				if (dentry->datasize != id->id_size)
+					continue;
+				if (memcmp(dentry->data, &id->id, id->id_size))
+					continue;
+				
+				found_id = true;
+				break;
+			}
+			if (found_id) {
+				break;
+			}
+		}
+	}
+
 	if (!entry || !entry->elements) {
 		return -1;
 	}
-
-	struct fprs_db_data *dentry;
 	
 	for (dentry = entry->elements; dentry; dentry = dentry->next) {
 		if (dentry->type != type)
@@ -191,9 +224,10 @@ int fprs_db_element_get(struct fprs_db_id *id, enum fprs_type type, time_t *t, u
 		memcpy(*data, dentry->data, dentry->datasize);
 		*datasize = dentry->datasize;
 		*t = dentry->t;
-		
+	
 		return 0;
 	}
+
 	return -1;
 }
 

@@ -138,6 +138,19 @@ static void soundlib_entry_free(struct libentry *entry)
 	free(entry);
 }
 
+int soundlib_add(int nr, uint8_t *data, size_t size)
+{
+	struct libentry *entry = soundlib_entry_alloc(nr);
+	
+	if (!entry)
+		return -1;
+	
+	entry->data = data;
+	entry->size = size;
+	
+	return 0;
+}
+
 int soundlib_add_beep(int nr, double freq, double length)
 {
 	struct libentry *entry = soundlib_entry_alloc(nr);

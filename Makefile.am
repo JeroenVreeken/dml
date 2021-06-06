@@ -26,7 +26,7 @@ libdml_la_SOURCES = \
 	dml_stream.c 
 
 libdml_la_CFLAGS=-fPIC
-libdml_la_LDFLAGS= -shared -fPIC -version-info 0:0:0 @LIB_LDFLAGS@ @GLIB_LIBS@
+libdml_la_LDFLAGS= -shared -fPIC -version-info 1:0:1 @LIB_LDFLAGS@ @GLIB_LIBS@
 
 bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_codec2 dml_fprs_db
 
@@ -61,6 +61,16 @@ bin_PROGRAMS += dml_reflector
 dml_reflector_SOURCES = $(DML_SRCS) $(TRX_SRCS) dml_reflector.c soundlib.c
 dml_reflector_LDADD = libdml.la
 dml_reflector_LDFLAGS = $(CODEC2_LIBS) $(ETH_AR_LIBS) -lm
+
+endif
+
+if ENABLE_DML_GROUP
+
+bin_PROGRAMS += dml_group
+
+dml_group_SOURCES = dml_group.c
+dml_group_LDADD = libdml.la
+dml_group_LDFLAGS = 
 
 endif
 
@@ -113,3 +123,9 @@ gdml_LDADD = libdml.la
 gdml_LDFLAGS = @GTK_LIBS@ @GSTREAMER_LIBS@
 
 endif
+
+
+noinst_PROGRAMS = test_dml_packet
+TESTS = test_dml_packet
+
+test_dml_packet_SOURCES = test_dml_packet.c dml_packet.c

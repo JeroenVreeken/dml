@@ -1,5 +1,5 @@
 /*
-	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016, 2017
+	Copyright Jeroen Vreeken (jeroen@vreeken.net), 2015, 2016, 2017, 2021
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -96,14 +96,6 @@ static char *my_fprs_text = "";
 
 static char my_call[ETH_AR_CALL_SIZE];
 
-static char *message_connect;
-static char *message_disconnect;
-static char *message_remote_disconnect;
-static char *message_remote_disconnect_400;
-static char *message_remote_disconnect_401;
-static char *message_remote_disconnect_503;
-static char *message_notfound;
-static char *message_notallowed;
 
 static uint8_t *header;
 
@@ -112,6 +104,9 @@ enum sound_msg {
 	SOUND_MSG_CONNECT,
 	SOUND_MSG_DISCONNECT,
 	SOUND_MSG_REMOTE_DISC,
+	SOUND_MSG_REMOTE_DISC_400,
+	SOUND_MSG_REMOTE_DISC_401,
+	SOUND_MSG_REMOTE_DISC_503,
 	SOUND_MSG_NOTFOUND,
 	SOUND_MSG_NOTALLOWED,
 	SOUND_MSG_HEADER,
@@ -310,6 +305,113 @@ static int fprs_update_mac(uint8_t mac[ETH_AR_MAC_SIZE])
 	return 0;
 }
 
+enum dml_trx_state {
+	DML_TRX_ST_IDLE,
+	DML_TRX_ST_CONNECTED_HEADER,
+	DML_TRX_ST_CONNECTED,
+	DML_TRX_ST_DISCONNECTING_OTHER,
+	DML_TRX_ST_DISCONNECTING,
+};
+
+char *dml_trx_state_2_str(enum dml_trx_state state)
+{
+	switch(state) {
+		case DML_TRX_ST_IDLE:
+			return "DML_TRX_ST_IDLE";
+		case DML_TRX_ST_CONNECTED_HEADER:
+			return "DML_TRX_ST_CONNECTED_HEADER";
+		case DML_TRX_ST_CONNECTED:
+			return "DML_TRX_ST_CONNECTED";
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+			return "DML_TRX_ST_DISCONNECTING_OTHER";
+		case DML_TRX_ST_DISCONNECTING:
+			return "DML_TRX_ST_DISCONNECTING";
+	}
+	return "unknown state";
+}
+
+enum dml_trx_state state = DML_TRX_ST_IDLE;
+
+static void dml_trx_goto_idle(void)
+{
+	printf("%s -> %s\n", dml_trx_state_2_str(state), dml_trx_state_2_str(DML_TRX_ST_IDLE));
+
+	switch(state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			cur_con = NULL;
+			fprs_update_status(dml_stream_name_get(stream_dv), "");
+			break;
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
+	}
+	
+	state = DML_TRX_ST_IDLE;
+}
+
+
+static void dml_trx_goto_disconnecting(void)
+{
+	printf("%s -> %s\n", dml_trx_state_2_str(state), dml_trx_state_2_str(DML_TRX_ST_DISCONNECTING));
+
+	struct dml_connection *con = dml_host_connection_get(host);
+	if (con) {
+		dml_packet_send_req_disc(con, dml_stream_id_get(cur_con));
+	}
+
+	// we don't stay long in this state.
+
+	dml_trx_goto_idle();
+}
+
+
+static void dml_trx_goto_disconnecting_other(void)
+{
+	printf("%s -> %s\n", dml_trx_state_2_str(state), dml_trx_state_2_str(DML_TRX_ST_DISCONNECTING_OTHER));
+
+	struct dml_connection *con = dml_host_connection_get(host);
+	if (con) {
+		dml_packet_send_req_reverse(con, dml_stream_id_get(cur_con), 
+		    dml_stream_id_get(stream_dv),
+		    DML_PACKET_REQ_REVERSE_DISC,
+		    DML_STATUS_OK);
+	}
+
+	// we don't stay long in this state.
+
+	dml_trx_goto_disconnecting();
+}
+
+
+
+static void dml_trx_goto_connected_header(struct dml_stream *ds)
+{
+	printf("%s -> %s\n", dml_trx_state_2_str(state), dml_trx_state_2_str(DML_TRX_ST_CONNECTED_HEADER));
+
+	struct dml_connection *con = dml_host_connection_get(host);
+	if (con) {
+		dml_packet_send_req_header(con, dml_stream_id_get(ds));
+		dml_host_connect(host, ds);
+	}
+
+	cur_con = ds;
+	fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
+
+	state = DML_TRX_ST_CONNECTED_HEADER;
+}
+
+static void dml_trx_goto_connected(void)
+{
+	printf("%s -> %s\n", dml_trx_state_2_str(state), dml_trx_state_2_str(DML_TRX_ST_CONNECTED));
+
+	state = DML_TRX_ST_CONNECTED_HEADER;
+}
+
+
+
+
 static gboolean fprs_timer(void *arg)
 {
 	struct timespec ts;
@@ -319,8 +421,18 @@ static gboolean fprs_timer(void *arg)
 	
 	fprs_db_flush(ts.tv_sec);
 	
-	fprs_update_status(dml_stream_name_get(stream_dv),
-	   cur_con ? dml_stream_name_get(cur_con) : "");
+	char *status = "";
+	switch(state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			status = dml_stream_name_get(cur_con);
+			break;
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			status = "";
+	}
+	fprs_update_status(dml_stream_name_get(stream_dv), status);
 
 
 	if (my_fprs_longitude != 0.0 ||
@@ -410,88 +522,113 @@ static gboolean fprs_db_check(void *arg)
 	return G_SOURCE_REMOVE;
 }
 
+
+
 static void stream_removed_cb(struct dml_host *host, struct dml_stream *ds, void *arg)
 {
-	if (ds == cur_con) {
-		cur_con = NULL;
-		fprs_update_status(
-		    dml_stream_name_get(stream_dv), "");
+	switch (state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			if (ds == cur_con) {
+				dml_trx_goto_idle();
+			}
+			break;
+		
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
 	}
-		if (ds == cur_db) {
+
+	if (ds == cur_db) {
 		cur_db = NULL;
 	}
 }
 
 static void stream_data_cb(struct dml_host *host, struct dml_stream *ds, uint64_t timestamp, void *data, size_t data_size, void *arg)
 {
-	if (ds != cur_con && ds != cur_db) {
-		fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
-		return;
-	}
+	switch (state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			if (ds == cur_con) {
+				fprintf(stderr, "Received %zd ok\n", data_size);
+				recv_data(data, data_size);
+				return;
+			}
+			break;
 			
-	if (ds == cur_con) {
-		fprintf(stderr, "Received %zd ok\n", data_size);
-		recv_data(data, data_size);
-	} else {
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
+	}
+		
+	if (ds == cur_db) {
 		fprintf(stderr, "Received %zd ok from DB\n", data_size);
 		recv_data_fprs(data, data_size, timestamp);
+		return;
 	}
+
+	fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
 }
 
 static void stream_header_cb(struct dml_host *host, struct dml_stream *ds, void *header, size_t header_size, void *arg)
 {
-	if (ds != cur_con && ds != cur_db) {
-		fprintf(stderr, "Received spurious data from %s\n", dml_stream_name_get(ds));
-		return;
-	}
-	fprintf(stderr, "Received header (%zd bytes)\n", header_size);
-	if (!header_size)
-		return;
-			
-	if (ds == cur_con) {
-		fprintf(stderr, "Play header\n");
-		trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size, DML_TRX_LEVEL_MSG);
-	} else {
-		fprintf(stderr, "Stream mismatch: %p %p\n", ds, cur_con);
+	switch (state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+			if (ds == cur_con) {
+				fprintf(stderr, "Play header\n");
+				if (header_size)
+					trx_dv_send(mac_dev, mac_bcast, 'A', header, header_size, DML_TRX_LEVEL_MSG);
+				
+				dml_trx_goto_connected();
+			}
+			break;
+		
+		case DML_TRX_ST_CONNECTED:
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
 	}
 }
 
 static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
 	bool do_reject = false;
-	bool do_connect = true;
 	status = DML_STATUS_OK;
 
-	if (cur_con) {
-		if (cur_con != ds_rev) {
-			do_reject = true;
-			status = DML_STATUS_UNAVAILABLE;
-		}
-		do_connect = false;
+	switch (state) {
+		case DML_TRX_ST_IDLE:
+			if (!dml_host_mime_filter(host, ds_rev)) {
+				do_reject = true;
+				status = DML_STATUS_BAD;
+			} else {
+				struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
+				if (!key) {
+					printf("No valid crypto key for this stream (yet)\n");
+					do_reject = true;
+					status = DML_STATUS_UNAUTHORIZED;
+				} else {
+					printf("Request accepted, connecting\n");
+
+					dml_trx_goto_connected_header(ds_rev);
+			
+					queue_sound_msg(SOUND_MSG_CONNECT);
+				}
+			}
+			break;
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			if (cur_con != ds_rev) {
+				do_reject = true;
+				status = DML_STATUS_UNAVAILABLE;
+			}
+			break;
 	}
-	if (!dml_host_mime_filter(host, ds_rev)) {
-		do_connect = false;
-		do_reject = true;
-		status = DML_STATUS_BAD;
-	}
-	if (do_connect) {
-		struct dml_crypto_key *key = dml_stream_crypto_get(ds_rev);
-		if (key) {
-			printf("Request accepted, connecting\n");
-			dml_packet_send_req_header(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
-			dml_host_connect(host, ds_rev);
-			cur_con = ds_rev;
-			fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
-			if (message_connect)
-				queue_sound_synthesize(message_connect);
-			else
-				queue_sound_msg(SOUND_MSG_CONNECT);
-		} else {
-			printf("No valid crypto key for this stream (yet)\n");
-			do_reject = true;
-			status = DML_STATUS_UNAUTHORIZED;
-		}
-	}
+
 	if (do_reject) {
 		printf("Request rejected\n");
 		dml_packet_send_req_reverse(dml_host_connection_get(host),
@@ -504,33 +641,41 @@ static void stream_req_reverse_connect_cb(struct dml_host *host, struct dml_stre
 
 static void stream_req_reverse_disconnect_cb(struct dml_host *host, struct dml_stream *ds, struct dml_stream *ds_rev, int status, void *arg)
 {
-	if (ds_rev == cur_con) {
-		printf("Disconnect\n");
-		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
-		cur_con = NULL;
-		fprs_update_status(
-		    dml_stream_name_get(stream_dv), "");
+	switch (state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			if (ds_rev == cur_con) {
+				printf("Disconnect\n");
 
-		char *synth_msg;
-		switch (status) {
-			case DML_STATUS_BAD:
-				synth_msg = message_remote_disconnect_400;
-				break;
-			case DML_STATUS_UNAUTHORIZED:
-				synth_msg = message_remote_disconnect_401;
-				break;
-			case DML_STATUS_UNAVAILABLE:
-				synth_msg = message_remote_disconnect_503;
-				break;
-			case DML_STATUS_OK:
-			default:
-				synth_msg = message_remote_disconnect;
-		}
-		if (synth_msg)
-			queue_sound_synthesize(synth_msg);
-		else
-			queue_sound_msg(SOUND_MSG_REMOTE_DISC);
+				dml_trx_goto_disconnecting();
+
+				int msg = SOUND_MSG_REMOTE_DISC;
+				switch (status) {
+					case DML_STATUS_BAD:
+						msg = SOUND_MSG_REMOTE_DISC_400;
+						break;
+					case DML_STATUS_UNAUTHORIZED:
+						msg = SOUND_MSG_REMOTE_DISC_401;
+						break;
+					case DML_STATUS_UNAVAILABLE:
+						msg = SOUND_MSG_REMOTE_DISC_503;
+						break;
+					case DML_STATUS_OK:
+					default:
+						break;
+				}
+				queue_sound_msg(msg);
+
+				return;
+			}
+			break;
+		
+		case DML_TRX_ST_IDLE:
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
 	}
+	
 	if (ds_rev == cur_db) {
 		printf("DB requests disconnect\n");
 		dml_packet_send_req_disc(dml_host_connection_get(host), dml_stream_id_get(ds_rev));
@@ -544,8 +689,13 @@ static void stream_req_reverse_disconnect_cb(struct dml_host *host, struct dml_s
 
 static void connection_closed_cb(struct dml_host *host, void *arg)
 {
-	cur_con = NULL;
+	/* We lost the connection to dmld */
+
 	cur_db = NULL;
+
+	if (cur_con) {
+		dml_trx_goto_idle();
+	}
 }
 
 static int send_data_fprs(void *data, size_t size, unsigned int link, void *arg)
@@ -578,10 +728,11 @@ static void recv_data(void *data, size_t size)
 	if (size < 8)
 		return;
 	
+	struct dml_dv_c2_header *header = data;
 	uint8_t *datab = data;
 	
-	uint8_t mode = datab[6];
-	uint8_t level = datab[7];
+	uint8_t mode = header->mode;
+	uint8_t level = header->level;
 	
 //	printf("mode %d state %d\n", mode, state);
 	
@@ -590,7 +741,7 @@ static void recv_data(void *data, size_t size)
 
 	if (!rx_state || fullduplex) {
 		if (size > 8) {
-			trx_dv_send(data, mac_bcast, mode, datab + 8, size - 8, level);
+			trx_dv_send(data, mac_bcast, mode, datab + sizeof(struct dml_dv_c2_header), size - sizeof(struct dml_dv_c2_header), level);
 		}
 	}
 }
@@ -600,12 +751,13 @@ static gboolean rx_watchdog(void *arg)
 	printf("No activity, sending state off packet\n");
 	
 	uint8_t data[8];
+	struct dml_dv_c2_header *header = (void *)data;
 
-	memcpy(data, rx_state ? mac_last : mac_bcast, 6);
-	data[6] = 0;
-	data[7] = 0;
+	memcpy(header->from, rx_state ? mac_last : mac_bcast, 6);
+	header->level = 0;
+	header->mode = 0;
 
-	send_data(data, 8, stream_dv);
+	send_data(data, sizeof(data), stream_dv);
 
 	rx_state = 0;
 	/* Flush command buffer */
@@ -618,12 +770,6 @@ static gboolean rx_watchdog(void *arg)
 		
 		data = soundlib_get(SOUND_MSG_SILENCE, &size);
 		if (data) {
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
-			extra_wait_ms += trx_dv_duration(size, 'A');
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
-			extra_wait_ms += trx_dv_duration(size, 'A');
-			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
-			extra_wait_ms += trx_dv_duration(size, 'A');
 			trx_dv_send(mac_dev, mac_bcast, 'A', data, size, DML_TRX_LEVEL_MSG);
 			extra_wait_ms += trx_dv_duration(size, 'A');
 		}
@@ -683,10 +829,9 @@ static void command_cb_handle(char *command)
 {	
 	struct dml_stream *ds = NULL;
 	bool is_73;
-	bool do_disconnect = false;
-	bool do_connect = false;
-	bool nokey = false;
-	bool notfound = false;
+	bool req_disconnect = false;
+	bool req_connect = false;
+	bool do_nack = false;
 	struct dml_connection *con = dml_host_connection_get(host);
 
 	/* Skip empty commands */
@@ -696,7 +841,7 @@ static void command_cb_handle(char *command)
 	printf("command: %s\n", command);
 	
 	is_73 = !strcmp(command, "73");
-	do_disconnect |= is_73;
+	req_disconnect |= is_73;
 	
 	/* try to find by alias directly */
 	ds = dml_stream_by_alias(command);
@@ -708,8 +853,11 @@ static void command_cb_handle(char *command)
 		ds = dml_stream_by_alias(command_pref);
 		free(command_pref);
 	}
-	if (!ds && !is_73)
-		notfound = true;
+	if (!ds && !is_73) {
+		queue_sound_msg(SOUND_MSG_NOTFOUND);
+		queue_sound_spell(command);
+		do_nack = true;
+	}
 	if (ds && dml_stream_mine_get(ds))
 		ds = NULL;
 
@@ -719,70 +867,53 @@ static void command_cb_handle(char *command)
 		printf("match_mime: %d, key: %p\n", dml_host_mime_filter(host, ds), key);
 		if (ds != cur_con && dml_host_mime_filter(host, ds)) {
 			if (key) {
-				do_disconnect = true;
-				do_connect = true;
+				req_connect = true;
 			} else {
-				nokey = true;
+				do_nack = true;
+				queue_sound_msg(SOUND_MSG_NOTALLOWED);
+				queue_sound_spell(command);
 			}
 		}
 	}
-	printf("connect: %d disconnect: %d %s %s\n", do_connect, do_disconnect, 
+	printf("connect: %d disconnect: %d %s %s\n", req_connect, req_disconnect, 
 	   ds ? dml_stream_name_get(ds) : "UNKNOWN", 
 	   cur_con ? dml_stream_name_get(cur_con) : "NONE");
 	
-	if (do_disconnect && cur_con) {
-		if (con) {
-			dml_packet_send_req_disc(con, dml_stream_id_get(cur_con));
-			dml_packet_send_req_reverse(con, dml_stream_id_get(cur_con), 
-			    dml_stream_id_get(stream_dv),
-			    DML_PACKET_REQ_REVERSE_DISC,
-			    DML_STATUS_OK);
-		}
-		cur_con = NULL;
-		fprs_update_status(dml_stream_name_get(stream_dv), "");
-
-	}		
-	if (do_connect) {
-		if (con) {
-			dml_packet_send_req_header(con, dml_stream_id_get(ds));
-			dml_host_connect(host, ds);
-		}
-		cur_con = ds;
-		fprs_update_status(dml_stream_name_get(stream_dv), dml_stream_name_get(cur_con));
-		dml_packet_send_req_reverse(con, dml_stream_id_get(ds), 
-		    dml_stream_id_get(stream_dv),
-		    DML_PACKET_REQ_REVERSE_CONNECT,
-		    DML_STATUS_OK);
-		if (message_connect)
-			queue_sound_synthesize(message_connect);
-		else
-			queue_sound_msg(SOUND_MSG_CONNECT);
-		queue_sound_spell(command);
-		
-		char *constr;
-		if (asprintf(&constr, "Connecting %s", command) >= 0) {
-			trx_dv_send_control(mac_dev, mac_bcast, constr);
-			free(constr);
-		}
-	} else {
-		if (notfound) {
-			if (message_notfound)
-				queue_sound_synthesize(message_notfound);
-			else
-				queue_sound_msg(SOUND_MSG_NOTFOUND);
-			queue_sound_spell(command);
-		} else if (nokey) {
-			if (message_notallowed)
-				queue_sound_synthesize(message_notallowed);
-			else
-				queue_sound_msg(SOUND_MSG_NOTALLOWED);
-			queue_sound_spell(command);
-		} else if (do_disconnect) {
-			if (message_disconnect)
-				queue_sound_synthesize(message_disconnect);
-			else
+	switch (state) {
+		case DML_TRX_ST_CONNECTED_HEADER:
+		case DML_TRX_ST_CONNECTED:
+			if (req_disconnect) {
+				dml_trx_goto_disconnecting_other();
 				queue_sound_msg(SOUND_MSG_DISCONNECT);
-		}
+			}
+			break;
+
+		case DML_TRX_ST_IDLE:
+			if (req_connect) {
+
+				dml_trx_goto_connected_header(ds);
+
+				dml_packet_send_req_reverse(con, dml_stream_id_get(ds), 
+				    dml_stream_id_get(stream_dv),
+				    DML_PACKET_REQ_REVERSE_CONNECT,
+				    DML_STATUS_OK);
+
+				queue_sound_msg(SOUND_MSG_CONNECT);
+		
+				char *constr;
+				if (asprintf(&constr, "Connecting %s", command) >= 0) {
+					trx_dv_send_control(mac_dev, mac_bcast, constr);
+					free(constr);
+				}
+			}
+			break;
+		
+		case DML_TRX_ST_DISCONNECTING_OTHER:
+		case DML_TRX_ST_DISCONNECTING:
+			break;
+	}
+	
+	if (do_nack) {
 		trx_dv_send_control(mac_dev, mac_bcast, "NACK");
 	}	
 }
@@ -1055,7 +1186,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
-	soundlib_add_silence(SOUND_MSG_SILENCE, 0.16);
+	soundlib_add_silence(SOUND_MSG_SILENCE, 0.64);
 	soundlib_add_beep(SOUND_MSG_CONNECT, 800, 0.08);
 	soundlib_add_beep(SOUND_MSG_DISCONNECT, 1600, 0.16);
 	soundlib_add_beep(SOUND_MSG_REMOTE_DISC, 2000, 0.16);
@@ -1088,24 +1219,59 @@ int main(int argc, char **argv)
 		size_t header_size;
 		uint8_t *sl_header = soundlib_get(SOUND_MSG_HEADER, &header_size);
 		if (sl_header) {
-			header = calloc(1, header_size + 8);
-			memcpy(header + 8, sl_header, header_size);
+			header = calloc(1, header_size + sizeof(struct dml_dv_c2_header));
+			struct dml_dv_c2_header *dv_header = (void*)header;
+			memcpy(header + sizeof(struct dml_dv_c2_header), sl_header, header_size);
 			
-			memcpy(header, mac_dev, 6);
-			header[6] = 'A';
-			header[7] = 255;
+			memcpy(dv_header->from, mac_dev, 6);
+			dv_header->mode = 'A';
+			dv_header->level = 255;
 			dml_stream_header_set(stream_dv, header, header_size + 8);
 		}
 	}
 
-	message_connect = dml_config_value("message_connect", NULL, NULL);
-	message_disconnect = dml_config_value("message_disconnect", NULL, NULL);
-	message_remote_disconnect = dml_config_value("message_remote_disconnect", NULL, NULL);
-	message_remote_disconnect_400 = dml_config_value("message_remote_disconnect_400", NULL, NULL);
-	message_remote_disconnect_401 = dml_config_value("message_remote_disconnect_401", NULL, NULL);
-	message_remote_disconnect_503 = dml_config_value("message_remote_disconnect_503", NULL, NULL);
-	message_notfound = dml_config_value("message_notfound", NULL, NULL);
-	message_notallowed = dml_config_value("message_notallowed", NULL, NULL);
+	size_t size;
+	uint8_t *data;
+	char *message_connect = dml_config_value("message_connect", NULL, NULL);
+	if (message_connect) {
+		data = soundlib_synthesize(message_connect, &size);
+		soundlib_add(SOUND_MSG_CONNECT, data, size);
+	}
+	char *message_disconnect = dml_config_value("message_disconnect", NULL, NULL);
+	if (message_disconnect) {
+		data = soundlib_synthesize(message_disconnect, &size);
+		soundlib_add(SOUND_MSG_DISCONNECT, data, size);
+	}
+	char *message_remote_disconnect = dml_config_value("message_remote_disconnect", NULL, NULL);
+	if (message_remote_disconnect) {
+		data = soundlib_synthesize(message_remote_disconnect, &size);
+		soundlib_add(SOUND_MSG_REMOTE_DISC, data, size);
+	}
+	char *message_remote_disconnect_400 = dml_config_value("message_remote_disconnect_400", NULL, NULL);
+	if (message_remote_disconnect_400) {
+		data = soundlib_synthesize(message_remote_disconnect_400, &size);
+		soundlib_add(SOUND_MSG_REMOTE_DISC_400, data, size);
+	}
+	char *message_remote_disconnect_401 = dml_config_value("message_remote_disconnect_401", NULL, NULL);
+	if (message_remote_disconnect_401) {
+		data = soundlib_synthesize(message_remote_disconnect_401, &size);
+		soundlib_add(SOUND_MSG_REMOTE_DISC_401, data, size);
+	}
+	char *message_remote_disconnect_503 = dml_config_value("message_remote_disconnect_503", NULL, NULL);
+	if (message_remote_disconnect_503) {
+		data = soundlib_synthesize(message_remote_disconnect_503, &size);
+		soundlib_add(SOUND_MSG_REMOTE_DISC_503, data, size);
+	}
+	char *message_notfound = dml_config_value("message_notfound", NULL, NULL);
+	if (message_notfound) {
+		data = soundlib_synthesize(message_notfound, &size);
+		soundlib_add(SOUND_MSG_NOTFOUND, data, size);
+	}
+	char *message_notallowed = dml_config_value("message_notallowed", NULL, NULL);
+	if (message_notallowed) {
+		data = soundlib_synthesize(message_notallowed, &size);
+		soundlib_add(SOUND_MSG_NOTALLOWED, data, size);
+	}
 
 	if (command_pipe_name) {
 		printf("Create command pipe at %s\n", command_pipe_name);
