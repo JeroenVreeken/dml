@@ -15,6 +15,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
+#define _GNU_SOURCE 
 
 #include <dml/dml.h>
 #include <dml/dml_id.h>
@@ -50,8 +51,11 @@ static void mime_cb(void *arg, char *mime){
 	fprintf(stderr, "mime: %s\n", mime);
 	
 	if (is_cgi) {
-		printf("Content-type: %s\n", mime);
-		printf("\n");
+		char *header;
+		asprintf(&header, "Content-type: %s\n\n", mime);
+		write(1, header, strlen(header));
+		
+		free(header);
 	}
 }
 
