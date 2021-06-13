@@ -72,6 +72,7 @@ int main(int argc, char **argv)
 	if (query_string) {
 		is_cgi = true;
 		
+		file = "/etc/dml/dml_stream_client.cgi.conf";
 		req_id_str = query_string;
 	} else {
 		if (argc > 2)
@@ -89,11 +90,12 @@ int main(int argc, char **argv)
 
 	if (dml_config_load(file)) {
 		fprintf(stderr, "Failed to load config file %s\n", file);
-		return -1;
+		if (!is_cgi)
+			return -1;
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
-	bool verify = atoi(dml_config_value("verify", NULL, "1"));
+	bool verify = atoi(dml_config_value("verify", NULL, is_cgi ? "0" : "1"));
 	
 	if (dml_crypto_init(NULL, ca)) {
 		fprintf(stderr, "Failed to init crypto\n");

@@ -413,12 +413,13 @@ function mse()
 		
 		console.log(mse_this.video);
 		mse_this.video.src = object_url(mse_this.mediaSource);
-		mse_this.video.play();
 		
 		console.log("mediaSource.readyState: " + mse_this.mediaSource.readyState);
 		mse_this.mediaSource.addEventListener('sourceopen', sourceOpen_mse);
 		mse_this.mediaSource.addEventListener('error', mse_this.event_error);
 		mse_this.mediaSource.addEventListener('sourceclose', mse_this.event_sourceclose);
+		
+		mse_this.video.pause();
 	}
 
 	function sourceOpen_mse (_) {
@@ -441,19 +442,35 @@ function mse()
 	};
 	
 	this.data = function mse_data(newdata) {
+		console.log("bytelength: "+newdata.byteLength + " bufferfifo.length: " + mse_this.bufferfifo.length + " updating: " + mse_this.sourceBuffer.updating);
 		mse_this.bufferfifo.push(newdata);
 		while (mse_this.bufferfifo.length && !mse_this.sourceBuffer.updating) {
+			console.log("appendbuffer");
 			mse_this.sourceBuffer.appendBuffer(mse_this.bufferfifo.shift());
 		}
+		console.log("buffered.length: "+ mse_this.video.buffered.length + " readystate: " + mse_this.video.readyState);
 		if (mse_this.video.buffered.length) {
+			ranges = mse_this.video.buffered.length;
 			start = mse_this.video.buffered.start(0);
-			end = mse_this.video.buffered.end(0);
+			end = mse_this.video.buffered.end(ranges-1);
 			cur = mse_this.video.currentTime;
 			diff = end - cur;
-			console.log("end " + end + " cur " + cur + " diff " + diff + " fifo length: " + mse_this.bufferfifo.length);
-			if (start > cur || diff > 10 && !mse_this.video.paused) {
-				console.log("Skipping to time " + end);
-				mse_this.video.currentTime = end;
+			dur = end - start;
+			console.log("start " + start +" end " + end + " dur " + dur +" cur " + cur + " diff " + diff + " fifo length: " + mse_this.bufferfifo.length);
+			if (mse_this.video.readyState >= 1) {
+				if (start >= cur) {
+					mse_this.video.currentTime = start;
+					if (dur > 2 && mse_this.video.buffered.length > 0) {
+					mse_this.video.currentTime = start +1;
+						mse_this.video.play();
+					}
+				} else if (diff > 10 && !mse_this.video.paused) {
+					jump = end - 2;
+					if (jump < start)
+						jump = start;
+					console.log("Skipping to time " + end);
+					mse_this.video.currentTime = end;
+				}
 			}
 		}
 	}
@@ -465,9 +482,12 @@ function mse()
 	}
 	
 	this.event_sourceclose = function (e) {
-		console.log("mediasource sourceclose " + e);
-		if (connected)
+		console.log("mediasource sourceclose " + e + " type: "+e.type);
+		if (connected) {
 			disconnect();
+		} else {
+			console.log("not connected");
+		}
 		mse_this.displaydiv.style.display = "none";
 	}
 	
@@ -476,10 +496,11 @@ function mse()
 	}
 	
 	this.event_buffer_updateend = function (e) {
+		console.log("event_buffer_updateend: mse_this.bufferfifo.length: " + mse_this.bufferfifo.length);
 		if (mse_this.bufferfifo.length && !mse_this.sourceBuffer.updating) {
 			mse_this.sourceBuffer.appendBuffer(mse_this.bufferfifo.shift());
 		}
-	}
+      	}
 }
 
 mse = new mse();
