@@ -18,7 +18,7 @@
 #ifndef _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_
 #define _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_
 
-struct dml_stream_client;
+struct dml_stream_client_simple;
 
 struct dml_stream_client_simple *dml_stream_client_simple_create(
     char *server, uint8_t req_id[DML_ID_SIZE],
@@ -31,6 +31,11 @@ struct dml_stream_client_simple *dml_stream_client_simple_search_create(
     void *arg,
     int (*data_cb)(void *arg, void *, size_t),
     bool verify);
+
+int dml_stream_client_simple_destroy(struct dml_stream_client_simple *dss);
+
+void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
+	void *arg, void (*mime_cb)(void *arg, char *mime));
 
 #endif /* _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_ */
 

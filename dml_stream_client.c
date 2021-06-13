@@ -28,7 +28,9 @@
 #include <string.h>
 
 
-size_t skip = 0;
+static size_t skip = 0;
+
+static bool is_cgi = false;
 
 static int data_cb(void *arg, void *data, size_t datasize)
 {
@@ -44,6 +46,15 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	return 0;
 }
 
+static void mime_cb(void *arg, char *mime){
+	fprintf(stderr, "mime: %s\n", mime);
+	
+	if (is_cgi) {
+		printf("Content-type: %s\n", mime);
+		printf("\n");
+	}
+}
+
 int main(int argc, char **argv)
 {
 	char *file = "dml_stream_client.conf";
@@ -53,17 +64,24 @@ int main(int argc, char **argv)
 	uint8_t req_id[DML_ID_SIZE];
 	struct dml_stream_client_simple *dss;
 
-	if (argc > 2)
-		file = argv[2];
-	if (argc < 2) {
-		fprintf(stderr, "No id given\n");
-		return -1;
+	char *query_string = getenv("QUERY_STRING");
+	if (query_string) {
+		is_cgi = true;
+		
+		req_id_str = query_string;
+	} else {
+		if (argc > 2)
+			file = argv[2];
+		if (argc < 2) {
+			fprintf(stderr, "No id given\n");
+			return -1;
+		}
+		if (argc > 3) {
+			skip = atoi(argv[3]);
+			fprintf(stderr, "Skip %zd bytes per packet\n", skip);
+		}
+		req_id_str = argv[1];
 	}
-	if (argc > 3) {
-		skip = atoi(argv[3]);
-		fprintf(stderr, "Skip %zd bytes per packet\n", skip);
-	}
-	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
 		fprintf(stderr, "Failed to load config file %s\n", file);
@@ -90,6 +108,8 @@ int main(int argc, char **argv)
 		printf("Could not create stream\n");
 		return -1;
 	}
+
+	dml_stream_client_simple_set_cb_mime(dss, dss, mime_cb);
 
 	g_main_loop_run(g_main_loop_new(NULL, false));
 

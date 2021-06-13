@@ -45,6 +45,9 @@ struct dml_stream_client_simple {
 	void *arg;
 	int (*data_cb)(void *arg, void *data, size_t datasize);
 	
+	void *mime_cb_arg;
+	void (*mime_cb)(void *arg, char *mime);
+	
 	char *name;
 	char *alias;
 	char *mime;
@@ -91,16 +94,16 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			}
 		}
 		case DML_PACKET_DESCRIPTION: {
-			if (!dss->found_req_id) {
-				uint8_t desc_id[DML_ID_SIZE];
-				uint8_t version;
-				uint32_t bps;
-				char *mime, *name, *alias, *description;
+			uint8_t desc_id[DML_ID_SIZE];
+			uint8_t version;
+			uint32_t bps;
+			char *mime, *name, *alias, *description;
 	
-				if (dml_packet_parse_description(data, len, desc_id, &version, 
-				    &bps, &mime, &name, &alias, &description))
-					break;
+			if (dml_packet_parse_description(data, len, desc_id, &version, 
+			    &bps, &mime, &name, &alias, &description))
+				break;
 				
+			if (!dss->found_req_id) {
 				bool found = true;
 				if (dss->name && strcmp(name, dss->name))
 					found = false;
@@ -121,6 +124,9 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		
 				fprintf(stderr, "Request certificate\n");
 				dml_packet_send_req_certificate(dc, dss->req_id);
+				if (dss->mime_cb) {
+					dss->mime_cb(dss->mime_cb_arg, mime);
+				}
 			}
 			break;
 		}
@@ -349,4 +355,11 @@ int dml_stream_client_simple_destroy(struct dml_stream_client_simple *dss)
 	free(dss);
 
 	return 0;
+}
+
+void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
+	void *arg, void (*mime_cb)(void *arg, char *mime))
+{
+	dss->mime_cb_arg = arg;
+	dss->mime_cb = mime_cb;
 }
