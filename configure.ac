@@ -74,7 +74,7 @@ AC_CHECK_HEADERS([samplerate.h], [samplerate_headers_found=yes])
 # Check for libwebsockets library
 
 dnl Search for libwebsockets
-PKG_CHECK_MODULES([LIBWEBSOCKETS], [libwebsockets], [libwebsockets_found=yes], [])
+PKG_CHECK_MODULES([LIBWEBSOCKETS], [libwebsockets], [libwebsockets_found=yes], [libwebsockets_found=no])
 
 
 
