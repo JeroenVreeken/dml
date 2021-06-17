@@ -71,6 +71,13 @@ PKG_CHECK_MODULES([SAMPLERATE], [samplerate], [samplerate_found_lib=1], [libsamp
 AC_CHECK_HEADERS([samplerate.h], [samplerate_headers_found=yes])
 
 
+# Check for libwebsockets library
+
+dnl Search for libwebsockets
+PKG_CHECK_MODULES([LIBWEBSOCKETS], [libwebsockets], [libwebsockets_found=yes], [])
+
+
+
 AS_IF([ test "x$flite_headers_found" == "xyes" && \
         test "$libflite_found" == "1" && \
         test "$libflite_cmulex_found" == "1" && \
@@ -100,7 +107,7 @@ PKG_CHECK_MODULES([GSTREAMER], [gstreamer-1.0 >= 1.4], [GSTREAMER_FOUND=yes], [G
 
 # build selection logic
 
-AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" = "xyes"],
+AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" = "xyes" && test "x$libwebsockets_found" = "xyes" ],
 	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
 )
 
