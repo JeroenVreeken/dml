@@ -235,6 +235,11 @@ gboolean fd_in(GIOChannel *source, GIOCondition condition, gpointer arg)
 	r = read(fd_ogg, buffer, sizeof(buffer));
 	if (r > 0) {
 			return (parse(fileparse, buffer, r) == 0);
+	} else if (r < 0) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
+			printf("Failed to read data: %s\n", strerror(errno));
+			exit(0);
+		}
 	}
 	
 	return TRUE;
