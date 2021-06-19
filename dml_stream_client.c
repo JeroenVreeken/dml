@@ -30,7 +30,7 @@
 
 
 static size_t skip = 0;
-
+static bool verbose = true;
 static bool is_cgi = false;
 
 static int data_cb(void *arg, void *data, size_t datasize)
@@ -48,7 +48,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 }
 
 static void mime_cb(void *arg, char *mime){
-	fprintf(stderr, "mime: %s\n", mime);
+	if (verbose) fprintf(stderr, "mime: %s\n", mime);
 	
 	if (is_cgi) {
 		char *header;
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
 		}
 		if (argc > 3) {
 			skip = atoi(argv[3]);
-			fprintf(stderr, "Skip %zd bytes per packet\n", skip);
+			if (verbose) fprintf(stderr, "Skip %zd bytes per packet\n", skip);
 		}
 		req_id_str = argv[1];
 	}
@@ -96,6 +96,7 @@ int main(int argc, char **argv)
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
 	bool verify = atoi(dml_config_value("verify", NULL, is_cgi ? "0" : "1"));
+	verbose = atoi(dml_config_value("verbose", NULL, is_cgi ? "0" : "1"));
 	
 	if (dml_crypto_init(NULL, ca)) {
 		fprintf(stderr, "Failed to init crypto\n");
@@ -114,7 +115,8 @@ int main(int argc, char **argv)
 		printf("Could not create stream\n");
 		return -1;
 	}
-
+	
+	dml_stream_client_simple_set_verbose(dss, verbose);
 	dml_stream_client_simple_set_cb_mime(dss, dss, mime_cb);
 
 	g_main_loop_run(g_main_loop_new(NULL, false));

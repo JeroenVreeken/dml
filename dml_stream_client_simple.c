@@ -51,6 +51,8 @@ struct dml_stream_client_simple {
 	char *name;
 	char *alias;
 	char *mime;
+	
+	bool verbose;
 };
 
 static gboolean keepalive_cb(void *arg)
@@ -62,7 +64,8 @@ static gboolean keepalive_cb(void *arg)
 	}
 	
 	if (dss->found_req_id) {
-		fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
+		if (dss->verbose)
+			fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
 		dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
 	} else {
 		//TODO What is the best way to trigger discovery?
@@ -122,7 +125,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				if (!dml_stream_update_description(data, len, NULL))
 					break;
 		
-				fprintf(stderr, "Request certificate\n");
+				if (dss->verbose) fprintf(stderr, "Request certificate\n");
 				dml_packet_send_req_certificate(dc, dss->req_id);
 				if (dss->mime_cb) {
 					dss->mime_cb(dss->mime_cb_arg, mime);
@@ -135,14 +138,14 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			void *cert;
 			size_t size;
 			
-			fprintf(stderr, "Parse certificate\n");
+			if (dss->verbose) fprintf(stderr, "Parse certificate\n");
 			if (dml_packet_parse_certificate(data, len, cid, &cert, &size)) {
 				fprintf(stderr, "Failed to parse certificate\n");
 				break;
 			}
-			fprintf(stderr, "verify %d\n", dss->verify);
+			if (dss->verbose) fprintf(stderr, "verify %d\n", dss->verify);
 			if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
-				fprintf(stderr, "Request header\n");
+				if (dss->verbose) fprintf(stderr, "Request header\n");
 				dml_packet_send_req_header(dc, dss->req_id);
 			}
 			free(cert);
@@ -181,7 +184,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		
 				dml_stream_data_id_set(ds, DML_PACKET_DATA);
 				dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
-				fprintf(stderr, "Send connect\n");
+				if (dss->verbose) fprintf(stderr, "Send connect\n");
 			}
 			
 			free(header);
@@ -362,4 +365,9 @@ void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
 {
 	dss->mime_cb_arg = arg;
 	dss->mime_cb = mime_cb;
+}
+
+void dml_stream_client_simple_set_verbose(struct dml_stream_client_simple *dss, bool verbose)
+{
+	dss->verbose = verbose;
 }

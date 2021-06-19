@@ -46,7 +46,7 @@ FPRS_DB_SRCS = \
 	fprs_aprsis.c
 
 
-dmld_SOURCES = $(DML_SRCS) dmld.c
+dmld_SOURCES = $(DML_SRCS) dmld.c dmld_cache.c
 dmld_LDADD = libdml.la
 dmld_LDFLAGS = $(ETH_AR_LIBS)
 

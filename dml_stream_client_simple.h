@@ -37,5 +37,7 @@ int dml_stream_client_simple_destroy(struct dml_stream_client_simple *dss);
 void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
 	void *arg, void (*mime_cb)(void *arg, char *mime));
 
+void dml_stream_client_simple_set_verbose(struct dml_stream_client_simple *dss, bool verbose);
+
 #endif /* _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_ */
 

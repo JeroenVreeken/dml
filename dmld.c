@@ -26,6 +26,7 @@
 #include "dml_config.h"
 #include <dml/dml_client.h>
 #include <dml/dml_id.h>
+#include "dmld_cache.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -567,6 +568,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			struct dml_connection *dc_r;
 			
 			dml_packet_parse_req_description(data, len, id);
+
+			void *description;
+			size_t description_size;
+			if (dmld_cache_search_description(id, &description, &description_size)) {
+				dml_connection_send(dc, description, DML_PACKET_DESCRIPTION, description_size);
+				printf("Use cached description\n");
+				break;
+			}
+			
+
 			dc_r = dml_route_connection_get(id);
 			if (dc_r) {
 				printf("Request description\n");
@@ -587,6 +598,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (dml_packet_parse_description(data, len,
 			    desc_id, &version, &bps, &mime, &name, &alias, &description))
 				break;
+
+			dmld_cache_insert_description(desc_id, data, len);
+
 			printf("Got description for %s\n", name);
 
 			struct connection *con;
@@ -609,6 +623,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			struct dml_connection *dc_r;
 			
 			dml_packet_parse_req_certificate(data, len, id);
+
+			void *certificate;
+			size_t certificate_size;
+			if (dmld_cache_search_certificate(id, &certificate, &certificate_size)) {
+				dml_packet_send_certificate(dc, id, certificate, certificate_size);
+				printf("Use cached certificate\n");
+				break;
+			}
+			
+
 			dc_r = dml_route_connection_get(id);
 			if (dc_r) {
 				dml_packet_send_req_certificate(dc_r, id);
@@ -627,6 +651,8 @@ void rx_packet(struct dml_connection *dc, void *arg,
     				break;
 
 			struct connection *con;
+
+			dmld_cache_insert_certificate(id, certificate_data, certificate_len);
 	
 			for (con = connection_list; con; con = con->next) {
 				if (list_check_remove(&con->req_certificate, id)) {
@@ -643,6 +669,16 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			struct dml_connection *dc_r;
 			
 			dml_packet_parse_req_header(data, len, id);
+			
+			void *header;
+			size_t header_size;
+			uint8_t header_sig[DML_SIG_SIZE];
+			if (dmld_cache_search_header(id, header_sig, &header, &header_size)) {
+				dml_packet_send_header(dc, id, header_sig, header, header_size);
+				printf("Use cached header\n");
+				break;
+			}
+			
 			dc_r = dml_route_connection_get(id);
 			char *idstr = dml_id_str(id);
 			printf("Request header for %s: %p\n", idstr, dc_r);
@@ -675,6 +711,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 					    sig, header_data, header_len);
 				}
 			}
+
+			dmld_cache_insert_header(id, sig, header_data, header_len);
+
 			free(header_data);
 			
 			break;

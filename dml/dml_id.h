@@ -18,8 +18,7 @@
 #ifndef _INCLUDE_DML_ID_H_
 #define _INCLUDE_DML_ID_H_
 
-#include "dml.h"
-
+#include <dml/dml.h>
 
 int dml_id_gen(uint8_t id[DML_ID_SIZE], uint8_t version, uint32_t bps,
     char *mime, char *name, char *alias, char *description);
