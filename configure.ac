@@ -25,15 +25,11 @@ AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
 # Check for codec2 library
 
 dnl Search for libcodec2
-PKG_CHECK_MODULES([CODEC2], [codec2], [], [
-  AC_MSG_ERROR([unable to find libcodec2])
-])
+PKG_CHECK_MODULES([CODEC2], [codec2], [codec2_found=yes], [codec2_found=no])
 
 AC_CHECK_HEADERS([codec2/codec2.h codec2/freedv_api.h],
-        [codec2_found_headers=yes; break;])
+        [codec2_found_headers=yes; break;],[codec2_found_headers=no])
 
-AS_IF([test "x$codec2_found_headers" != "xyes"],
-        [AC_MSG_ERROR([Unable to find the codec2 headers])])
 
 
 # Check for eth_ar library
@@ -111,8 +107,17 @@ AS_IF([test "x$libmagic_found_headers" = "xyes" && test "x$libmagic_found_lib" =
 	[enable_dml_httpd="yes"], [enable_dml_httpd="no"]
 )
 
-AS_IF([test "x$EMSCRIPTEN_FOUND" = "xno" ],
-	[enable_dml_trx="yes"; enable_dml_reflector="yes"; enable_dml_group="yes" ], 
+
+enable_dml_trx="yes"
+enable_dml_reflector="yes"
+enable_dml_group="yes"
+enable_dml_stream_client_codec2="yes"
+
+AS_IF([test "x$codec2_found_headers" == "xyes" ],
+	[], [enable_dml_trx="no"; enable_dml_stream_client_codec2="no"]
+)
+ 
+AS_IF([test "x$EMSCRIPTEN_FOUND" == "xyes" ],
 	[enable_dml_trx="no"; enable_dml_reflector="no"; enable_dml_group="no" ]
 )
 
@@ -123,8 +128,8 @@ AM_CONDITIONAL(ENABLE_DML_GROUP, test "x$enable_dml_group" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_REFLECTOR, test "x$enable_dml_reflector" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_TRX, test "x$enable_dml_trx" = "xyes")
+AM_CONDITIONAL(ENABLE_DML_STREAM_CLIENT_CODEC2, test "x&enable_dml_stream_client_codec2" = "xyes")
 AM_CONDITIONAL(ENABLE_GDML, test "x$enable_gdml" = "xyes")
-
 
 AC_SUBST([LIB_LDFLAGS])
 
@@ -140,5 +145,6 @@ echo "    dml_group:     " $enable_dml_group
 echo "    dml_httpd:     " $enable_dml_httpd
 echo "    dml_reflector: " $enable_dml_reflector
 echo "    dml_trx:       " $enable_dml_trx
+echo "    dml_stream_client_codec2: " $enable_dml_stream_client_codec2
 echo "    wasm:          " $EMSCRIPTEN_FOUND
 echo "    gdml:          " $enable_gdml
