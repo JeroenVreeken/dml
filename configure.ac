@@ -114,7 +114,11 @@ enable_dml_group="yes"
 enable_dml_stream_client_codec2="yes"
 
 AS_IF([test "x$codec2_found_headers" == "xyes" ],
-	[], [enable_dml_trx="no"; enable_dml_stream_client_codec2="no"]
+	[], 
+	[enable_dml_trx="no"; \
+	 enable_dml_reflector="no";\
+	 enable_dml_stream_client_codec2="no";
+	]
 )
  
 AS_IF([test "x$EMSCRIPTEN_FOUND" == "xyes" ],
