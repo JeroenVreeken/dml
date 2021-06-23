@@ -447,6 +447,12 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 	struct connection *con;
 	
 //	printf("got update\n");
+
+	if (hops == 255 && alt_hops == 255) {
+		// remove from the cache (might come back with new header)
+		dmld_cache_delete(id);
+	}
+
 	for (con = connection_list; con; con = con->next) {
 		struct connection_update *up, **upp;
 		uint8_t up_hops = con->dc == dc ? alt_hops : hops;
