@@ -115,10 +115,13 @@ dml_httpd_LDFLAGS = -lwebsockets $(MAGIC_LIBS) $(ETH_AR_LIBS)
 
 endif
 
+if ENABLE_DML_FPRS_DB
 
 dml_fprs_db_SOURCES = $(DML_SRCS) $(FPRS_DB_SRCS) dml_fprs_db.c
 dml_fprs_db_LDADD = libdml.la
 dml_fprs_db_LDFLAGS = $(ETH_AR_LIBS) -lm 
+
+endif
 
 if ENABLE_GDML
 

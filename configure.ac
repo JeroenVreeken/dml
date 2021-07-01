@@ -35,9 +35,10 @@ AC_CHECK_HEADERS([codec2/codec2.h codec2/freedv_api.h],
 # Check for eth_ar library
 
 dnl Search for libeth_ar
-PKG_CHECK_MODULES([ETH_AR], [eth_ar], [], [
-  AC_MSG_ERROR([unable to find libeth_ar])
-])
+PKG_CHECK_MODULES([ETH_AR], [eth_ar], [eth_ar_found=yes], [eth_ar_found=no])
+
+AC_CHECK_HEADERS([eth_ar/eth_ar.h],
+        [eth_ar_found_headers=yes; break;],[eth_ar_found_headers=no])
 
 
 
@@ -112,12 +113,21 @@ enable_dml_trx="yes"
 enable_dml_reflector="yes"
 enable_dml_group="yes"
 enable_dml_stream_client_codec2="yes"
+enable_dml_fprs_db="yes"
 
 AS_IF([test "x$codec2_found_headers" == "xyes" ],
 	[], 
 	[enable_dml_trx="no"; \
 	 enable_dml_reflector="no";\
 	 enable_dml_stream_client_codec2="no";
+	]
+)
+AS_IF([test "x$eth_ar_found_headers" == "xyes" ],
+	[], 
+	[enable_dml_trx="no"; \
+	 enable_dml_reflector="no";\
+	 enable_dml_stream_client_codec2="no";\
+	 eanble_dml_fprs_db="no";
 	]
 )
  
@@ -133,6 +143,7 @@ AM_CONDITIONAL(ENABLE_DML_HTTPD, test "x$enable_dml_httpd" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_REFLECTOR, test "x$enable_dml_reflector" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_TRX, test "x$enable_dml_trx" = "xyes")
 AM_CONDITIONAL(ENABLE_DML_STREAM_CLIENT_CODEC2, test "x&enable_dml_stream_client_codec2" = "xyes")
+AM_CONDITIONAL(ENABLE_DML_FPRS_DB, test "x&enable_dml_fprs_db" = "xyes")
 AM_CONDITIONAL(ENABLE_GDML, test "x$enable_gdml" = "xyes")
 
 AC_SUBST([LIB_LDFLAGS])
@@ -149,6 +160,7 @@ echo "    dml_group:     " $enable_dml_group
 echo "    dml_httpd:     " $enable_dml_httpd
 echo "    dml_reflector: " $enable_dml_reflector
 echo "    dml_trx:       " $enable_dml_trx
+echo "    dml_fprs_db:   " $enable_dml_fprs_db
 echo "    dml_stream_client_codec2: " $enable_dml_stream_client_codec2
 echo "    wasm:          " $EMSCRIPTEN_FOUND
 echo "    gdml:          " $enable_gdml
