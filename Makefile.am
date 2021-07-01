@@ -85,12 +85,12 @@ dml_trx_LDFLAGS = $(CODEC2_LIBS) $(ETH_AR_LIBS) -lm
 endif
 
 
-dml_streamer_SOURCES = $(DML_SRCS) dml_streamer.c matroska.c ogg.c isom.c
+dml_streamer_SOURCES = dml_streamer.c matroska.c ogg.c isom.c
 dml_streamer_LDADD = libdml.la
 dml_streamer_LDFLAGS = $(ETH_AR_LIBS)
 
 
-dml_stream_client_SOURCES = $(DML_SRCS) dml_stream_client.c
+dml_stream_client_SOURCES = dml_stream_client_simple.c dml_stream_client.c
 dml_stream_client_LDADD = libdml.la
 dml_stream_client_LDFLAGS = $(ETH_AR_LIBS)
 
