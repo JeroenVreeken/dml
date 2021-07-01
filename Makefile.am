@@ -50,7 +50,7 @@ dmld_SOURCES = dmld.c dmld_cache.c
 dmld_LDADD = libdml.la
 dmld_LDFLAGS = $(ETH_AR_LIBS)
 
-dml_list_SOURCES = $(DML_SRCS) dml_list.c
+dml_list_SOURCES = dml_list.c
 dml_list_LDADD = libdml.la
 dml_list_LDFLAGS = $(ETH_AR_LIBS)
 
