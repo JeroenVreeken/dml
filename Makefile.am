@@ -28,7 +28,7 @@ libdml_la_SOURCES = \
 libdml_la_CFLAGS=-fPIC
 libdml_la_LDFLAGS= -shared -fPIC -version-info 1:0:1 @LIB_LDFLAGS@ @GLIB_LIBS@
 
-bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_fprs_db
+bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client
 
 DML_SRCS = \
 	dml_stream_client_simple.c dml_voice_data.c
@@ -46,7 +46,7 @@ FPRS_DB_SRCS = \
 	fprs_aprsis.c
 
 
-dmld_SOURCES = $(DML_SRCS) dmld.c dmld_cache.c
+dmld_SOURCES = dmld.c dmld_cache.c
 dmld_LDADD = libdml.la
 dmld_LDFLAGS = $(ETH_AR_LIBS)
 
@@ -116,6 +116,8 @@ dml_httpd_LDFLAGS = -lwebsockets $(MAGIC_LIBS) $(ETH_AR_LIBS)
 endif
 
 if ENABLE_DML_FPRS_DB
+
+bin_PROGRAMS += dml_fprs_db
 
 dml_fprs_db_SOURCES = $(DML_SRCS) $(FPRS_DB_SRCS) dml_fprs_db.c
 dml_fprs_db_LDADD = libdml.la
