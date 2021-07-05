@@ -10,5 +10,14 @@ openssl ec -in k.pem -pubout -out p.pem
 # create a certificate request for key
 openssl req -new -key k.pem -out call.ampr.org.req.pem -config openssl-csr.conf
 
+# print request
+openssl req -noout -text -in call.ampr.org.req.pem
+
 # rehash ca dir after installing certificate
 c_rehash ./ca/
+
+
+
+# self sign a cert (not recommended)
+openssl req -x509 -key k.pem -out call.ampr.org.cert.pem -config openssl-csr.conf -extensions v3_req
+

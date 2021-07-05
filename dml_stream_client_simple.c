@@ -147,6 +147,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
 				if (dss->verbose) fprintf(stderr, "Request header\n");
 				dml_packet_send_req_header(dc, dss->req_id);
+			} else {
+				if (dss->verbose) fprintf(stderr, "Certificate not accepted\n");
 			}
 			free(cert);
 			
