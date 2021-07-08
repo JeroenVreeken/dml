@@ -47,6 +47,9 @@ struct dml_stream_client_simple {
 	
 	void *mime_cb_arg;
 	void (*mime_cb)(void *arg, char *mime);
+
+	void *header_cb_arg;
+	void (*header_cb)(void *arg, void *, size_t);
 	
 	char *name;
 	char *alias;
@@ -121,7 +124,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				}
 			}
 			
-			if (dss->found_req_id) {
+			if (dss->found_req_id && !memcmp(desc_id, dss->req_id, DML_ID_SIZE)) {
 				if (!dml_stream_update_description(data, len, NULL))
 					break;
 		
@@ -143,12 +146,15 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				fprintf(stderr, "Failed to parse certificate\n");
 				break;
 			}
-			if (dss->verbose) fprintf(stderr, "verify %d\n", dss->verify);
-			if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
-				if (dss->verbose) fprintf(stderr, "Request header\n");
-				dml_packet_send_req_header(dc, dss->req_id);
-			} else {
-				if (dss->verbose) fprintf(stderr, "Certificate not accepted\n");
+			
+			if (!memcmp(cid, dss->req_id, DML_ID_SIZE)) {
+				if (dss->verbose) fprintf(stderr, "verify %d\n", dss->verify);
+				if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
+					if (dss->verbose) fprintf(stderr, "Request header\n");
+					dml_packet_send_req_header(dc, dss->req_id);
+				} else {
+					if (dss->verbose) fprintf(stderr, "Certificate not accepted\n");
+				}
 			}
 			free(cert);
 			
@@ -181,7 +187,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			}
 			
 			if (send_connect) {
-				dss->data_cb(dss->arg, header, header_size);
+				if (dss->header_cb) {
+					dss->header_cb(dss->header_cb_arg, header, header_size);
+				} else {
+					dss->data_cb(dss->arg, header, header_size);
+				}
 				dss->header_written = true;
 		
 				dml_stream_data_id_set(ds, DML_PACKET_DATA);
@@ -373,3 +383,11 @@ void dml_stream_client_simple_set_verbose(struct dml_stream_client_simple *dss, 
 {
 	dss->verbose = verbose;
 }
+
+void dml_stream_client_simple_set_cb_header(struct dml_stream_client_simple *dss,
+	void *arg, void (*header_cb)(void *arg, void *, size_t))
+{
+	dss->header_cb_arg = arg;
+	dss->header_cb = header_cb;	
+}
+

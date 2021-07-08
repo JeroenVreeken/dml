@@ -39,5 +39,8 @@ void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
 
 void dml_stream_client_simple_set_verbose(struct dml_stream_client_simple *dss, bool verbose);
 
+void dml_stream_client_simple_set_cb_header(struct dml_stream_client_simple *dss,
+	void *arg, void (*header_cb)(void *arg, void *, size_t));
+
 #endif /* _INCLUDE_DML_STREAM_CLIENT_SIMPLE_H_ */
 

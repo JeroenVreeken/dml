@@ -22,8 +22,6 @@
 #include <dml/dml_crypto.h>
 #include "dml_config.h"
 #include "dml_stream_client_simple.h"
-#include "alaw.h"
-#include <eth_ar/ulaw.h>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,67 +32,33 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <codec2/codec2.h>
-
 static int fd_dump = -1;
 static int last_hour = -1;
 static char *dumpdir = "./";
 static char *dumpfile = "dml_stream_dump";
-static size_t f_datasize = 0;
 
 static bool stddump = false;
 
-static unsigned char wav_header[] = {
-	// RIFF header
-	'R', 'I', 'F', 'F',
-	0, 0, 0, 0, // 36 + f_datasize
-	'W', 'A', 'V', 'E',
-	
-	// subchunk
-	'f', 'm', 't', ' ',
-	16, 0, 0, 0, // subchunk size
-	1, 0, // PCM
-	1, 0, // 1 channel
-	0x40, 0x1f, 0, 0, // 8000Hz -> 0x1f40
-	0x80, 0x3e, 0, 0, // 8000 * 2Bytes = 16000
-	0x02, 0, // bytes per block (1channel of 16 bit)
-	0x10, 0, // bits per sample
-	
-	// data subchunk
-	'd', 'a', 't', 'a',
-	0, 0, 0, 0 // f_datasize
-};
 
-static int finish_wav(int fd, size_t data)
+static void *header = NULL;
+static size_t header_size = 0;
+
+char *suffix = "dump";
+
+static void header_cb(void *arg, void *data, size_t size)
 {
-	unsigned char sizeb[4];
-	
-	sizeb[0] = data & 0xff;
-	sizeb[1] = (data >> 8) & 0xff,
-	sizeb[2] = (data >> 16) & 0xff,
-	sizeb[3] = (data >> 24) & 0xff,
-	
-	lseek(fd, 40, SEEK_SET);
-	write(fd, sizeb, 4);
-
-	data += 36;
-
-	sizeb[0] = data & 0xff;
-	sizeb[1] = (data >> 8) & 0xff,
-	sizeb[2] = (data >> 16) & 0xff,
-	sizeb[3] = (data >> 24) & 0xff,
-	
-	lseek(fd, 4, SEEK_SET);
-	write(fd, sizeb, 4);
-	
-	return 0;
+	if (header) {
+		free(header);
+	}
+	header = malloc(size);
+	if (header) {
+		header_size = size;
+		memcpy(header, data, size);
+	}
 }
-
 
 static int data_cb(void *arg, void *data, size_t datasize)
 {
-	static struct CODEC2 *dec = NULL;
-	static int mode = -1;
 	time_t now = time(NULL);
 	struct tm tm_now;
 	
@@ -102,7 +66,6 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	if (!stddump && tm_now.tm_hour != last_hour) {
 		if (fd_dump >= 0) {
 			printf("Closing dump file\n");
-			finish_wav(fd_dump, f_datasize);
 			close(fd_dump);
 		}
 		
@@ -115,13 +78,14 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		free(dname);
 
 		char *fname;
-		asprintf(&fname, "%s/%04d/%02d/%s.%04d%02d%02d%02d00.wav",
+		asprintf(&fname, "%s/%04d/%02d/%s.%04d%02d%02d%02d00.%s",
 		    dumpdir,
 		    tm_now.tm_year + 1900, tm_now.tm_mon + 1,
 		    dumpfile, 
 		    tm_now.tm_year + 1900,
 		    tm_now.tm_mon + 1, tm_now.tm_mday,
-		    tm_now.tm_hour);
+		    tm_now.tm_hour,
+		    suffix);
 		printf("Open new dump file: %s\n", fname);
 		
 		fd_dump = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 
@@ -133,109 +97,14 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		}
 		last_hour = tm_now.tm_hour;
 		
-		write(fd_dump, wav_header, sizeof(wav_header));
+		write(fd_dump, header, header_size);
 	}
 
-	if (datasize <= 8) {
-		return 0;
-	}
-	size_t codecdata = datasize - 8;
-	
-	size_t nr;
-	uint8_t *data8 = data;
 
-	int prev_mode = mode;
-	mode = data8[6];
-	if (mode != prev_mode) {
-		fprintf(stderr, "Switched to mode %d\n", mode);
+	if (write(fd_dump, data, datasize)) {
+		return -1;
 	}
 
-	switch (mode) {
-		case 'A':
-		case 'U':
-			nr = codecdata;
-			break;
-		case 's':
-		case 'S':
-			nr = codecdata/2;
-			break;
-		default:
-			if (prev_mode != mode) {
-				if (dec)
-					codec2_destroy(dec);
-				dec = codec2_create(mode);
-			}
-			if (dec) {
-				int bpf = codec2_bits_per_frame(dec);
-				int spf = codec2_samples_per_frame(dec);
-				
-				nr = codecdata / ((bpf+7)/8) * spf;
-			} else {
-				nr = 0;
-			}
-			break;
-	}
-	
-	int16_t samples[nr];
-
-	switch (mode) {
-		case 'A':
-			alaw_decode(samples, data8 + 8, nr);
-			break;
-		case 'U':
-			ulaw_decode(samples, data8 + 8, nr);
-			break;
-		case 's': {
-			int b;
-			union {
-				uint8_t d8[2];
-				uint16_t s;
-			} d2s;
-			for (b = 0; b < nr; b++) {
-				d2s.d8[0] = data8[8+b*2+0];
-				d2s.d8[1] = data8[8+b*2+1];
-				samples[b] = le16toh(d2s.s);
-			}
-			break;
-		}
-		case 'S': {
-			int b;
-			union {
-				uint8_t d8[2];
-				uint16_t s;
-			} d2s;
-			for (b = 0; b < nr; b++) {
-				d2s.d8[0] = data8[8+b*2+0];
-				d2s.d8[1] = data8[8+b*2+1];
-				samples[b] = be16toh(d2s.s);
-			}
-			break;
-		}
-		default:
-			if (dec) {
-				int bpf = codec2_bits_per_frame(dec);
-				int spf = codec2_samples_per_frame(dec);
-				int frames = nr / spf;
-				int16_t *speech = samples;
-				data8 += 8;
-				
-				while (frames) {
-					codec2_decode(dec, speech, data8);
-					speech += spf;
-					data8 += (bpf+7)/8;
-					frames--;
-				}
-			}
-			break;
-	}
-	
-	size_t i;
-	for (i = 0; i < nr; i++) {
-		uint16_t samplele = htole16(samples[i]);
-		if (write(fd_dump, &samplele, sizeof(uint16_t)) != sizeof(uint16_t))
-			return -1;
-		f_datasize += sizeof(uint16_t);
-	}
 	return 0;
 }
 
@@ -261,6 +130,8 @@ int main(int argc, char **argv)
 		dumpfile = argv[3];
 	if (argc > 4)
 		dumpdir = argv[4];
+	if (argc > 5)
+		suffix = argv[5];
 	if (argc < 2) {
 		fprintf(stderr, "No id given\n");
 		return -1;
@@ -288,6 +159,8 @@ int main(int argc, char **argv)
 		printf("Could not create stream\n");
 		return -1;
 	}
+
+	dml_stream_client_simple_set_cb_header(dss, NULL, header_cb);
 
 	g_main_loop_run(g_main_loop_new(NULL, false));
 

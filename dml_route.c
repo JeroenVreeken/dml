@@ -176,14 +176,20 @@ int dml_route_remove(struct dml_connection *dc)
 		int i;
 		uint8_t old_hops = route->links ? route->link[route->lowest].hops : 255;
 		bool origin = false;
+		bool found = false;
 		
 		for (i = 0; i < route->links; i++) {
 			if (route->link[i].dc == dc) {
+				found = true;
 				if (route->link[i].hops == 0)
 					origin = true;
 				break;
 			}
 		}
+		
+		if (!found)
+			continue;
+		/* Route over this connection */
 
 		char *idstr = dml_id_str(route->id);
 		printf("Remove route : %s link %d %p\n", idstr, i, dc);

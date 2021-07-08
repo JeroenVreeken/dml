@@ -31,6 +31,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/ip.h>
 
 static bool debug = false;
 
@@ -853,10 +856,37 @@ void server_connection(void *arg, int fd)
 {
 	struct dml_connection *dc;
 	struct connection *con;
-	char *name;
-	
-	if (asprintf(&name, "server-%d", fd) < 0)
-		return;
+	char *name = NULL;
+
+	struct sockaddr addr;
+	socklen_t addrlen = sizeof(addr);
+	if (!getpeername(fd, &addr, &addrlen)) {
+		if (addr.sa_family == AF_INET) {
+			struct sockaddr_in addr_in;
+			addrlen = sizeof(addr_in);
+			if (!getpeername(fd, &addr_in, &addrlen)) {
+				char ip[INET_ADDRSTRLEN] = {0};
+				inet_ntop(AF_INET, &addr_in.sin_addr, ip, addrlen);
+
+				if (asprintf(&name, "server-IP4-%s:%d", ip, ntohs(addr_in.sin_port)) < 0)
+					return;
+			}
+		} else if (addr.sa_family == AF_INET6) {
+			struct sockaddr_in6 addr_in6;
+			addrlen = sizeof(addr_in6);
+			if (!getpeername(fd, &addr_in6, &addrlen)) {
+				char ip6[INET6_ADDRSTRLEN] = {0};
+				inet_ntop(AF_INET6, &addr_in6.sin6_addr, ip6, addrlen);
+
+				if (asprintf(&name, "server-IP6-%s:%d", ip6, ntohs(addr_in6.sin6_port)) < 0)
+					return;
+			}		
+		}
+	}
+	if (!name) {
+		if (asprintf(&name, "server-fd:%d", fd) < 0)
+			return;
+	}
 	
 	con = connection_create();
 	if (!con)

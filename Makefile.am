@@ -28,7 +28,7 @@ libdml_la_SOURCES = \
 libdml_la_CFLAGS=-fPIC
 libdml_la_LDFLAGS= -shared -fPIC -version-info 1:0:1 @LIB_LDFLAGS@ @GLIB_LIBS@
 
-bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client
+bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_file
 
 DML_SRCS = \
 	dml_stream_client_simple.c dml_voice_data.c
@@ -93,6 +93,11 @@ dml_streamer_LDFLAGS = $(ETH_AR_LIBS)
 dml_stream_client_SOURCES = dml_stream_client_simple.c dml_stream_client.c
 dml_stream_client_LDADD = libdml.la
 dml_stream_client_LDFLAGS = $(ETH_AR_LIBS)
+
+dml_stream_client_file_SOURCES = dml_stream_client_simple.c dml_stream_client_file.c
+dml_stream_client_file_LDADD = libdml.la
+dml_stream_client_file_LDFLAGS = $(ETH_AR_LIBS)
+
 
 if ENABLE_DML_STREAM_CLIENT_CODEC2
 
