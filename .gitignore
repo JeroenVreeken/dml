@@ -1,6 +1,8 @@
 *.pem
 *.o
 dmld
+dml.pc
+dml_group
 dml_httpd
 dml_list
 dml_reflector
@@ -9,6 +11,7 @@ dml_stream_client
 dml_stream_client_codec2
 dml_trx
 dml_fprs_db
+test_dml_packet
 
 # Check licenses before including any icon set
 htdocs/aprs-symbols-24-0.png
@@ -38,6 +41,7 @@ Makefile.in
 /m4/
 /missing
 /stamp-h?
+/test-driver
 .deps/
 .dirstamp
 .libs/
