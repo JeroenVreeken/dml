@@ -22,7 +22,7 @@
  */
 
 
-var DML = {
+DML = {
 	PACKET:  {
 		HELLO: 0,
 		ROUTE: 1,
