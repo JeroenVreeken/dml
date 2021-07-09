@@ -151,8 +151,10 @@ int main(int argc, char **argv)
 	}
 
 	if (dml_str_id(req_id, req_id_str)) {
-		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, DML_MIME_DV_C2, NULL, data_cb, true);
+		printf("Search for stream\n");
+		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, true);
 	} else {
+		printf("Use direct ID\n");
 		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
 	}
 	if (!dss) {
