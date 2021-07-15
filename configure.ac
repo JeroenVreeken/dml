@@ -1,4 +1,4 @@
-AC_INIT([dml], [0.1], [jeroen@vreeken.net], [], [https://dmlinking.net/])
+AC_INIT([dml], [0.2], [jeroen@vreeken.net], [], [https://dmlinking.net/])
 AM_INIT_AUTOMAKE([foreign dist-xz])
 AM_SILENT_RULES([yes])
 LT_INIT
