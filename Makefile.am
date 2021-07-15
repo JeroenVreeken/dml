@@ -3,7 +3,18 @@ ACLOCAL_AMFLAGS=-I m4
 CFLAGS+= -Wall -Werror -O3  @GLIB_CFLAGS@
 
 
-nobase_include_HEADERS = dml/dml.h dml/dml_client.h dml/dml_connection.h dml/dml_crypto.h dml/dml_host.h dml/dml_id.h dml/dml_packet.h dml/dml_route.h dml/dml_stream.h dml/dml_server.h
+nobase_include_HEADERS = \
+	dml/dml.h \
+	dml/dml_client.h \
+	dml/dml_connection.h \
+	dml/dml_crypto.h \
+	dml/dml_host.h \
+	dml/dml_id.h \
+	dml/dml_log.h \
+	dml/dml_packet.h \
+	dml/dml_route.h \
+	dml/dml_stream.h \
+	dml/dml_server.h
 
 
 pkgconfigdir = $(libdir)/pkgconfig
@@ -20,6 +31,7 @@ libdml_la_SOURCES = \
 	dml_crypto.c \
 	dml_host.c \
 	dml_id.c \
+	dml_log.c \
 	dml_packet.c \
 	dml_route.c \
 	dml_server.c \
