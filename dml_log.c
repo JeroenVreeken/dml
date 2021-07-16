@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <syslog.h>
 
-static int dml_log_level = DML_LOG_INFO;
+static int dml_log_min = DML_LOG_INFO;
 static bool dml_log_use_syslog = false;
 
 static char *dml_log_level2str(enum dml_log_level level)
@@ -66,7 +66,7 @@ static int dml_log_level2syslog(enum dml_log_level level)
 
 void dml_log(enum dml_log_level level, const char *fmt, ...)
 {
-	if (level > dml_log_level)
+	if (level > dml_log_min)
 		return;
 
 	va_list ap;
@@ -80,6 +80,11 @@ void dml_log(enum dml_log_level level, const char *fmt, ...)
 	}
 	
 	va_end(ap);
+}
+
+void dml_log_level(enum dml_log_level level)
+{
+	dml_log_min = level;
 }
 
 void dml_log_syslog(bool value)

@@ -86,6 +86,9 @@ struct connection {
 	struct connection_update *req_header;
 	
 	char *name;
+	
+	int hops_offset;
+	
 	struct connection *next;
 };
 
@@ -124,6 +127,15 @@ int connection_name_set(struct connection *con, char *name)
 	char *tmp = strdup(name);
 	if (!tmp)
 		return -1;
+
+	int i;
+	for (i = 0; i < strlen(tmp); i++) {
+		if (tmp[i] == ',') {
+			tmp[i] = 0;
+			con->hops_offset = atoi(tmp+i+1);
+			dml_log(DML_LOG_DEBUG, "Connection to %s has hop_offset of %d\n", tmp, con->hops_offset);
+		}
+	}
 
 	free(con->name);
 	con->name = tmp;
@@ -569,6 +581,9 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t hops;
 			
 			dml_packet_parse_route(data, len, id, &hops);
+
+			hops += con->hops_offset;
+			
 			dml_route_update(id, hops, dc);
 			break;
 		}
@@ -988,12 +1003,13 @@ int main(int argc, char **argv)
 	
 	bool daemonize = atoi(dml_config_value("daemon", NULL, "0"));
 	if (daemonize) {
-		dml_log(DML_LOG_INFO, "Run in background\n");
+		dml_log(DML_LOG_DEBUG, "Run in background\n");
 		dml_log_syslog(true);
 		if (daemon(1, 0)) {
 		   dml_log(DML_LOG_ERROR, "Failed to daemonize\n");
 		}
 	} else {
+		dml_log_level(DML_LOG_DEBUG);
 		dml_log(DML_LOG_INFO, "Run in foreground\n");
 	}
 
@@ -1004,14 +1020,21 @@ int main(int argc, char **argv)
 	
 	while ((server = dml_config_value("server", server, NULL))) {
 		struct dml_client *dc;
+		char *hostname = strdup(server);
+		int i;
+		for (i = 0; i < strlen(hostname); i++)
+			if (hostname[i]==',')
+				hostname[i] = 0;
 		
-		dml_log(DML_LOG_INFO, "Connect to %s\n", server);
-		dc = dml_client_create(server, 0, client_connect, strdup(server));		
+		dml_log(DML_LOG_INFO, "Connect to %s\n", hostname);
+		dc = dml_client_create(hostname, 0, client_connect, strdup(server));		
 
 		if (dml_client_connect(dc)) {
-			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later\n", server);
+			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later\n", hostname);
 			g_timeout_add_seconds(1, client_reconnect, dc);
 		}
+		
+		free(hostname);
 	}
 
 	dml_route_update_cb_set(connection_update);

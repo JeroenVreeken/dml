@@ -29,6 +29,7 @@ enum dml_log_level {
 
 void dml_log(enum dml_log_level, const char *fmt, ...);
 
+void dml_log_level(enum dml_log_level);
 void dml_log_syslog(bool);
 
 
