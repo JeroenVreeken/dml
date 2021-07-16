@@ -406,9 +406,10 @@ gboolean update(void *arg)
 		if (!up)
 			break;
 		char *idstr = dml_id_str(up->id);
-		dml_log(DML_LOG_INFO, "Send update %s (%d hops)\n", idstr, up->hops);
+		int hops = up->hops + con->hops_offset;
+		dml_log(DML_LOG_INFO, "Send update %s (%d hops)\n", idstr, hops);
 		free(idstr);
-		dml_packet_send_route(con->dc, up->id, up->hops);
+		dml_packet_send_route(con->dc, up->id, hops);
 		free(up);
 	}
 	if (!dml_connection_send_empty(con->dc)) {
@@ -445,8 +446,10 @@ gboolean update_all(void *arg)
 		if (dc == con->dc)
 			continue;
 		
-		hops = hops == 255 ? 255 : hops + 1;
-		dml_packet_send_route(con->dc, con->update_id, hops);
+		int new_hops = hops + 1 + con->hops_offset;
+		if (new_hops > 255)
+			new_hops = 255;
+		dml_packet_send_route(con->dc, con->update_id, new_hops);
 	}
 //	printf("wait a little %p\n", con);
 
