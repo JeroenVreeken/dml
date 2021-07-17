@@ -46,6 +46,20 @@ static size_t header_size = 0;
 
 char *suffix = "dump";
 
+int duration = 0;
+bool duration_start = false;
+
+
+static gboolean duration_cb(void *arg)
+{
+	dml_log(DML_LOG_INFO, "Maximum duration reached\n");
+
+	close(fd_dump);
+	
+	exit(0);
+}	
+
+
 static void header_cb(void *arg, void *data, size_t size)
 {
 	if (header) {
@@ -62,6 +76,12 @@ static int data_cb(void *arg, void *data, size_t datasize)
 {
 	time_t now = time(NULL);
 	struct tm tm_now;
+
+	if (duration && !duration_start) {
+		dml_log(DML_LOG_INFO, "Maximum duration: %d seconds\n", duration);
+		g_timeout_add_seconds(duration, duration_cb, NULL);
+		duration_start = true;
+	}
 	
 	gmtime_r(&now, &tm_now);
 	if (!stddump && tm_now.tm_hour != last_hour) {
@@ -110,6 +130,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 }
 
 
+
 int main(int argc, char **argv)
 {
 	char *file = "dml_stream_client.conf";
@@ -118,7 +139,7 @@ int main(int argc, char **argv)
 	char *req_id_str;
 	uint8_t req_id[DML_ID_SIZE];
 	struct dml_stream_client_simple *dss;
-
+	
 	if (argc > 2) {
 		if (!strcmp(argv[2], "-")) {
 			stddump = true;
@@ -133,6 +154,9 @@ int main(int argc, char **argv)
 		dumpdir = argv[4];
 	if (argc > 5)
 		suffix = argv[5];
+	if (argc > 6) {
+		duration = atoi(argv[6]);
+	}
 	if (argc < 2) {
 		dml_log(DML_LOG_ERROR, "No id given\n");
 		return -1;

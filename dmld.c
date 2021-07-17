@@ -1010,11 +1010,13 @@ int main(int argc, char **argv)
 	if (daemonize) {
 		dml_log(DML_LOG_DEBUG, "Run in background\n");
 		dml_log_syslog(true);
-		if (daemon(1, 0)) {
+		if (daemon(0, 0)) {
 		   dml_log(DML_LOG_ERROR, "Failed to daemonize\n");
 		}
 	} else {
-		dml_log_level(DML_LOG_DEBUG);
+		bool debug = atoi(dml_config_value("debug", NULL, "0"));
+		enum dml_log_level level = debug ? DML_LOG_DEBUG : DML_LOG_INFO;
+		dml_log_level(level);
 		dml_log(DML_LOG_INFO, "Run in foreground\n");
 	}
 
