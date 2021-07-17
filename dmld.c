@@ -133,7 +133,7 @@ int connection_name_set(struct connection *con, char *name)
 		if (tmp[i] == ',') {
 			tmp[i] = 0;
 			con->hops_offset = atoi(tmp+i+1);
-			dml_log(DML_LOG_DEBUG, "Connection to %s has hop_offset of %d\n", tmp, con->hops_offset);
+			dml_log(DML_LOG_DEBUG, "Connection to %s has hops_offset of %d\n", tmp, con->hops_offset);
 		}
 	}
 
@@ -407,6 +407,8 @@ gboolean update(void *arg)
 			break;
 		char *idstr = dml_id_str(up->id);
 		int hops = up->hops + con->hops_offset;
+		if (hops > 255)
+			hops = 255;
 		dml_log(DML_LOG_INFO, "Send update %s (%d hops)\n", idstr, hops);
 		free(idstr);
 		dml_packet_send_route(con->dc, up->id, hops);
