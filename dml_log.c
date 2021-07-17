@@ -24,6 +24,7 @@
 
 static int dml_log_min = DML_LOG_INFO;
 static bool dml_log_use_syslog = false;
+static FILE *dml_log_file = NULL;
 
 static char *dml_log_level2str(enum dml_log_level level)
 {
@@ -33,7 +34,7 @@ static char *dml_log_level2str(enum dml_log_level level)
 		case DML_LOG_WARNING:
 			return "WARNING:";
 		case DML_LOG_INFO:
-			return "LOG:    ";
+			return "INFO:   ";
 		case DML_LOG_DEBUG:
 			return "DEBUG:  ";
 	}
@@ -75,8 +76,11 @@ void dml_log(enum dml_log_level level, const char *fmt, ...)
 	if (dml_log_use_syslog) {
 		vsyslog(dml_log_level2syslog(level), fmt, ap);
 	} else {
-		fprintf(stdout, "%s", dml_log_level2str(level));
-		vfprintf(stdout, fmt, ap);
+		if (!dml_log_file)
+			dml_log_file = stdout;
+	
+		fprintf(dml_log_file, "%s", dml_log_level2str(level));
+		vfprintf(dml_log_file, fmt, ap);
 	}
 	
 	va_end(ap);
@@ -85,6 +89,11 @@ void dml_log(enum dml_log_level level, const char *fmt, ...)
 void dml_log_level(enum dml_log_level level)
 {
 	dml_log_min = level;
+}
+
+void dml_log_fp(FILE *fp)
+{
+	dml_log_file = fp;
 }
 
 void dml_log_syslog(bool value)

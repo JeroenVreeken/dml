@@ -20,6 +20,7 @@
 #include <dml/dml.h>
 #include <dml/dml_id.h>
 #include <dml/dml_crypto.h>
+#include <dml/dml_log.h>
 #include "dml_config.h"
 #include "dml_stream_client_simple.h"
 
@@ -31,7 +32,6 @@
 
 static size_t skip = 0;
 static bool verbose = true;
-static bool is_cgi = false;
 
 static int data_cb(void *arg, void *data, size_t datasize)
 {
@@ -48,15 +48,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 }
 
 static void mime_cb(void *arg, char *mime){
-	if (verbose) fprintf(stderr, "mime: %s\n", mime);
-	
-	if (is_cgi) {
-		char *header;
-		asprintf(&header, "Content-type: %s\n\n", mime);
-		write(1, header, strlen(header));
-		
-		free(header);
-	}
+	dml_log(DML_LOG_DEBUG, "mime: %s\n", mime);
 }
 
 int main(int argc, char **argv)
@@ -68,38 +60,31 @@ int main(int argc, char **argv)
 	uint8_t req_id[DML_ID_SIZE];
 	struct dml_stream_client_simple *dss;
 
-	char *query_string = getenv("QUERY_STRING");
-	if (query_string) {
-		is_cgi = true;
-		
-		file = "/etc/dml/dml_stream_client.cgi.conf";
-		req_id_str = query_string;
-	} else {
-		if (argc > 2)
-			file = argv[2];
-		if (argc < 2) {
-			fprintf(stderr, "No id given\n");
-			return -1;
-		}
-		if (argc > 3) {
-			skip = atoi(argv[3]);
-			if (verbose) fprintf(stderr, "Skip %zd bytes per packet\n", skip);
-		}
-		req_id_str = argv[1];
+	if (argc > 2)
+		file = argv[2];
+	if (argc < 2) {
+		dml_log(DML_LOG_ERROR, "No id given\n");
+		return -1;
 	}
+	if (argc > 3) {
+		skip = atoi(argv[3]);
+		dml_log(DML_LOG_INFO, "Skip %zd bytes per packet\n", skip);
+	}
+	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
-		fprintf(stderr, "Failed to load config file %s\n", file);
-		if (!is_cgi)
-			return -1;
+		dml_log(DML_LOG_ERROR, "Failed to load config file %s\n", file);
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
-	bool verify = atoi(dml_config_value("verify", NULL, is_cgi ? "0" : "1"));
-	verbose = atoi(dml_config_value("verbose", NULL, is_cgi ? "0" : "1"));
+	bool verify = atoi(dml_config_value("verify", NULL, "1"));
+	verbose = atoi(dml_config_value("verbose", NULL, "1"));
+	
+	dml_log_fp(stderr);
+	dml_log_level(verbose ? DML_LOG_DEBUG : DML_LOG_ERROR);
 	
 	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
+		dml_log(DML_LOG_ERROR, "Failed to init crypto\n");
 		return -1;
 	}
 
@@ -116,7 +101,6 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	
-	dml_stream_client_simple_set_verbose(dss, verbose);
 	dml_stream_client_simple_set_cb_mime(dss, dss, mime_cb);
 
 	g_main_loop_run(g_main_loop_new(NULL, false));

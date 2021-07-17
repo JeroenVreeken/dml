@@ -22,6 +22,7 @@
 #include <dml/dml_id.h>
 #include <dml/dml_crypto.h>
 #include <dml/dml_stream.h>
+#include <dml/dml_log.h>
 #include <dml_config.h>
 #include <dml_stream_client_simple.h>
 
@@ -54,8 +55,6 @@ struct dml_stream_client_simple {
 	char *name;
 	char *alias;
 	char *mime;
-	
-	bool verbose;
 };
 
 static gboolean keepalive_cb(void *arg)
@@ -67,8 +66,7 @@ static gboolean keepalive_cb(void *arg)
 	}
 	
 	if (dss->found_req_id) {
-		if (dss->verbose)
-			fprintf(stderr, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
+		dml_log(DML_LOG_INFO, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
 		dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
 	} else {
 		//TODO What is the best way to trigger discovery?
@@ -84,7 +82,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 {
 	struct dml_stream_client_simple *dss = arg;
 
-//	fprintf(stderr, "got id: %d\n", id);
+//	dml_log(DML_LOG_DEBUG, "got id: %d\n", id);
 	switch(id) {
 		case DML_PACKET_ROUTE: {
 			if (dss->found_req_id)
@@ -128,7 +126,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				if (!dml_stream_update_description(data, len, NULL))
 					break;
 		
-				if (dss->verbose) fprintf(stderr, "Request certificate\n");
+				dml_log(DML_LOG_DEBUG, "Request certificate\n");
 				dml_packet_send_req_certificate(dc, dss->req_id);
 				if (dss->mime_cb) {
 					dss->mime_cb(dss->mime_cb_arg, mime);
@@ -141,19 +139,19 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			void *cert;
 			size_t size;
 			
-			if (dss->verbose) fprintf(stderr, "Parse certificate\n");
+			dml_log(DML_LOG_DEBUG, "Parse certificate\n");
 			if (dml_packet_parse_certificate(data, len, cid, &cert, &size)) {
-				fprintf(stderr, "Failed to parse certificate\n");
+				dml_log(DML_LOG_ERROR, "Failed to parse certificate\n");
 				break;
 			}
 			
 			if (!memcmp(cid, dss->req_id, DML_ID_SIZE)) {
-				if (dss->verbose) fprintf(stderr, "verify %d\n", dss->verify);
+				dml_log(DML_LOG_DEBUG, "verify %d\n", dss->verify);
 				if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
-					if (dss->verbose) fprintf(stderr, "Request header\n");
+					dml_log(DML_LOG_DEBUG, "Request header\n");
 					dml_packet_send_req_header(dc, dss->req_id);
 				} else {
-					if (dss->verbose) fprintf(stderr, "Certificate not accepted\n");
+					dml_log(DML_LOG_ERROR, "Certificate not accepted\n");
 				}
 			}
 			free(cert);
@@ -181,7 +179,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					if (verified) {
 						send_connect = true;
 					} else {
-						fprintf(stderr, "Failed to verify header signature (%zd bytes)\n", header_size);
+						dml_log(DML_LOG_ERROR, "Failed to verify header signature (%zd bytes)\n", header_size);
 					}
 				}
 			}
@@ -196,7 +194,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		
 				dml_stream_data_id_set(ds, DML_PACKET_DATA);
 				dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
-				if (dss->verbose) fprintf(stderr, "Send connect\n");
+				dml_log(DML_LOG_DEBUG, "Send connect\n");
 			}
 			
 			free(header);
@@ -217,7 +215,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			
 			ds = dml_stream_by_data_id(id);
 			if (!ds) {
-				fprintf(stderr, "Could not find dml stream\n");
+				dml_log(DML_LOG_ERROR, "Could not find dml stream\n");
 				break;
 			}
 			
@@ -225,9 +223,8 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			if (dss->verify) {
 				dk = dml_stream_crypto_get(ds);
 			
-				if (dml_packet_parse_data(data, len,
-				    &payload_data, &payload_len, &timestamp, dk)) {
-					fprintf(stderr, "Decoding failed\n");
+				if (dml_packet_parse_data(data, len, &payload_data, &payload_len, &timestamp, dk)) {
+					dml_log(DML_LOG_ERROR, "Decoding failed\n");
 				} else {
 					parsed = true;
 				}
@@ -240,11 +237,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			}
 			if (parsed) {
 				if (timestamp <= dml_stream_timestamp_get(ds)) {
-					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
+					dml_log(DML_LOG_ERROR, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-//					fprintf(stderr, "Received %zd ok\n", payload_len);
+//					dml_log(DML_LOG_DEBUG, "Received %zd ok\n", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
 				
 					g_source_remove_by_user_data(dss);
@@ -377,11 +374,6 @@ void dml_stream_client_simple_set_cb_mime(struct dml_stream_client_simple *dss,
 {
 	dss->mime_cb_arg = arg;
 	dss->mime_cb = mime_cb;
-}
-
-void dml_stream_client_simple_set_verbose(struct dml_stream_client_simple *dss, bool verbose)
-{
-	dss->verbose = verbose;
 }
 
 void dml_stream_client_simple_set_cb_header(struct dml_stream_client_simple *dss,

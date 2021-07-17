@@ -20,6 +20,7 @@
 #include <dml/dml.h>
 #include <dml/dml_id.h>
 #include <dml/dml_crypto.h>
+#include <dml/dml_log.h>
 #include "dml_config.h"
 #include "dml_stream_client_simple.h"
 
@@ -65,7 +66,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	gmtime_r(&now, &tm_now);
 	if (!stddump && tm_now.tm_hour != last_hour) {
 		if (fd_dump >= 0) {
-			printf("Closing dump file\n");
+			dml_log(DML_LOG_INFO, "Closing dump file\n");
 			close(fd_dump);
 		}
 		
@@ -86,13 +87,13 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		    tm_now.tm_mon + 1, tm_now.tm_mday,
 		    tm_now.tm_hour,
 		    suffix);
-		printf("Open new dump file: %s\n", fname);
+		dml_log(DML_LOG_INFO, "Open new dump file: %s\n", fname);
 		
 		fd_dump = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 
 		    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		free(fname);
 		if (fd_dump < 0) {
-			printf("Failed to open dump file\n");
+			dml_log(DML_LOG_ERROR, "Failed to open dump file\n");
 			return -1;
 		}
 		last_hour = tm_now.tm_hour;
@@ -133,32 +134,32 @@ int main(int argc, char **argv)
 	if (argc > 5)
 		suffix = argv[5];
 	if (argc < 2) {
-		fprintf(stderr, "No id given\n");
+		dml_log(DML_LOG_ERROR, "No id given\n");
 		return -1;
 	}
 	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
-		fprintf(stderr, "Failed to load config file %s\n", file);
+		dml_log(DML_LOG_ERROR, "Failed to load config file %s\n", file);
 		return -1;
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
 	
 	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
+		dml_log(DML_LOG_ERROR, "Failed to init crypto\n");
 		return -1;
 	}
 
 	if (dml_str_id(req_id, req_id_str)) {
-		printf("Search for stream\n");
+		dml_log(DML_LOG_INFO, "Search for stream\n");
 		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, true);
 	} else {
-		printf("Use direct ID\n");
+		dml_log(DML_LOG_INFO, "Use direct ID\n");
 		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
 	}
 	if (!dss) {
-		printf("Could not create stream\n");
+		dml_log(DML_LOG_ERROR, "Could not create stream\n");
 		return -1;
 	}
 

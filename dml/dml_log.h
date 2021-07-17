@@ -19,6 +19,7 @@
 #define _INCLUDE_DML_LOG_H_
 
 #include <stdbool.h>
+#include <stdio.h>
 
 enum dml_log_level {
 	DML_LOG_ERROR,
@@ -30,6 +31,7 @@ enum dml_log_level {
 void dml_log(enum dml_log_level, const char *fmt, ...);
 
 void dml_log_level(enum dml_log_level);
+void dml_log_fp(FILE *fp);
 void dml_log_syslog(bool);
 
 
