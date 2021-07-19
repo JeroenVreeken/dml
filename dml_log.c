@@ -32,7 +32,7 @@ static char *dml_log_level2str(enum dml_log_level level)
 		case DML_LOG_ERROR:
 			return "ERROR:  ";
 		case DML_LOG_WARNING:
-			return "WARNING:";
+			return "WARN:   ";
 		case DML_LOG_INFO:
 			return "INFO:   ";
 		case DML_LOG_DEBUG:

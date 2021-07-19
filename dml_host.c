@@ -116,6 +116,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				ds = dml_stream_by_id_alloc(rid);
 				if (!ds)
 					break;
+				dml_stream_hops_set(ds, hops);
 				char *mime = dml_stream_mime_get(ds);
 				if (!mime)
 					dml_packet_send_req_description(dc, rid);

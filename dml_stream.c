@@ -27,6 +27,7 @@ struct dml_stream {
 	uint8_t id[DML_ID_SIZE];
 	bool mine;
 
+	uint8_t hops;
 	uint8_t version;
 	uint32_t bps;
 	char *mime;
@@ -334,5 +335,16 @@ int dml_stream_header_set(struct dml_stream *ds, uint8_t *header, size_t size)
 	ds->header = header;
 	ds->header_size = size;
 	
+	return 0;
+}
+
+uint8_t dml_stream_hops_get(struct dml_stream *ds)
+{
+	return ds->hops;
+}
+
+int dml_stream_hops_set(struct dml_stream *ds, uint8_t hops)
+{
+	ds->hops = hops;
 	return 0;
 }

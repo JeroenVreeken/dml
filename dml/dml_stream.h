@@ -50,6 +50,8 @@ bool dml_stream_mine_get(struct dml_stream *ds);
 int dml_stream_mine_set(struct dml_stream *ds, bool mine);
 int dml_stream_header_get(struct dml_stream *ds, uint8_t **header, size_t *size);
 int dml_stream_header_set(struct dml_stream *ds, uint8_t *header, size_t size);
+uint8_t dml_stream_hops_get(struct dml_stream *ds);
+int dml_stream_hops_set(struct dml_stream *ds, uint8_t hops);
 
 struct dml_stream_priv;
 struct dml_stream_priv *dml_stream_priv_get(struct dml_stream *ds);

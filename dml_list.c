@@ -33,20 +33,22 @@ static void stream_added_cb(struct dml_host *host, struct dml_stream *ds, void *
 	char *idstr = dml_id_str(dml_stream_id_get(ds));
 	char *mime, *name, *alias, *description;
 	uint32_t bps;
+	uint8_t hops;
 	
 	mime = dml_stream_mime_get(ds);
 	name = dml_stream_name_get(ds);
 	alias = dml_stream_alias_get(ds);
 	description = dml_stream_description_get(ds);
 	bps = dml_stream_bps_get(ds);
+	hops = dml_stream_hops_get(ds);
 	
-	printf("id: %s\n\tmime: '%s'\n\tbps: %d\n\tname: '%s'\n"
-	    "\talias: '%s'\n\tdescription: '%s'\n",
-	    idstr, mime, bps, name, alias, description);
+	printf("id: %s\n\thops:\t%d\n\tmime:\t'%s'\n\tbps:\t%d\n\tname:\t'%s'\n"
+	    "\talias:\t'%s'\n\tdescription:\t'%s'\n",
+	    idstr, hops, mime, bps, name, alias, description);
 	
 	free(idstr);
 	nr_added++;
-	
+
 	if (nr_added == nr_ids) {
 		g_main_loop_quit(loop);
 	}
