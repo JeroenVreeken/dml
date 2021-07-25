@@ -38,7 +38,7 @@ libdml_la_SOURCES = \
 	dml_stream.c 
 
 libdml_la_CFLAGS=-fPIC
-libdml_la_LDFLAGS= -shared -fPIC -version-info 2:0:2 @LIB_LDFLAGS@ @GLIB_LIBS@
+libdml_la_LDFLAGS= -shared -fPIC -version-info 2:0:2 @LIB_LDFLAGS@ @GLIB_LIBS@ -lanl
 
 bin_PROGRAMS = dmld dml_list dml_streamer dml_stream_client dml_stream_client_file
 

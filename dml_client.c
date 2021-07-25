@@ -19,6 +19,7 @@
 
 #include <dml/dml_client.h>
 #include <dml/dml_server.h>
+#include <dml/dml_log.h>
 #include <dml_config.h>
 
 #include <stdlib.h>
@@ -41,7 +42,11 @@ struct dml_client {
 	GIOChannel *io;
 	
 	char *host;
-	unsigned short port;
+	char *service;
+	struct addrinfo hints;
+	struct gaicb req;
+	
+	bool req_started;
 	
 	void (*connect_cb)(struct dml_client *dc, void *arg);
 	void *arg;
@@ -60,11 +65,15 @@ struct dml_client *dml_client_create(char *host, unsigned short port, void (*cb)
 	if (!dc)
 		goto err_calloc;
 
+	
+	if (asprintf(&dc->service, "%d", port) < 0)
+		goto err_asprintf;
+
+
 	dc->host = strdup(host);
 	if (!dc->host)
 		goto err_strdup;
 
-	dc->port = port;
 	dc->fd = -1;
 	dc->io = NULL;
 	dc->connect_cb = cb;
@@ -72,6 +81,8 @@ struct dml_client *dml_client_create(char *host, unsigned short port, void (*cb)
 	
 	return dc;
 err_strdup:
+	free(dc->service);
+err_asprintf:
 	free(dc);
 err_calloc:
 	return NULL;
@@ -112,22 +123,47 @@ int dml_client_connect(struct dml_client *dc)
 {
 	struct addrinfo *result;
 	struct addrinfo *entry;
-	struct addrinfo hints = { 0 };
 	int error;
 	int sock = -1;
-	char *port;
 	
-	if (asprintf(&port, "%d", dc->port) < 0)
-		goto err_asprintf;
-
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
+	dc->hints.ai_family = AF_UNSPEC;
+	dc->hints.ai_socktype = SOCK_STREAM;
 	
-	error = getaddrinfo(dc->host, port, &hints, &result);
+	dc->req.ar_name = dc->host;
+	dc->req.ar_service = dc->service;
+	dc->req.ar_request = &dc->hints;
+	
+	if (!dc->req_started) {
+		struct gaicb *req_list[1] = { &dc->req };
+	
+		dml_log(DML_LOG_DEBUG, "Start address resolve\n");
+		error = getaddrinfo_a(GAI_NOWAIT, req_list, 1, NULL);
+		if (error) {
+			res_init();
+			goto err_getaddrinfo;
+		}
+		
+		dc->req_started = true;
+	}
+	
+	struct gaicb const *wait_list[1] = { &dc->req };
+	
+	dml_log(DML_LOG_DEBUG, "Continue address resolve\n");
+	error = gai_suspend(wait_list, 1, &(struct timespec){0, 100*1000*1000});
 	if (error) {
-		res_init();
+		int req_error = gai_error(&dc->req);
+		dml_log(DML_LOG_DEBUG, "Address resolve failed: %d req: %d\n", error, req_error);
+		if (error != EAI_AGAIN && req_error != EAI_INPROGRESS && req_error) {
+			gai_cancel(&dc->req);
+			dc->req_started = false;
+			dml_log(DML_LOG_DEBUG, "Address resolve canceled\n");
+		}
 		goto err_getaddrinfo;
 	}
+	dml_log(DML_LOG_DEBUG, "Address resolved\n");
+	
+	result = dc->req.ar_result;
+	
 	for (entry = result; entry; entry = entry->ai_next) {
 		if (entry->ai_family == AF_INET6) {
 			bool ipv6 = atoi(dml_config_value("ipv6", NULL, "1"));
@@ -144,7 +180,7 @@ int dml_client_connect(struct dml_client *dc)
 
 			if (connect(sock, entry->ai_addr, entry->ai_addrlen) &&
 			    errno != EINPROGRESS) {
-				fprintf(stderr, "connect failed %d\n", errno);
+				dml_log(DML_LOG_ERROR, "connect failed %d\n", errno);
 				close(sock);
 				sock = -1;
 			} else {
@@ -157,7 +193,6 @@ int dml_client_connect(struct dml_client *dc)
 	if (sock < 0)
 		goto err_connect;
 	
-	free(port);
 	dc->fd = sock;
 	dc->io = g_io_channel_unix_new (sock);
 	g_io_channel_set_encoding(dc->io, NULL, NULL);
@@ -168,8 +203,6 @@ int dml_client_connect(struct dml_client *dc)
 
 err_connect:
 err_getaddrinfo:
-	free(port);
-err_asprintf:
 	return -1;
 }
 
