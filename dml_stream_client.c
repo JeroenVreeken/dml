@@ -33,6 +33,7 @@
 static size_t skip = 0;
 static bool verbose = true;
 
+
 static int data_cb(void *arg, void *data, size_t datasize)
 {
 	if (datasize <= skip) {
@@ -51,6 +52,14 @@ static void mime_cb(void *arg, char *mime){
 	dml_log(DML_LOG_DEBUG, "mime: %s\n", mime);
 }
 
+
+gboolean maxtime_cb(void *arg)
+{
+	dml_log(DML_LOG_INFO, "Maximum time reached\n");
+	exit(0);
+}
+
+
 int main(int argc, char **argv)
 {
 	char *file = "dml_stream_client.conf";
@@ -59,6 +68,7 @@ int main(int argc, char **argv)
 	char *req_id_str;
 	uint8_t req_id[DML_ID_SIZE];
 	struct dml_stream_client_simple *dss;
+	int maxtime = 0;
 
 	if (argc > 2)
 		file = argv[2];
@@ -67,8 +77,7 @@ int main(int argc, char **argv)
 		return -1;
 	}
 	if (argc > 3) {
-		skip = atoi(argv[3]);
-		dml_log(DML_LOG_INFO, "Skip %zd bytes per packet\n", skip);
+		maxtime = atoi(argv[3]);
 	}
 	req_id_str = argv[1];
 
@@ -103,6 +112,11 @@ int main(int argc, char **argv)
 	
 	dml_stream_client_simple_set_cb_mime(dss, dss, mime_cb);
 
+	if (maxtime) {
+		dml_log(DML_LOG_INFO, "Maximum time: %d seconds\n", maxtime);
+		g_timeout_add_seconds(maxtime, maxtime_cb, NULL);
+	}
+	
 	g_main_loop_run(g_main_loop_new(NULL, false));
 
 	return 0;

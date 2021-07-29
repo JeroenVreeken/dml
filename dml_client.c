@@ -161,6 +161,7 @@ int dml_client_connect(struct dml_client *dc)
 		goto err_getaddrinfo;
 	}
 	dml_log(DML_LOG_DEBUG, "Address resolved\n");
+	dc->req_started = false;
 	
 	result = dc->req.ar_result;
 	
