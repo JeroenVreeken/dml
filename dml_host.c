@@ -22,6 +22,7 @@
 #include <dml/dml_connection.h>
 #include <dml/dml_crypto.h>
 #include <dml/dml_packet.h>
+#include <dml/dml_log.h>
 
 #include <dml_config.h>
 
@@ -192,8 +193,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			if ((ds = dml_stream_by_id(cid))) {
 				if (dml_host_mime_filter(host, ds)) {
 					if (dml_crypto_cert_add_verify(cert, size, cid)) {
-						printf("Not accepting certificate for %s\n",
-						    dml_stream_name_get(ds));
+						dml_log(DML_LOG_INFO, "Not accepting certificate for %s", dml_stream_name_get(ds));
 					}
 				}
 			}
@@ -220,7 +220,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				dml_crypto_sign(header_sig, header, header_size, dk);
 			
 				dml_packet_send_header(dc, rid, header_sig, header, header_size);
-				printf("Header requested\n");
+				dml_log(DML_LOG_INFO, "Header requested");
 			}
 			break;
 		}
@@ -243,7 +243,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 						if (host->stream_header_cb)
 							host->stream_header_cb(host, ds, header, header_size, host->stream_header_cb_arg);
 					} else {
-						fprintf(stderr, "Failed to verify header signature (%zd bytes)\n", header_size);
+						dml_log(DML_LOG_ERROR, "Failed to verify header signature (%zd bytes)", header_size);
 					}
 				}
 			}
@@ -257,7 +257,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t connect_id[DML_ID_SIZE];
 			
 			dml_packet_parse_connect(data, len, connect_id, &connect_packet_id);
-			printf("Received connect, packet_id: %d\n", connect_packet_id);
+			dml_log(DML_LOG_INFO, "Received connect, packet_id: %d", connect_packet_id);
 			
 			struct dml_stream *ds;
 			if ((ds = dml_stream_by_id(connect_id))) {
@@ -292,7 +292,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			
 			if (dml_packet_parse_req_reverse(data, len, id_me, id_rev, &action, &status))
 				break;
-			printf("Received reverse request: %d status: %d\n", action, status);
+			dml_log(DML_LOG_INFO, "Received reverse request: %d status: %d", action, status);
 
 			struct dml_stream *ds_rev = dml_stream_by_id(id_rev);
 			struct dml_stream *ds = dml_stream_by_id(id_me);
@@ -323,21 +323,21 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			
 			ds = dml_stream_by_data_id(id);
 			if (!ds) {
-				fprintf(stderr, "Could not find dml stream\n");
+				dml_log(DML_LOG_ERROR, "Could not find dml stream");
 				break;
 			}
 			dk = dml_stream_crypto_get(ds);
 			if (!dk) {
-				fprintf(stderr, "Could not find key for stream %s id %d\n", dml_stream_name_get(ds), id);
+				dml_log(DML_LOG_ERROR, "Could not find key for stream %s id %d", dml_stream_name_get(ds), id);
 				break;
 			}
 
 			if (dml_packet_parse_data(data, len,
 			    &payload_data, &payload_len, &timestamp, dk)) {
-				fprintf(stderr, "Decoding failed\n");
+				dml_log(DML_LOG_ERROR, "Decoding failed");
 			} else {
 				if (timestamp <= dml_stream_timestamp_get(ds)) {
-					fprintf(stderr, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
+					dml_log(DML_LOG_ERROR, "Timestamp mismatch %"PRIx64" <= %"PRIx64"",
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
@@ -374,7 +374,7 @@ int dml_host_connect(struct dml_host *host, struct dml_stream *ds)
 			return -1;
 	}
 
-	printf("Connect to %s (data id %d)\n", dml_stream_name_get(ds), data_id);
+	dml_log(DML_LOG_INFO, "Connect to %s (data id %d)", dml_stream_name_get(ds), data_id);
 	dml_stream_data_id_set(ds, data_id);
 	dml_packet_send_connect(host->connection, dml_stream_id_get(ds), data_id);
 
@@ -386,7 +386,7 @@ static gboolean client_reconnect(void *arg)
 	struct dml_host *host = arg;
 
 	if (dml_client_connect(host->client)) {
-		printf("Reconnect to DML server failed\n");
+		dml_log(DML_LOG_INFO, "Reconnect to DML server failed");
 		g_timeout_add_seconds(2, client_reconnect, host);
 	}
 	
@@ -424,7 +424,7 @@ static void client_connect(struct dml_client *client, void *arg)
 	struct dml_connection *dc;
 	int fd;
 	
-	printf("Connected to DML server\n");
+	dml_log(DML_LOG_INFO, "Connected to DML server");
 	
 	fd = dml_client_fd_get(client);
 	
@@ -537,7 +537,7 @@ struct dml_host *dml_host_create(char *config_file)
 	
 	if (dml_config_load(config_file)) {
 		if (config_file) {
-			printf("Failed to load config file %s\n", config_file);
+			dml_log(DML_LOG_ERROR, "Failed to load config file %s", config_file);
 			goto err_config;
 		}
 	}
@@ -546,14 +546,14 @@ struct dml_host *dml_host_create(char *config_file)
 	char *ca = dml_config_value("ca", NULL, dml_config_path());
 	
 	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
+		dml_log(DML_LOG_ERROR, "Failed to init crypto, ca=%s", ca);
 		goto err_crypto;
 	}
 
 	host->client = dml_client_create(server, 0, client_connect, host);
 
 	if (dml_client_connect(host->client)) {
-		printf("Could not connect to server\n");
+		dml_log(DML_LOG_ERROR, "Could not connect to server %s", server);
 		g_timeout_add_seconds(2, client_reconnect, host);
 	}
 

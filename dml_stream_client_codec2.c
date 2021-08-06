@@ -101,7 +101,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	gmtime_r(&now, &tm_now);
 	if (!stddump && tm_now.tm_hour != last_hour) {
 		if (fd_dump >= 0) {
-			printf("Closing dump file\n");
+			printf("Closing dump file");
 			finish_wav(fd_dump, f_datasize);
 			close(fd_dump);
 		}
@@ -122,13 +122,13 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		    tm_now.tm_year + 1900,
 		    tm_now.tm_mon + 1, tm_now.tm_mday,
 		    tm_now.tm_hour);
-		printf("Open new dump file: %s\n", fname);
+		printf("Open new dump file: %s", fname);
 		
 		fd_dump = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 
 		    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		free(fname);
 		if (fd_dump < 0) {
-			printf("Failed to open dump file\n");
+			printf("Failed to open dump file");
 			return -1;
 		}
 		last_hour = tm_now.tm_hour;
@@ -147,7 +147,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	int prev_mode = mode;
 	mode = data8[6];
 	if (mode != prev_mode) {
-		fprintf(stderr, "Switched to mode %d\n", mode);
+		fprintf(stderr, "Switched to mode %d", mode);
 	}
 
 	switch (mode) {
@@ -262,20 +262,20 @@ int main(int argc, char **argv)
 	if (argc > 4)
 		dumpdir = argv[4];
 	if (argc < 2) {
-		fprintf(stderr, "No id given\n");
+		fprintf(stderr, "No id given");
 		return -1;
 	}
 	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
-		fprintf(stderr, "Failed to load config file %s\n", file);
+		fprintf(stderr, "Failed to load config file %s", file);
 		return -1;
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
 	
 	if (dml_crypto_init(NULL, ca)) {
-		fprintf(stderr, "Failed to init crypto\n");
+		fprintf(stderr, "Failed to init crypto");
 		return -1;
 	}
 
@@ -285,7 +285,7 @@ int main(int argc, char **argv)
 		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
 	}
 	if (!dss) {
-		printf("Could not create stream\n");
+		printf("Could not create stream");
 		return -1;
 	}
 

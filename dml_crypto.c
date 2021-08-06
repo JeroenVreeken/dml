@@ -17,6 +17,7 @@
  */
 #include <dml/dml_crypto.h>
 #include <dml/dml_stream.h>
+#include <dml/dml_log.h>
 
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
@@ -52,7 +53,7 @@ int dml_crypto_init(char *ca_file, char *ca_dir)
 		if (!X509_STORE_load_locations(x509_store, ca_file, ca_dir)) {
 			goto err_load;
 		}
-//		printf("Loadded store locations\n");
+		dml_log(DML_LOG_DEBUG, "Loadded store locations file: %s dir: %s", ca_file ? ca_file : "NULL", ca_dir ? ca_dir : "NULL");
 	}
     
 	return 0;
@@ -96,7 +97,7 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 		int certsize = (data[0] << 8) | data[1];
 		const unsigned char *cert_data = data + 2;
 
-//		printf("Cert: %zd %d\n", size, certsize);
+		dml_log(DML_LOG_DEBUG, "Cert: %zd %d", size, certsize);
 		
 		if (certsize > size - 2)
 			break;
@@ -128,13 +129,13 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	}
 
     	int rc = X509_verify_cert(ctx);
-//	int err = X509_STORE_CTX_get_error(ctx);
+	int err = X509_STORE_CTX_get_error(ctx);
 	X509_STORE_CTX_free(ctx);
 
-//	fprintf(stderr, "verify cert rc: %d: %d\n", rc, err);
+	dml_log(DML_LOG_DEBUG, "verify cert rc: %d: %d", rc, err);
 	if (rc != 1) {
 		int x509_err = X509_STORE_CTX_get_error(ctx);
-		fprintf(stderr, "verify error: %d: %s\n", x509_err, X509_verify_cert_error_string(x509_err));
+		dml_log(DML_LOG_INFO, "verify error: %d: %s", x509_err, X509_verify_cert_error_string(x509_err));
 		goto err_verify;
 	}
 	
@@ -145,7 +146,7 @@ int dml_crypto_cert_add_verify(void *certdata, size_t size, uint8_t id[DML_ID_SI
 	if (!name)
 		goto err_name;
 	rc = X509_check_host(cert, name, 0, X509_CHECK_FLAG_ALWAYS_CHECK_SUBJECT, NULL);
-//	fprintf(stderr, "check host rc: %d\n", rc);
+	dml_log(DML_LOG_DEBUG, "check host rc: %d", rc);
 	
 	struct dml_crypto_key *dk = dml_stream_crypto_get(ds);
 	if (!dk) {
@@ -305,7 +306,7 @@ bool dml_crypto_verify(void *data, size_t len, uint8_t sig[DML_SIG_SIZE], struct
 
 	if (ret != 1) {
 		unsigned int err = ERR_get_error();
-		fprintf(stderr, "ret: %d ERR: %d\n", ret, err);
+		dml_log(DML_LOG_INFO, "ret: %d ERR: %d", ret, err);
 	}
 
 	return ret == 1;

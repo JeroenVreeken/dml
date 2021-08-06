@@ -130,13 +130,13 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 	route->link[i].hops = hops;
 
 	char *idstr = dml_id_str(id);
-	dml_log(DML_LOG_INFO, "Received route update: %s link %d (%d hops)\n", idstr, i, hops);
+	dml_log(DML_LOG_INFO, "Received route update: %s link %d (%d hops)", idstr, i, hops);
 	free(idstr);
 	
 	for (i = 0; i < route->links; i++) {
-		dml_log(DML_LOG_INFO, "\tLink %d: %d hops\n", i, route->link[i].hops);
+		dml_log(DML_LOG_INFO, "\tLink %d: %d hops", i, route->link[i].hops);
 		if (route->link[i].hops < route->link[route->lowest].hops) {
-			dml_log(DML_LOG_INFO, "\tNew lowest routing: link %d (%d hops) < link %d (%d hops)\n",
+			dml_log(DML_LOG_INFO, "\tNew lowest routing: link %d (%d hops) < link %d (%d hops)",
 			    i, route->link[i].hops, 
 			    route->lowest, route->link[route->lowest].hops);
 			route->lowest = i;
@@ -160,7 +160,7 @@ int dml_route_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connectio
 			if (route->link[route->lowest].hops == 255)
 				bad = true;
 
-			dml_log(DML_LOG_INFO, "\tUpdate routing: link %d (%d hops, %d alt hops, bad=%d)\n",
+			dml_log(DML_LOG_INFO, "\tUpdate routing: link %d (%d hops, %d alt hops, bad=%d)",
 			    route->lowest, route->link[route->lowest].hops, alt_hops, bad);
 			dml_route_update_cb(id, new_hops, route->link[route->lowest].dc, bad, alt_hops);
 		}
@@ -194,9 +194,9 @@ int dml_route_remove(struct dml_connection *dc)
 		/* Route over this connection */
 
 		char *idstr = dml_id_str(route->id);
-		dml_log(DML_LOG_INFO, "Remove route : %s link %d %p\n", idstr, i, dc);
+		dml_log(DML_LOG_INFO, "Remove route : %s link %d %p", idstr, i, dc);
 		if (origin)
-			dml_log(DML_LOG_INFO, "--Removing origin\n");
+			dml_log(DML_LOG_INFO, "--Removing origin");
 		free(idstr);
 		if (i < route->links) {
 			if (route->lowest == i) {
@@ -219,7 +219,7 @@ int dml_route_remove(struct dml_connection *dc)
 			if (origin)
 				route->link[i].hops = 255;
 				
-			dml_log(DML_LOG_INFO, "\tLink %d: %d hops\n", i, route->link[i].hops);
+			dml_log(DML_LOG_INFO, "\tLink %d: %d hops", i, route->link[i].hops);
 			if (route->link[i].hops < route->link[route->lowest].hops)
 				route->lowest = i;
 		}
@@ -238,7 +238,7 @@ int dml_route_remove(struct dml_connection *dc)
 						alt_hops = route->link[i].hops;
 				}
 			
-				dml_log(DML_LOG_INFO, "\tRemoved route link %d (%d hops, %d alt hops)\n",
+				dml_log(DML_LOG_INFO, "\tRemoved route link %d (%d hops, %d alt hops)",
 				    dc ? route->lowest : -1, new_hops, alt_hops);
 				dml_route_update_cb(route->id, new_hops, dc, bad, alt_hops);
 			}

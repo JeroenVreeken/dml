@@ -136,7 +136,7 @@ int dml_client_connect(struct dml_client *dc)
 	if (!dc->req_started) {
 		struct gaicb *req_list[1] = { &dc->req };
 	
-		dml_log(DML_LOG_DEBUG, "Start address resolve\n");
+		dml_log(DML_LOG_DEBUG, "Start address resolve");
 		error = getaddrinfo_a(GAI_NOWAIT, req_list, 1, NULL);
 		if (error) {
 			res_init();
@@ -148,19 +148,19 @@ int dml_client_connect(struct dml_client *dc)
 	
 	struct gaicb const *wait_list[1] = { &dc->req };
 	
-	dml_log(DML_LOG_DEBUG, "Continue address resolve\n");
+	dml_log(DML_LOG_DEBUG, "Continue address resolve");
 	error = gai_suspend(wait_list, 1, &(struct timespec){0, 100*1000*1000});
 	if (error) {
 		int req_error = gai_error(&dc->req);
-		dml_log(DML_LOG_DEBUG, "Address resolve failed: %d req: %d\n", error, req_error);
+		dml_log(DML_LOG_DEBUG, "Address resolve failed: %d req: %d", error, req_error);
 		if (error != EAI_AGAIN && req_error != EAI_INPROGRESS && req_error) {
 			gai_cancel(&dc->req);
 			dc->req_started = false;
-			dml_log(DML_LOG_DEBUG, "Address resolve canceled\n");
+			dml_log(DML_LOG_DEBUG, "Address resolve canceled");
 		}
 		goto err_getaddrinfo;
 	}
-	dml_log(DML_LOG_DEBUG, "Address resolved\n");
+	dml_log(DML_LOG_DEBUG, "Address resolved");
 	dc->req_started = false;
 	
 	result = dc->req.ar_result;
@@ -181,7 +181,7 @@ int dml_client_connect(struct dml_client *dc)
 
 			if (connect(sock, entry->ai_addr, entry->ai_addrlen) &&
 			    errno != EINPROGRESS) {
-				dml_log(DML_LOG_ERROR, "connect failed %d\n", errno);
+				dml_log(DML_LOG_ERROR, "connect failed %d", errno);
 				close(sock);
 				sock = -1;
 			} else {

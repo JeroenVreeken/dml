@@ -133,7 +133,7 @@ int connection_name_set(struct connection *con, char *name)
 		if (tmp[i] == ',') {
 			tmp[i] = 0;
 			con->hops_offset = atoi(tmp+i+1);
-			dml_log(DML_LOG_DEBUG, "Connection to %s has hops_offset of %d\n", tmp, con->hops_offset);
+			dml_log(DML_LOG_DEBUG, "Connection to %s has hops_offset of %d", tmp, con->hops_offset);
 		}
 	}
 
@@ -186,13 +186,13 @@ void connection_destroy(struct connection *con)
 
 	struct connection_data *data, *dnext;
 
-	dml_log(DML_LOG_INFO, "remove client %s from data list\n", con->name);
+	dml_log(DML_LOG_INFO, "remove client %s from data list", con->name);
 	for (data = data_list; data; data = dnext) {
 		dnext = data->next;
 		
 		connection_data_remove_client(data, con->dc);
 		if (!data->client_list && data->dc != con->dc) {
-			dml_log(DML_LOG_INFO, "Sending disconnect request upstream\n");
+			dml_log(DML_LOG_INFO, "Sending disconnect request upstream");
 			dml_packet_send_req_disc(data->dc, data->id);
 			connection_data_remove(data);
 		}
@@ -256,7 +256,7 @@ int connection_data_add_client(struct connection_data *data, struct dml_connecti
 		data->client_list = entry;
 	}
 	char *idstr = dml_id_str(data->id);
-	dml_log(DML_LOG_INFO, "Add client to %s: %s %d\n", idstr, connection_name_get(con), packet_id);
+	dml_log(DML_LOG_INFO, "Add client to %s: %s %d", idstr, connection_name_get(con), packet_id);
 	free(idstr);
 	entry->packet_id = packet_id;
 	entry->dc = dc;
@@ -270,7 +270,7 @@ int connection_data_remove_client(struct connection_data *data, struct dml_conne
 	struct connection *con = dml_connection_arg_get(dc);
 	
 	char *idstr = dml_id_str(data->id);
-	dml_log(DML_LOG_INFO, "Remove client from %s: %s\n", idstr, connection_name_get(con));
+	dml_log(DML_LOG_INFO, "Remove client from %s: %s", idstr, connection_name_get(con));
 	free(idstr);
 	for (entry = &data->client_list; *entry; entry = &(*entry)->next) {
 		struct connection_data_client *old = *entry;
@@ -310,7 +310,7 @@ int connection_data_remove(struct connection_data *data)
 	struct connection_data **entry;
 
 	char *idstr = dml_id_str(data->id);
-	dml_log(DML_LOG_INFO, "Removing %s from data list\n", idstr);
+	dml_log(DML_LOG_INFO, "Removing %s from data list", idstr);
 	free(idstr);	
 	for (entry = &data_list; *entry; entry = &(*entry)->next) {
 		if (*entry == data) {
@@ -341,7 +341,7 @@ gboolean connection_data_keepalive(void *arg)
 		if (now > entry->t_data + DMLD_DATA_KEEPALIVE) {
 			char *idstr = dml_id_str(entry->id);
 			struct connection *con = dml_connection_arg_get(entry->dc);
-			dml_log(DML_LOG_INFO, "No data for a while, sending keepalive connect %s to %s\n", 
+			dml_log(DML_LOG_INFO, "No data for a while, sending keepalive connect %s to %s", 
 			    idstr, connection_name_get(con));
 			free(idstr);
 			dml_packet_send_connect(entry->dc, entry->id, entry->packet_id);
@@ -409,14 +409,14 @@ gboolean update(void *arg)
 		int hops = up->hops + con->hops_offset;
 		if (hops > 255)
 			hops = 255;
-		dml_log(DML_LOG_INFO, "Send update %s (%d hops)\n", idstr, hops);
+		dml_log(DML_LOG_INFO, "Send update %s (%d hops)", idstr, hops);
 		free(idstr);
 		dml_packet_send_route(con->dc, up->id, hops);
 		free(up);
 	}
 	if (!dml_connection_send_empty(con->dc)) {
 		if (con->bad_list || con->good_list)
-			dml_log(DML_LOG_WARNING, "Send not empty, but update waiting\n");
+			dml_log(DML_LOG_WARNING, "Send not empty, but update waiting");
 	}
 
 //	printf("wait a little %p\n", con);
@@ -439,7 +439,7 @@ gboolean update_all(void *arg)
 		
 //		printf("r: %d\n", r);
 		if (r) {
-//			dml_log(DML_LOG_INFO, "switch to regular updates %p\n", con);
+//			dml_log(DML_LOG_INFO, "switch to regular updates %p", con);
 			dml_packet_send_update(con->dc, DML_PACKET_UPDATE_INITIAL_DONE);
 			g_timeout_add_seconds(1, update, con);
 			return G_SOURCE_REMOVE;
@@ -481,7 +481,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 		for (up = con->bad_list; up; up = up->next) {
 			if (!memcmp(up->id, id, DML_ID_SIZE)) {
 				up->hops = up_hops;
-				dml_log(DML_LOG_INFO, "Already on bad list\n");
+				dml_log(DML_LOG_INFO, "Already on bad list");
 				break;
 			}
 		}
@@ -491,7 +491,7 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 			if (!memcmp((*upp)->id, id, DML_ID_SIZE)) {
 				up = *upp;
 				*upp = up->next;
-				dml_log(DML_LOG_INFO, "Already on good list\n");
+				dml_log(DML_LOG_INFO, "Already on good list");
 				break;
 			}
 		}
@@ -503,14 +503,14 @@ void connection_update(uint8_t id[DML_ID_SIZE], uint8_t hops, struct dml_connect
 		if (bad) {
 			up->next = con->bad_list;
 			con->bad_list = up;
-			dml_log(DML_LOG_INFO, "On bad list\n");
+			dml_log(DML_LOG_INFO, "On bad list");
 			/* It is bad, so we want updates a bit faster */
 			g_source_remove_by_user_data(con);
 			g_timeout_add(100, update, con);
 		} else {
 			up->next = con->good_list;
 			con->good_list = up;
-			dml_log(DML_LOG_INFO, "On good list\n");
+			dml_log(DML_LOG_INFO, "On good list");
 		}
 	}
 	
@@ -571,7 +571,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 {
 	struct connection *con = arg;
 	
-	dml_log(DML_LOG_DEBUG, "packet: %d\n", id);
+	dml_log(DML_LOG_DEBUG, "packet: %d", id);
 	switch (id) {
 		case DML_PACKET_HELLO:
 			dml_packet_parse_hello(data, len, &con->flags, NULL);
@@ -602,17 +602,17 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			size_t description_size;
 			if (dmld_cache_search_description(id, &description, &description_size)) {
 				dml_connection_send(dc, description, DML_PACKET_DESCRIPTION, description_size);
-				dml_log(DML_LOG_INFO, "Use cached description\n");
+				dml_log(DML_LOG_INFO, "Use cached description");
 				break;
 			}
 			
 
 			dc_r = dml_route_connection_get(id);
 			if (dc_r) {
-				dml_log(DML_LOG_INFO, "Request description\n");
+				dml_log(DML_LOG_INFO, "Request description");
 				dml_packet_send_req_description(dc_r, id);
 			} else {
-				dml_log(DML_LOG_WARNING, "Description requested but id is not routable\n");
+				dml_log(DML_LOG_WARNING, "Description requested but id is not routable");
 			}
 			list_add(&con->req_description, id);
 			
@@ -630,13 +630,13 @@ void rx_packet(struct dml_connection *dc, void *arg,
 
 			dmld_cache_insert_description(desc_id, data, len);
 
-			dml_log(DML_LOG_INFO, "Got description for %s\n", name);
+			dml_log(DML_LOG_INFO, "Got description for %s", name);
 
 			struct connection *con;
 	
 			for (con = connection_list; con; con = con->next) {
 				if (list_check_remove(&con->req_description, desc_id)) {
-					dml_log(DML_LOG_INFO, "Send description\n");
+					dml_log(DML_LOG_INFO, "Send description");
 					dml_connection_send(con->dc, data, id, len);
 				}
 			}
@@ -657,7 +657,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			size_t certificate_size;
 			if (dmld_cache_search_certificate(id, &certificate, &certificate_size)) {
 				dml_packet_send_certificate(dc, id, certificate, certificate_size);
-				dml_log(DML_LOG_INFO, "Use cached certificate\n");
+				dml_log(DML_LOG_INFO, "Use cached certificate");
 				break;
 			}
 			
@@ -704,13 +704,13 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			uint8_t header_sig[DML_SIG_SIZE];
 			if (dmld_cache_search_header(id, header_sig, &header, &header_size)) {
 				dml_packet_send_header(dc, id, header_sig, header, header_size);
-				dml_log(DML_LOG_INFO, "Use cached header\n");
+				dml_log(DML_LOG_INFO, "Use cached header");
 				break;
 			}
 			
 			dc_r = dml_route_connection_get(id);
 			char *idstr = dml_id_str(id);
-			dml_log(DML_LOG_INFO, "Request header for %s: %p\n", idstr, dc_r);
+			dml_log(DML_LOG_INFO, "Request header for %s: %p", idstr, dc_r);
 			free(idstr);
 			if (dc_r) {
 				dml_packet_send_req_header(dc_r, id);
@@ -729,7 +729,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			    &header_data, &header_len))
     				break;
 			char *idstr = dml_id_str(id);
-			dml_log(DML_LOG_INFO, "Got header for %s\n", idstr);
+			dml_log(DML_LOG_INFO, "Got header for %s", idstr);
 			free(idstr);
 
 			struct connection *con;
@@ -757,7 +757,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			struct connection_data *cdat = connection_data_by_id(id);
 			if (!cdat) {
 				struct dml_connection *dc_r = dml_route_connection_get(id);
-				dml_log(DML_LOG_INFO, "No data for this id yet\n");
+				dml_log(DML_LOG_INFO, "No data for this id yet");
 				
 				if (!dc_r) {
 					dml_packet_send_disc(dc, id, DML_PACKET_DISC_UNROUTABLE);
@@ -769,7 +769,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 				cdat->dc = dc_r;
 				memcpy(cdat->id, id, DML_ID_SIZE);
 				
-				dml_log(DML_LOG_INFO, "Sending connect\n");
+				dml_log(DML_LOG_INFO, "Sending connect");
 				dml_packet_send_connect(dc_r, id, cdat->packet_id);
 			}
 			
@@ -812,7 +812,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			connection_data_remove_client(cdat, dc);
 			dml_packet_send_disc(dc, id, DML_PACKET_DISC_REQUESTED);
 			if (!cdat->client_list) {
-				dml_log(DML_LOG_INFO, "Sending disconnect request upstream\n");
+				dml_log(DML_LOG_INFO, "Sending disconnect request upstream");
 				dml_packet_send_req_disc(cdat->dc, cdat->id);
 				connection_data_remove(cdat);
 			}
@@ -831,7 +831,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (!dc_r)
 				break;
 			
-			dml_log(DML_LOG_INFO, "Sending req_reverse: action=%d, status=%d\n", action, status);
+			dml_log(DML_LOG_INFO, "Sending req_reverse: action=%d, status=%d", action, status);
 			dml_packet_send_req_reverse(dc_r, id, rev_id, action, status);
 			
 			break;
@@ -841,18 +841,18 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			if (id < DML_PACKET_DATA)
 				break;
 
-			dml_log(DML_LOG_DEBUG, "Got data (%d)\n", len);
+			dml_log(DML_LOG_DEBUG, "Got data (%d)", len);
 			struct connection_data *cdat = connection_data_by_connection(dc, id);
 			if (!cdat)
 				break;
-			dml_log(DML_LOG_DEBUG, "Found connection\n");
+			dml_log(DML_LOG_DEBUG, "Found connection");
 			
 			cdat->t_data = time(NULL);
 			
 			struct connection_data_client *cdatc;
 			
 			for (cdatc = cdat->client_list; cdatc; cdatc = cdatc->next) {
-				dml_log(DML_LOG_DEBUG, "Sending to client as %d\n", cdatc->packet_id);
+				dml_log(DML_LOG_DEBUG, "Sending to client as %d", cdatc->packet_id);
 				dml_connection_send_data(cdatc->dc, data, cdatc->packet_id, len);
 			}
 
@@ -866,7 +866,7 @@ int server_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct connection *con = arg;
 	
-	dml_log(DML_LOG_WARNING, "server close %p %s\n", dc, connection_name_get(con));
+	dml_log(DML_LOG_WARNING, "server close %p %s", dc, connection_name_get(con));
 	dml_route_remove(dc);
 	connection_destroy(con);
 	return dml_connection_destroy(dc);
@@ -925,7 +925,7 @@ gboolean client_reconnect(void *clientv)
 	struct dml_client *client = clientv;
 
 	if (dml_client_connect(client)) {
-		dml_log(DML_LOG_ERROR, "Reconnect to DML server failed\n");
+		dml_log(DML_LOG_ERROR, "Reconnect to DML server failed");
 		g_timeout_add_seconds(2, client_reconnect, client);
 	}
 	
@@ -935,7 +935,7 @@ gboolean client_reconnect(void *clientv)
 int client_connection_close(struct dml_connection *dc, void *arg)
 {
 	struct connection *con = arg;
-	dml_log(DML_LOG_WARNING, "client close %p %s\n", dc, connection_name_get(con));
+	dml_log(DML_LOG_WARNING, "client close %p %s", dc, connection_name_get(con));
 	struct dml_client *client = con->client;
 
 	g_timeout_add_seconds(1, client_reconnect, client);
@@ -952,7 +952,7 @@ void client_connect(struct dml_client *client, void *arg)
 	struct connection *con;
 	char *name = arg;
 
-	dml_log(DML_LOG_INFO, "Connected to DML server %s\n", name);
+	dml_log(DML_LOG_INFO, "Connected to DML server %s", name);
 	
 	con = connection_create();
 	if (!con)
@@ -978,13 +978,13 @@ gboolean cleanup(void *arg)
 		memset(id, 0, sizeof(id));
 	} else {
 		if (hops == 255) {
-			dml_log(DML_LOG_INFO, "Removing route\n");
+			dml_log(DML_LOG_INFO, "Removing route");
 			dml_route_destroy(id);
 		}
 	}
 
 	if (dml_route_sort()) {
-		dml_log(DML_LOG_INFO, "Sorted routes\n");
+		dml_log(DML_LOG_INFO, "Sorted routes");
 	}
 
 	g_timeout_add_seconds(1, cleanup, cleanup);
@@ -1002,27 +1002,27 @@ int main(int argc, char **argv)
 		file = argv[1];
 
 	if (dml_config_load(file)) {
-		dml_log(DML_LOG_ERROR, "Failed to load config file %s\n", file);
+		dml_log(DML_LOG_ERROR, "Failed to load config file %s", file);
 		return -1;
 	}
 	
 	bool daemonize = atoi(dml_config_value("daemon", NULL, "0"));
 	if (daemonize) {
-		dml_log(DML_LOG_DEBUG, "Run in background\n");
+		dml_log(DML_LOG_DEBUG, "Run in background");
 		dml_log_syslog(true);
 		if (daemon(0, 0)) {
-		   dml_log(DML_LOG_ERROR, "Failed to daemonize\n");
+		   dml_log(DML_LOG_ERROR, "Failed to daemonize");
 		}
 	} else {
 		bool debug = atoi(dml_config_value("debug", NULL, "0"));
 		enum dml_log_level level = debug ? DML_LOG_DEBUG : DML_LOG_INFO;
 		dml_log_level(level);
-		dml_log(DML_LOG_INFO, "Run in foreground\n");
+		dml_log(DML_LOG_INFO, "Run in foreground");
 	}
 
 	ds = dml_server_create(server_connection, NULL);
 	if (!ds) {
-		dml_log(DML_LOG_ERROR, "Could not create server\n");
+		dml_log(DML_LOG_ERROR, "Could not create server");
 	}
 	
 	while ((server = dml_config_value("server", server, NULL))) {
@@ -1033,11 +1033,11 @@ int main(int argc, char **argv)
 			if (hostname[i]==',')
 				hostname[i] = 0;
 		
-		dml_log(DML_LOG_INFO, "Connect to %s\n", hostname);
+		dml_log(DML_LOG_INFO, "Connect to %s", hostname);
 		dc = dml_client_create(hostname, 0, client_connect, strdup(server));		
 
 		if (dml_client_connect(dc)) {
-			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later\n", hostname);
+			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later", hostname);
 			g_timeout_add_seconds(1, client_reconnect, dc);
 		}
 		

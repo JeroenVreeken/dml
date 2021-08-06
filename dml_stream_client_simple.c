@@ -66,7 +66,7 @@ static gboolean keepalive_cb(void *arg)
 	}
 	
 	if (dss->found_req_id) {
-		dml_log(DML_LOG_INFO, "No data for %d seconds, send keepalive connect\n", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
+		dml_log(DML_LOG_INFO, "No data for %d seconds, send keepalive connect", DML_STREAM_CLIENT_SIMPLE_KEEPALIVE);
 		dml_packet_send_connect(dss->dc, dss->req_id, DML_PACKET_DATA);
 	} else {
 		//TODO What is the best way to trigger discovery?
@@ -82,7 +82,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 {
 	struct dml_stream_client_simple *dss = arg;
 
-//	dml_log(DML_LOG_DEBUG, "got id: %d\n", id);
+//	dml_log(DML_LOG_DEBUG, "got id: %d", id);
 	switch(id) {
 		case DML_PACKET_ROUTE: {
 			if (dss->found_req_id)
@@ -126,7 +126,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				if (!dml_stream_update_description(data, len, NULL))
 					break;
 		
-				dml_log(DML_LOG_DEBUG, "Request certificate\n");
+				dml_log(DML_LOG_DEBUG, "Request certificate");
 				dml_packet_send_req_certificate(dc, dss->req_id);
 				if (dss->mime_cb) {
 					dss->mime_cb(dss->mime_cb_arg, mime);
@@ -139,19 +139,19 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			void *cert;
 			size_t size;
 			
-			dml_log(DML_LOG_DEBUG, "Parse certificate\n");
+			dml_log(DML_LOG_DEBUG, "Parse certificate");
 			if (dml_packet_parse_certificate(data, len, cid, &cert, &size)) {
-				dml_log(DML_LOG_ERROR, "Failed to parse certificate\n");
+				dml_log(DML_LOG_ERROR, "Failed to parse certificate");
 				break;
 			}
 			
 			if (!memcmp(cid, dss->req_id, DML_ID_SIZE)) {
-				dml_log(DML_LOG_DEBUG, "verify %d\n", dss->verify);
+				dml_log(DML_LOG_DEBUG, "verify %d", dss->verify);
 				if (!dss->verify || !dml_crypto_cert_add_verify(cert, size, cid)) {
-					dml_log(DML_LOG_DEBUG, "Request header\n");
+					dml_log(DML_LOG_DEBUG, "Request header");
 					dml_packet_send_req_header(dc, dss->req_id);
 				} else {
-					dml_log(DML_LOG_ERROR, "Certificate not accepted\n");
+					dml_log(DML_LOG_ERROR, "Certificate not accepted");
 				}
 			}
 			free(cert);
@@ -179,7 +179,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 					if (verified) {
 						send_connect = true;
 					} else {
-						dml_log(DML_LOG_ERROR, "Failed to verify header signature (%zd bytes)\n", header_size);
+						dml_log(DML_LOG_ERROR, "Failed to verify header signature (%zd bytes)", header_size);
 					}
 				}
 			}
@@ -194,7 +194,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 		
 				dml_stream_data_id_set(ds, DML_PACKET_DATA);
 				dml_packet_send_connect(dc, dss->req_id, DML_PACKET_DATA);
-				dml_log(DML_LOG_DEBUG, "Send connect\n");
+				dml_log(DML_LOG_DEBUG, "Send connect");
 			}
 			
 			free(header);
@@ -215,7 +215,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			
 			ds = dml_stream_by_data_id(id);
 			if (!ds) {
-				dml_log(DML_LOG_ERROR, "Could not find dml stream\n");
+				dml_log(DML_LOG_ERROR, "Could not find dml stream");
 				break;
 			}
 			
@@ -224,7 +224,7 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 				dk = dml_stream_crypto_get(ds);
 			
 				if (dml_packet_parse_data(data, len, &payload_data, &payload_len, &timestamp, dk)) {
-					dml_log(DML_LOG_ERROR, "Decoding failed\n");
+					dml_log(DML_LOG_ERROR, "Decoding failed");
 				} else {
 					parsed = true;
 				}
@@ -237,11 +237,11 @@ static void rx_packet(struct dml_connection *dc, void *arg,
 			}
 			if (parsed) {
 				if (timestamp <= dml_stream_timestamp_get(ds)) {
-					dml_log(DML_LOG_ERROR, "Timestamp mismatch %"PRIx64" <= %"PRIx64"\n",
+					dml_log(DML_LOG_ERROR, "Timestamp mismatch %"PRIx64" <= %"PRIx64"",
 					    timestamp, dml_stream_timestamp_get(ds));
 				} else {
 					dml_stream_timestamp_set(ds, timestamp);
-//					dml_log(DML_LOG_DEBUG, "Received %zd ok\n", payload_len);
+//					dml_log(DML_LOG_DEBUG, "Received %zd ok", payload_len);
 					dss->data_cb(dss->arg, payload_data, payload_len);
 				
 					g_source_remove_by_user_data(dss);
@@ -260,10 +260,10 @@ static gboolean client_reconnect(void *arg)
 	struct dml_stream_client_simple *dss = arg;
 
 	if (dml_client_connect(dss->client)) {
-		printf("Reconnect to DML server failed\n");
+		printf("Reconnect to DML server failed");
 		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_RECONNECT, client_reconnect, dss);
 	} else {
-		printf("Reconnect to DML server successfull\n");
+		printf("Reconnect to DML server successfull");
 		g_source_remove_by_user_data(dss);
 		g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 	}

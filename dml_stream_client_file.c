@@ -52,7 +52,7 @@ bool duration_start = false;
 
 static gboolean duration_cb(void *arg)
 {
-	dml_log(DML_LOG_INFO, "Maximum duration reached\n");
+	dml_log(DML_LOG_INFO, "Maximum duration reached");
 
 	close(fd_dump);
 	
@@ -78,7 +78,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	struct tm tm_now;
 
 	if (duration && !duration_start) {
-		dml_log(DML_LOG_INFO, "Maximum duration: %d seconds\n", duration);
+		dml_log(DML_LOG_INFO, "Maximum duration: %d seconds", duration);
 		g_timeout_add_seconds(duration, duration_cb, NULL);
 		duration_start = true;
 	}
@@ -86,7 +86,7 @@ static int data_cb(void *arg, void *data, size_t datasize)
 	gmtime_r(&now, &tm_now);
 	if (!stddump && tm_now.tm_hour != last_hour) {
 		if (fd_dump >= 0) {
-			dml_log(DML_LOG_INFO, "Closing dump file\n");
+			dml_log(DML_LOG_INFO, "Closing dump file");
 			close(fd_dump);
 		}
 		
@@ -107,13 +107,13 @@ static int data_cb(void *arg, void *data, size_t datasize)
 		    tm_now.tm_mon + 1, tm_now.tm_mday,
 		    tm_now.tm_hour,
 		    suffix);
-		dml_log(DML_LOG_INFO, "Open new dump file: %s\n", fname);
+		dml_log(DML_LOG_INFO, "Open new dump file: %s", fname);
 		
 		fd_dump = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 
 		    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		free(fname);
 		if (fd_dump < 0) {
-			dml_log(DML_LOG_ERROR, "Failed to open dump file\n");
+			dml_log(DML_LOG_ERROR, "Failed to open dump file");
 			return -1;
 		}
 		last_hour = tm_now.tm_hour;
@@ -158,32 +158,32 @@ int main(int argc, char **argv)
 		duration = atoi(argv[6]);
 	}
 	if (argc < 2) {
-		dml_log(DML_LOG_ERROR, "No id given\n");
+		dml_log(DML_LOG_ERROR, "No id given");
 		return -1;
 	}
 	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
-		dml_log(DML_LOG_ERROR, "Failed to load config file %s\n", file);
+		dml_log(DML_LOG_ERROR, "Failed to load config file %s", file);
 		return -1;
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
 	
 	if (dml_crypto_init(NULL, ca)) {
-		dml_log(DML_LOG_ERROR, "Failed to init crypto\n");
+		dml_log(DML_LOG_ERROR, "Failed to init crypto");
 		return -1;
 	}
 
 	if (dml_str_id(req_id, req_id_str)) {
-		dml_log(DML_LOG_INFO, "Search for stream\n");
+		dml_log(DML_LOG_INFO, "Search for stream");
 		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, true);
 	} else {
-		dml_log(DML_LOG_INFO, "Use direct ID\n");
+		dml_log(DML_LOG_INFO, "Use direct ID");
 		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
 	}
 	if (!dss) {
-		dml_log(DML_LOG_ERROR, "Could not create stream\n");
+		dml_log(DML_LOG_ERROR, "Could not create stream");
 		return -1;
 	}
 

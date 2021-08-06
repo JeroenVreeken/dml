@@ -81,6 +81,7 @@ void dml_log(enum dml_log_level level, const char *fmt, ...)
 	
 		fprintf(dml_log_file, "%s", dml_log_level2str(level));
 		vfprintf(dml_log_file, fmt, ap);
+		fprintf(dml_log_file, "\n");
 	}
 	
 	va_end(ap);

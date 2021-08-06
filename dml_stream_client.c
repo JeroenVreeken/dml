@@ -49,13 +49,13 @@ static int data_cb(void *arg, void *data, size_t datasize)
 }
 
 static void mime_cb(void *arg, char *mime){
-	dml_log(DML_LOG_DEBUG, "mime: %s\n", mime);
+	dml_log(DML_LOG_DEBUG, "mime: %s", mime);
 }
 
 
 gboolean maxtime_cb(void *arg)
 {
-	dml_log(DML_LOG_INFO, "Maximum time reached\n");
+	dml_log(DML_LOG_INFO, "Maximum time reached");
 	exit(0);
 }
 
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	if (argc > 2)
 		file = argv[2];
 	if (argc < 2) {
-		dml_log(DML_LOG_ERROR, "No id given\n");
+		dml_log(DML_LOG_ERROR, "No id given");
 		return -1;
 	}
 	if (argc > 3) {
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 	req_id_str = argv[1];
 
 	if (dml_config_load(file)) {
-		dml_log(DML_LOG_ERROR, "Failed to load config file %s\n", file);
+		dml_log(DML_LOG_ERROR, "Failed to load config file %s", file);
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
 	dml_log_level(verbose ? DML_LOG_DEBUG : DML_LOG_ERROR);
 	
 	if (dml_crypto_init(NULL, ca)) {
-		dml_log(DML_LOG_ERROR, "Failed to init crypto\n");
+		dml_log(DML_LOG_ERROR, "Failed to init crypto");
 		return -1;
 	}
 
@@ -113,7 +113,7 @@ int main(int argc, char **argv)
 	dml_stream_client_simple_set_cb_mime(dss, dss, mime_cb);
 
 	if (maxtime) {
-		dml_log(DML_LOG_INFO, "Maximum time: %d seconds\n", maxtime);
+		dml_log(DML_LOG_INFO, "Maximum time: %d seconds", maxtime);
 		g_timeout_add_seconds(maxtime, maxtime_cb, NULL);
 	}
 	
