@@ -149,7 +149,7 @@ int dml_client_connect(struct dml_client *dc)
 	struct gaicb const *wait_list[1] = { &dc->req };
 	
 	dml_log(DML_LOG_DEBUG, "Continue address resolve");
-	error = gai_suspend(wait_list, 1, &(struct timespec){0, 100*1000*1000});
+	error = gai_suspend(wait_list, 1, &(struct timespec){0, 1000*1000*1000});
 	if (error) {
 		int req_error = gai_error(&dc->req);
 		dml_log(DML_LOG_DEBUG, "Address resolve failed: %d req: %d", error, req_error);
