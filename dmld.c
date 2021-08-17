@@ -1036,9 +1036,16 @@ int main(int argc, char **argv)
 		dml_log(DML_LOG_INFO, "Connect to %s", hostname);
 		dc = dml_client_create(hostname, 0, client_connect, strdup(server));		
 
-		if (dml_client_connect(dc)) {
-			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later", hostname);
-			g_timeout_add_seconds(1, client_reconnect, dc);
+		int r;
+		if ((r = dml_client_connect(dc))) {
+			if (r == -2) {
+				/* Address resolution ongoing... trye again a bit faster */
+				dml_log(DML_LOG_DEBUG, "Continue connect to %s later", hostname);
+				g_timeout_add(100, client_reconnect, dc);
+			} else {
+				dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later", hostname);
+				g_timeout_add_seconds(1, client_reconnect, dc);
+			}
 		}
 		
 		free(hostname);

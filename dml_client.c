@@ -119,12 +119,16 @@ static gboolean dml_client_connect_success(GIOChannel *source, GIOCondition cond
 	return FALSE;
 }
 
+/**
+ *    \return -2 if address resolve is onging, -1 for other failures
+ */
 int dml_client_connect(struct dml_client *dc)
 {
 	struct addrinfo *result;
 	struct addrinfo *entry;
 	int error;
 	int sock = -1;
+	int r = 0;
 	
 	dc->hints.ai_family = AF_UNSPEC;
 	dc->hints.ai_socktype = SOCK_STREAM;
@@ -140,6 +144,7 @@ int dml_client_connect(struct dml_client *dc)
 		error = getaddrinfo_a(GAI_NOWAIT, req_list, 1, NULL);
 		if (error) {
 			res_init();
+			r = -1;
 			goto err_getaddrinfo;
 		}
 		
@@ -156,7 +161,10 @@ int dml_client_connect(struct dml_client *dc)
 		if (error != EAI_AGAIN && req_error != EAI_INPROGRESS && req_error) {
 			gai_cancel(&dc->req);
 			dc->req_started = false;
+			r = -1;
 			dml_log(DML_LOG_DEBUG, "Address resolve canceled");
+		} else {
+			r = -2;
 		}
 		goto err_getaddrinfo;
 	}
@@ -200,11 +208,12 @@ int dml_client_connect(struct dml_client *dc)
 	
 	g_io_add_watch(dc->io, G_IO_OUT, dml_client_connect_success, dc);
 	
-	return 0;
+	return r;
 
 err_connect:
+	r = -1;
 err_getaddrinfo:
-	return -1;
+	return r;
 }
 
 int dml_client_fd_get(struct dml_client *dc)
