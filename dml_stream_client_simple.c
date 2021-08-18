@@ -346,8 +346,16 @@ struct dml_stream_client_simple *dml_stream_client_simple_search_create(
 		goto err_create;
 	dss->client = client;
 
-	if (dml_client_connect(client))
-		goto err_connect;
+	int r;
+	do {
+		r = dml_client_connect(client);
+	
+		if (r) {
+			if (r != -2)
+				goto err_connect;
+			usleep(10000);
+		}
+	} while (r);
 
 	g_timeout_add_seconds(DML_STREAM_CLIENT_SIMPLE_KEEPALIVE, keepalive_cb, dss);
 	

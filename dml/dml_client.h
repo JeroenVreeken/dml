@@ -25,4 +25,6 @@ int dml_client_fd_get(struct dml_client *dc);
 int dml_client_connect(struct dml_client *dc);
 int dml_client_destroy(struct dml_client *dc);
 
+char *dml_client_host_get(struct dml_client *dc);
+
 #endif /* _INCLUDE_DML_CLIENT_H_ */

@@ -552,9 +552,16 @@ struct dml_host *dml_host_create(char *config_file)
 
 	host->client = dml_client_create(server, 0, client_connect, host);
 
-	if (dml_client_connect(host->client)) {
-		dml_log(DML_LOG_ERROR, "Could not connect to server %s", server);
-		g_timeout_add_seconds(2, client_reconnect, host);
+	int r;
+	if ((r = dml_client_connect(host->client))) {
+		if (r == -2) {
+			/* Address resolution ongoing... trye again a bit faster */
+			dml_log(DML_LOG_DEBUG, "Continue connect to %s later", server);
+			g_timeout_add(100, client_reconnect, host);
+		} else {
+			dml_log(DML_LOG_ERROR, "Failed to connect to %s, try again later", server);
+			g_timeout_add_seconds(2, client_reconnect, host);
+		}
 	}
 
 	return host;

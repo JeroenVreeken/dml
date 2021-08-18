@@ -403,10 +403,17 @@ static int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
 			
 			dc = dml_client_create(dml_host, 0, client_connect, wsi);
 
-			if (dml_client_connect(dc)) {
-				printf("Could not connect to server\n");
-				return -1;
-			}
+			int r;
+			do {
+				r = dml_client_connect(dc);
+				if (r) {
+					if (r != -2) {
+						printf("Could not connect to server\n");
+						return -1;
+					}
+					usleep(10000);
+				}
+			} while (r);
 
 			break;
 		}

@@ -924,9 +924,16 @@ gboolean client_reconnect(void *clientv)
 {
 	struct dml_client *client = clientv;
 
-	if (dml_client_connect(client)) {
-		dml_log(DML_LOG_ERROR, "Reconnect to DML server failed");
-		g_timeout_add_seconds(2, client_reconnect, client);
+	int r;
+	if ((r = dml_client_connect(client))) {
+		if (r == -2) {
+			/* Address resolution ongoing... trye again a bit faster */
+			dml_log(DML_LOG_DEBUG, "Continue reconnect to %s later", dml_client_host_get(client));
+			g_timeout_add(100, client_reconnect, client);
+		} else {
+			dml_log(DML_LOG_ERROR, "Reconnect to DML server %s failed", dml_client_host_get(client));
+			g_timeout_add_seconds(2, client_reconnect, client);
+		}
 	}
 	
 	return G_SOURCE_REMOVE;

@@ -221,3 +221,9 @@ int dml_client_fd_get(struct dml_client *dc)
 	return dc->fd;
 }
 
+
+char *dml_client_host_get(struct dml_client *dc)
+{
+	return dc->host;
+}
+
