@@ -297,7 +297,11 @@ int main(int argc, char **argv)
     	
 	dc = dml_client_create(server, 0, client_connect, NULL);		
 
-	if (dml_client_connect(dc)) {
+	int r;
+	do {
+		r = dml_client_connect(dc);
+	} while (r == -2);
+	if (r) {
 		printf("Could not connect to server\n");
 		return -1;
 	}
