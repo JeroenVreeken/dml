@@ -587,9 +587,11 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			
 			dml_packet_parse_route(data, len, id, &hops);
 
-			hops += con->hops_offset;
+			int new_hops = hops + con->hops_offset;
+			if (new_hops > 255)
+				new_hops = 255;
 			
-			dml_route_update(id, hops, dc);
+			dml_route_update(id, new_hops, dc);
 			break;
 		}
 		case DML_PACKET_REQ_DESCRIPTION: {
