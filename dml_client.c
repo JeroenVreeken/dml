@@ -143,7 +143,6 @@ int dml_client_connect(struct dml_client *dc)
 		dml_log(DML_LOG_DEBUG, "Start address resolve");
 		error = getaddrinfo_a(GAI_NOWAIT, req_list, 1, NULL);
 		if (error) {
-			res_init();
 			r = -1;
 			goto err_getaddrinfo;
 		}
@@ -173,6 +172,9 @@ int dml_client_connect(struct dml_client *dc)
 	
 	result = dc->req.ar_result;
 	
+	if (!result) {
+		dml_log(DML_LOG_DEBUG, "No address entries resolved");
+	}
 	for (entry = result; entry; entry = entry->ai_next) {
 		if (entry->ai_family == AF_INET6) {
 			bool ipv6 = atoi(dml_config_value("ipv6", NULL, "1"));
@@ -213,6 +215,10 @@ int dml_client_connect(struct dml_client *dc)
 err_connect:
 	r = -1;
 err_getaddrinfo:
+
+	if (r == -1) {
+		res_init();
+	}
 	return r;
 }
 
