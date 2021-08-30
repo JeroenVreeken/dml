@@ -143,6 +143,17 @@ int connection_name_set(struct connection *con, char *name)
 	return 0;
 }
 
+bool connection_valid(struct connection *con)
+{
+	struct connection *entry;
+	
+	for (entry = connection_list; entry; entry = entry->next) {
+		if (entry == con)
+			return true;
+	}
+	return false;
+}
+
 void connection_destroy(struct connection *con)
 {
 	struct connection **entry;
@@ -392,6 +403,11 @@ gboolean update(void *arg)
 	struct connection *con = arg;
 //	printf("update\n");
 	
+	if (!connection_valid(con)) {
+		dml_log(DML_LOG_DEBUG, "Update called on invalid connection");
+		goto invalid;
+	}
+	
 	while (dml_connection_send_empty(con->dc)) {
 		struct connection_update *up;
 		
@@ -422,12 +438,19 @@ gboolean update(void *arg)
 //	printf("wait a little %p\n", con);
 	g_timeout_add_seconds(1, update, con);
 
+invalid:
 	return G_SOURCE_REMOVE;
 }
 
 gboolean update_all(void *arg)
 {
 	struct connection *con = arg;
+
+	if (!connection_valid(con)) {
+		dml_log(DML_LOG_DEBUG, "Update called on invalid connection");
+		goto invalid;
+	}
+	
 	dml_route_sort_lock_dec();
 //	printf("g\n");
 	while (dml_connection_send_empty(con->dc)) {
@@ -458,6 +481,7 @@ gboolean update_all(void *arg)
 	dml_route_sort_lock_inc();
 	g_timeout_add_seconds(1, update_all, con);
 
+invalid:
 	return G_SOURCE_REMOVE;
 }
 
