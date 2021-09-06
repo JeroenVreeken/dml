@@ -21,6 +21,7 @@
 #include <dml/dml.h>
 #include <dml/dml_id.h>
 #include <dml/dml_crypto.h>
+#include <dml/dml_log.h>
 #include "dml_config.h"
 
 #include "ogg.h"
@@ -55,8 +56,10 @@ struct dml_crypto_key *dk;
 static bool header_send_requested = false;
 static void header_send(struct dml_connection *dc)
 {
+	dml_log(DML_LOG_DEBUG, "header_send(%p) header_done=%d", dc, header_done);
 	if (!header_done) {
 		header_send_requested = true;
+		dml_log(DML_LOG_DEBUG, "delay sending header");
 		return;
 	}
 	
@@ -64,6 +67,7 @@ static void header_send(struct dml_connection *dc)
 
 	dml_crypto_sign(header_sig, header, header_size, dk);
 	
+	dml_log(DML_LOG_DEBUG, "header send");
 	dml_packet_send_header(dc, ref_id, header_sig, header, header_size);
 
 	header_send_requested = false;
@@ -228,10 +232,10 @@ ssize_t data_cb(void *data, size_t size)
 int trigger_cb(enum fileparse_trigger trig)
 {
 	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
-		printf("header size %zd\n", header_size);
+		dml_log(DML_LOG_INFO, "header size %zd", header_size);
 		header_done = true;
 		if (header_send_requested && dml_server)
-			header_send(dml_con);
+			header_send(dml_server);
 	} else {
 		send_data_check(pkt_data, pkt_size);
 		free(pkt_data);
@@ -296,6 +300,11 @@ int main(int argc, char **argv)
 	server = dml_config_value("server", NULL, "localhost");
 	certificate = dml_config_value("certificate", NULL, "");
 	key = dml_config_value("key", NULL, "");
+
+	bool verbose = atoi(dml_config_value("verbose", NULL, "1"));
+	
+	dml_log_fp(stderr);
+	dml_log_level(verbose ? DML_LOG_DEBUG : DML_LOG_ERROR);
 
 	if (dml_crypto_init(NULL, NULL))
 		return -1;
