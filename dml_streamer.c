@@ -44,6 +44,7 @@ uint32_t bps = 0;
 
 uint16_t packet_id = 0;
 struct dml_connection *dml_con;
+struct dml_connection *dml_server;
 
 bool header_done = false;
 uint8_t *header;
@@ -136,6 +137,8 @@ int client_connection_close(struct dml_connection *dc, void *arg)
 
 	g_timeout_add_seconds(1, client_reconnect, arg);
 	
+	dml_server = NULL;
+	
 	if (dc)
 		return dml_connection_destroy(dc);
 	else
@@ -154,6 +157,7 @@ void client_connect(struct dml_client *client, void *arg)
 	dc = dml_connection_create(fd, client, rx_packet, client_connection_close);
 	dml_packet_send_hello(dc, DML_PACKET_HELLO_LEAF, "dml_streamer_ogg " DML_VERSION);
 	dml_packet_send_route(dc, ref_id, 0);
+	dml_server = dc;
 }
 
 time_t prev_sec;
@@ -226,7 +230,7 @@ int trigger_cb(enum fileparse_trigger trig)
 	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
 		printf("header size %zd\n", header_size);
 		header_done = true;
-		if (header_send_requested)
+		if (header_send_requested && dml_server)
 			header_send(dml_con);
 	} else {
 		send_data_check(pkt_data, pkt_size);
