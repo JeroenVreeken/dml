@@ -169,7 +169,12 @@ int main(int argc, char **argv)
 	}
 	ca = dml_config_value("ca", NULL, ".");
 	server = dml_config_value("server", NULL, "localhost");
+	bool verify = atoi(dml_config_value("verify", NULL, "1"));
+	bool verbose = atoi(dml_config_value("verbose", NULL, "1"));
 	
+	dml_log_fp(stderr);
+	dml_log_level(verbose ? DML_LOG_DEBUG : DML_LOG_ERROR);
+
 	if (dml_crypto_init(NULL, ca)) {
 		dml_log(DML_LOG_ERROR, "Failed to init crypto");
 		return -1;
@@ -177,10 +182,10 @@ int main(int argc, char **argv)
 
 	if (dml_str_id(req_id, req_id_str)) {
 		dml_log(DML_LOG_INFO, "Search for stream");
-		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, true);
+		dss = dml_stream_client_simple_search_create(server, NULL, req_id_str, NULL, NULL, NULL, data_cb, verify);
 	} else {
 		dml_log(DML_LOG_INFO, "Use direct ID");
-		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, true);
+		dss = dml_stream_client_simple_create(server, req_id, NULL, data_cb, verify);
 	}
 	if (!dss) {
 		dml_log(DML_LOG_ERROR, "Could not create stream");
