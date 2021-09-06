@@ -51,6 +51,23 @@ size_t header_size = 0;
 
 struct dml_crypto_key *dk;
 
+static bool header_send_requested = false;
+static void header_send(struct dml_connection *dc)
+{
+	if (!header_done) {
+		header_send_requested = true;
+		return;
+	}
+	
+	uint8_t header_sig[DML_SIG_SIZE];
+
+	dml_crypto_sign(header_sig, header, header_size, dk);
+	
+	dml_packet_send_header(dc, ref_id, header_sig, header, header_size);
+
+	header_send_requested = false;
+}
+
 void rx_packet(struct dml_connection *dc, void *arg, 
     uint16_t id, uint16_t len, uint8_t *data)
 {
@@ -89,11 +106,7 @@ void rx_packet(struct dml_connection *dc, void *arg,
 			break;
 		}
 		case DML_PACKET_REQ_HEADER: {
-			uint8_t header_sig[DML_SIG_SIZE];
-
-			dml_crypto_sign(header_sig, header, header_size, dk);
-			
-			dml_packet_send_header(dc, ref_id, header_sig, header, header_size);
+			header_send(dc);
 			break;
 		}
 		default: {
@@ -213,6 +226,7 @@ int trigger_cb(enum fileparse_trigger trig)
 	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
 		printf("header size %zd\n", header_size);
 		header_done = true;
+		header_send(dml_con);
 	} else {
 		send_data_check(pkt_data, pkt_size);
 		free(pkt_data);
