@@ -226,7 +226,8 @@ int trigger_cb(enum fileparse_trigger trig)
 	if (trig == FILEPARSE_TRIGGER_HEADER_COMPLETE) {
 		printf("header size %zd\n", header_size);
 		header_done = true;
-		header_send(dml_con);
+		if (header_send_requested)
+			header_send(dml_con);
 	} else {
 		send_data_check(pkt_data, pkt_size);
 		free(pkt_data);
