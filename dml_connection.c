@@ -17,6 +17,7 @@
  */
 #include <dml/dml_connection.h>
 #include <dml/dml_packet.h>
+#include <dml/dml_log.h>
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -91,8 +92,13 @@ err_calloc:
 int dml_connection_destroy(struct dml_connection *dc)
 {
 //	printf("close %p fd: %d\n", dc, dc->fd);
-	g_source_remove_by_user_data(dc);
-	g_source_remove_by_user_data(dc);
+	int i = 0;
+	do {
+		i++;
+	} while	(g_source_remove_by_user_data(dc));
+	
+	dml_log(DML_LOG_DEBUG, "Remove dc (%p) %d times from main loop", dc, i);
+	
 	close(dc->fd);
 	g_io_channel_unref(dc->io);
 	dc->rx_cb = NULL;
@@ -118,8 +124,7 @@ static gboolean dml_connection_output(struct dml_connection *dc)
 			dc->tx_pos += r;
 		}
 		if (dc->tx_pos >= dc->tx_len) {
-			g_source_remove_by_user_data(dc);
-			g_source_remove_by_user_data(dc);
+			while (g_source_remove_by_user_data(dc));
 			g_io_add_watch(dc->io, G_IO_IN, dml_connection_handle, dc);
 			dc->tx_len = 0;
 			dc->tx_pos = 0;
@@ -170,8 +175,7 @@ gboolean dml_connection_handle(GIOChannel *source, GIOCondition condition, gpoin
 	}
 
 	if (r == 0 || (r < 0 && errno != EAGAIN)) {
-		g_source_remove_by_user_data(dc);
-		g_source_remove_by_user_data(dc);
+		while (g_source_remove_by_user_data(dc));
 		
 		if (dc->close_cb)
 			return dc->close_cb(dc, dc->arg);
