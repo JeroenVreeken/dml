@@ -23,7 +23,10 @@
 int dml_id_gen(uint8_t id[DML_ID_SIZE], uint8_t version, uint32_t bps,
     char *mime, char *name, char *alias, char *description);
 
+char *dml_id_str_na(char *str, uint8_t id[DML_ID_SIZE]);
 char *dml_id_str(uint8_t id[DML_ID_SIZE]);
 int dml_str_id(uint8_t id[DML_ID_SIZE], char *str);
+
+#define DML_ID_STR_SIZE (DML_ID_SIZE * 2 + 1)
 
 #endif /* _INCLUDE_DML_ID_H_ */

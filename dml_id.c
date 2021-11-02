@@ -15,7 +15,6 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
  */
-#define _GNU_SOURCE
 
 #include <dml/dml_id.h>
 
@@ -53,11 +52,10 @@ int dml_id_gen(uint8_t id[DML_ID_SIZE], uint8_t version, uint32_t bps,
 	return 0;
 }
 
-char *dml_id_str(uint8_t id[DML_ID_SIZE])
+// print dml string without allocating memory for the string
+char *dml_id_str_na(char *str, uint8_t id[DML_ID_SIZE])
 {
-	char *str;
-	
-	if (asprintf(&str,
+	if (sprintf(str,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x"
 	    "%02x%02x%02x%02x%02x%02x%02x%02x"
 	    "%02x%02x%02x%02x%02x%02x%02x%02x"
@@ -66,7 +64,19 @@ char *dml_id_str(uint8_t id[DML_ID_SIZE])
 	    id[8],  id[9],  id[10], id[11], id[12], id[13], id[14], id[15],
 	    id[16], id[17], id[18], id[19], id[20], id[21], id[22], id[23],
 	    id[24], id[25], id[26], id[27], id[28], id[29], id[30], id[31]) < 0)
-		str = NULL;
+		str[0] = 0;
+
+	return str;
+}
+
+// allocate memory for a string and print dml id
+char *dml_id_str(uint8_t id[DML_ID_SIZE])
+{
+	char *str;
+	
+	str = malloc(DML_ID_STR_SIZE);
+	if (str)
+		return dml_id_str_na(str, id);
 
 	return str;
 }

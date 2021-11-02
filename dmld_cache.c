@@ -81,7 +81,7 @@ static struct dmld_cache_entry *dmld_cache_entry_insert(uint8_t id[DML_ID_SIZE])
 	time_t now = time(NULL);
 	int entries = 0;
 
-	dml_log(DML_LOG_DEBUG, "dmld_cache_entry_insert(%s)", dml_id_str(id));
+	dml_log(DML_LOG_DEBUG, "dmld_cache_entry_insert(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 	
 	for (entry = dmld_cache; entry; entry = entry->next) {
 		entries++;
@@ -127,7 +127,7 @@ int dmld_cache_insert_header(uint8_t id[DML_ID_SIZE], uint8_t sig[DML_SIG_SIZE],
 		return -1;
 
 	if (!entry->have_header) {
-		dml_log(DML_LOG_DEBUG, "dmld_cache_insert_header(%s)", dml_id_str(id));
+		dml_log(DML_LOG_DEBUG, "dmld_cache_insert_header(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 		memcpy(entry->header_sig, sig, DML_SIG_SIZE);
 		if (header_size) {
 			entry->header = malloc(header_size);
@@ -153,7 +153,7 @@ int dmld_cache_insert_description(uint8_t id[DML_ID_SIZE], void *description, si
 		entry->description = malloc(description_size);
 		if (!entry->description)
 			return -2;
-		dml_log(DML_LOG_DEBUG, "dmld_cache_insert_description(%s)", dml_id_str(id));
+		dml_log(DML_LOG_DEBUG, "dmld_cache_insert_description(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 		memcpy(entry->description, description, description_size);
 		entry->description_size = description_size;
 		entry->have_description = true;
@@ -187,12 +187,12 @@ bool dmld_cache_search_header(uint8_t id[DML_ID_SIZE], uint8_t sig[DML_SIG_SIZE]
 {
 	struct dmld_cache_entry *entry;
 	
-	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_hader(%s)", dml_id_str(id));
+	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_hader(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 	for (entry = dmld_cache; entry; entry = entry->next) {
 		if (!memcmp(entry->id, id, DML_ID_SIZE)) {
 			if (time(NULL) - entry->t > dmld_cache_max_age) {
 				// to old, clear it first
-				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str(id));
+				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 				dmld_cache_clean(entry);
 				return false;
 			}
@@ -212,12 +212,12 @@ bool dmld_cache_search_description(uint8_t id[DML_ID_SIZE], void **description, 
 {
 	struct dmld_cache_entry *entry;
 	
-	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_description(%s)", dml_id_str(id));
+	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_description(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 	for (entry = dmld_cache; entry; entry = entry->next) {
 		if (!memcmp(entry->id, id, DML_ID_SIZE)) {
 			if (time(NULL) - entry->t > dmld_cache_max_age) {
 				// to old, clear it first
-				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str(id));
+				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 				dmld_cache_clean(entry);
 				return false;
 			}
@@ -236,12 +236,12 @@ bool dmld_cache_search_certificate(uint8_t id[DML_ID_SIZE], void **certificate, 
 {
 	struct dmld_cache_entry *entry;
 	
-	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_certificate(%s)", dml_id_str(id));
+	dml_log(DML_LOG_DEBUG, "dmld_cache_sarch_certificate(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 	for (entry = dmld_cache; entry; entry = entry->next) {
 		if (!memcmp(entry->id, id, DML_ID_SIZE)) {
 			if (time(NULL) - entry->t > dmld_cache_max_age) {
 				// to old, clear it first
-				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str(id));
+				dml_log(DML_LOG_DEBUG, "Cached entry %s old, clean it", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 				dmld_cache_clean(entry);
 				return false;
 			}
@@ -266,7 +266,7 @@ int dmld_cache_delete(uint8_t id[DML_ID_SIZE])
 			
 			*entry = old->next;
 			
-			dml_log(DML_LOG_DEBUG, "dmld_cache_delete(%s)", dml_id_str(id));
+			dml_log(DML_LOG_DEBUG, "dmld_cache_delete(%s)", dml_id_str_na((char[DML_ID_STR_SIZE]){}, id));
 			dmld_cache_clean(old);
 			free(old);
 			
